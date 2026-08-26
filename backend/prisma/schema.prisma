@@ -528,6 +528,7 @@ model SolicitudCertificado {
   estado          EstadoCertificado @default(PENDIENTE)
   observaciones   String?           @db.VarChar(300)
   archivoUrl      String?           @map("archivo_url")
+  datosSnapshot   Json?             @map("datos_snapshot")
   procesadoPor    String?           @map("procesado_por")
   fechaProcesado  DateTime?         @map("fecha_procesado")
   createdAt       DateTime          @default(now()) @map("created_at")
