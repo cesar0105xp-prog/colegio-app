@@ -5,8 +5,8 @@ import {
   LayoutDashboard, Users, GraduationCap, BookOpen, Calendar,
   FileText, Shield, LogOut, Menu, Search, UserPlus, Plus,
   CheckCircle, AlertCircle, AlertTriangle, X, Layers, RefreshCw, Edit2,
-  Eye, Trash2, BookMarked, BarChart2, MessageSquare, UserCheck, Clock, FileSpreadsheet,
-  Mail, Phone, CreditCard, BookOpen as Book, KeyRound, ClipboardList
+  Eye, Trash2, BookMarked, MessageSquare, UserCheck, Clock,
+  Mail, Phone, CreditCard, KeyRound, ClipboardList
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import { useNavigate } from 'react-router-dom';
@@ -76,27 +76,6 @@ function Campo({ label, error, hint, children }: { label: string; error?: string
 
 const inputCls = (err?: string) =>
   `w-full px-3 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition bg-white ${err ? 'border-red-400' : 'border-slate-200'}`;
-
-async function descargarExcel(
-  endpoint: string,
-  params: Record<string, string>,
-  setToast: (t: { msg: string; tipo: 'ok' | 'error' } | null) => void,
-) {
-  try {
-    const res = await api.get(endpoint, { params, responseType: 'blob' });
-    const nombreArchivo = res.headers['content-disposition']?.match(/filename="(.+)"/)?.[1] ?? 'notas.xlsx';
-    const url = window.URL.createObjectURL(new Blob([res.data]));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = nombreArchivo;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
-  } catch {
-    setToast({ msg: 'Error al exportar el archivo. Verifica que haya notas registradas.', tipo: 'error' });
-  }
-}
 
 function BotonesForm({ onCancel, cargando, labelGuardar = 'Guardar cambios' }: { onCancel: () => void; cargando: boolean; labelGuardar?: string }) {
   return (
@@ -1363,99 +1342,6 @@ function Periodos() {
   );
 }
 
-function Reportes() {
-  const [reporteActivo, setReporteActivo] = useState<string | null>(null);
-  const [gradoId, setGradoId] = useState('');
-  const [periodoId, setPeriodoId] = useState('');
-  const [datos, setDatos] = useState<unknown[] | null>(null);
-  const [cargando, setCargando] = useState(false);
-  const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'error' } | null>(null);
-
-  const { data: grados = [] } = useQuery({ queryKey: ['grados'], queryFn: async () => (await api.get('/grados')).data.datos ?? [] });
-  const { data: periodos = [] } = useQuery({ queryKey: ['periodos'], queryFn: async () => (await api.get('/periodos')).data.datos ?? [] });
-
-  const REPORTES = [
-    { id: 'boletines-grado', titulo: 'Boletines por grado', desc: 'Notas de todos los estudiantes de un grado', icono: FileText, color: 'bg-blue-500', necesitaGrado: true, sinPeriodo: false },
-    { id: 'rendimiento-materia', titulo: 'Rendimiento académico', desc: 'Promedio general por materia', icono: BarChart2, color: 'bg-emerald-500', necesitaGrado: false, sinPeriodo: false },
-    { id: 'estudiantes-destacados', titulo: 'Estudiantes destacados', desc: 'Promedio mayor a 4.5', icono: GraduationCap, color: 'bg-amber-500', necesitaGrado: false, sinPeriodo: false },
-    { id: 'observaciones-pendientes', titulo: 'Observaciones pendientes', desc: 'No vistas por los padres', icono: AlertCircle, color: 'bg-red-500', necesitaGrado: false, sinPeriodo: true },
-  ];
-
-  const generar = async (id: string) => {
-    const r = REPORTES.find(x => x.id === id);
-    if (r?.necesitaGrado && !gradoId) { alert('Selecciona un grado primero'); return; }
-    if (!r?.sinPeriodo && !periodoId) { alert('Selecciona un período primero'); return; }
-
-    setCargando(true);
-    setReporteActivo(id);
-    try {
-      const params: Record<string, string> = {};
-      if (r?.necesitaGrado) params.gradoId = gradoId;
-      if (!r?.sinPeriodo) params.periodoId = periodoId;
-      const res = await api.get(`/reportes/${id}`, { params });
-      setDatos(res.data.datos);
-    } catch { setDatos([]); }
-    finally { setCargando(false); }
-  };
-
-  return (
-    <div className="space-y-4">
-      {toast && <Toast mensaje={toast.msg} tipo={toast.tipo} onClose={() => setToast(null)} />}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-        <p className="text-sm font-semibold text-slate-600 mb-3">Filtros</p>
-        <div className="grid grid-cols-2 gap-3">
-          <select value={gradoId} onChange={e => setGradoId(e.target.value)} className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-white">
-            <option value="">Grado (si aplica)</option>
-            {(grados as { id: string; nombre: string; grupo: string }[]).map(g => <option key={g.id} value={g.id}>{g.nombre}{g.grupo}</option>)}
-          </select>
-          <select value={periodoId} onChange={e => setPeriodoId(e.target.value)} className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-white">
-            <option value="">Período</option>
-            {(periodos as { id: string; nombre: string }[]).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-          </select>
-        </div>
-        {gradoId && periodoId && (
-          <div className="mt-3 pt-3 border-t border-slate-100 flex justify-end">
-            <button
-              onClick={() => descargarExcel('/exportar/notas-grado', { gradoId, periodoId }, setToast)}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 transition-colors"
-            >
-              <FileSpreadsheet className="w-4 h-4" /> Exportar notas del grado a Excel
-            </button>
-          </div>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {REPORTES.map(r => (
-          <div key={r.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-            <div className={`w-10 h-10 ${r.color} rounded-xl flex items-center justify-center mb-3`}><r.icono className="w-5 h-5 text-white" /></div>
-            <h3 className="font-semibold text-slate-800">{r.titulo}</h3>
-            <p className="text-sm text-slate-500 mt-1">{r.desc}</p>
-            <button onClick={() => generar(r.id)} className="mt-4 w-full py-2 border border-slate-200 text-slate-600 text-sm font-medium rounded-xl hover:bg-slate-50 transition-colors">Generar reporte</button>
-          </div>
-        ))}
-      </div>
-
-      {reporteActivo && (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-            <h3 className="font-semibold text-slate-700">Resultado: {REPORTES.find(r => r.id === reporteActivo)?.titulo}</h3>
-            <button onClick={() => setReporteActivo(null)} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
-          </div>
-          {cargando ? (
-            <div className="flex items-center justify-center h-32"><div className="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>
-          ) : !datos || datos.length === 0 ? (
-            <div className="text-center py-10 text-slate-400 text-sm">No hay datos disponibles para estos filtros</div>
-          ) : (
-            <div className="overflow-x-auto p-5">
-              <pre className="text-xs bg-slate-50 rounded-xl p-4 overflow-auto max-h-96">{JSON.stringify(datos, null, 2)}</pre>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 type AuditRow = { id: string; accion: string; entidad: string | null; entidadId: string | null; ip: string | null; createdAt: string; usuario: { email: string; rol: string } | null };
 

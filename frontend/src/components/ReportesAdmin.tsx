@@ -5,16 +5,14 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, LineChart, Line
+  PieChart, Pie, Cell, Legend, Line
 } from 'recharts';
 import { FileText, BarChart2, GraduationCap, AlertCircle, FileSpreadsheet, X, Trophy, TrendingUp } from 'lucide-react';
 import api from '../services/api';
 
 // Colores para gráficas
-const COLORES = ['#3B82F6','#10B981','#F59E0B','#EF4444','#8B5CF6','#06B6D4','#F97316','#EC4899'];
 const COLOR_APROBADO = '#10B981';
 const COLOR_REPROBADO = '#EF4444';
-const COLOR_EN_RIESGO = '#F59E0B';
 
 async function descargarExcel(endpoint: string, params: Record<string, string>, setToast: (t: { msg: string; tipo: 'ok' | 'error' } | null) => void) {
   try {

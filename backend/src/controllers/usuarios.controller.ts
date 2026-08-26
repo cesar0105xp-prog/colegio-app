@@ -18,6 +18,19 @@ export const validarCrearUsuario = [
   body('numeroDocumento').optional().trim().matches(REGEX.SOLO_NUMEROS).withMessage('Documento solo dígitos'),
 ];
 
+export const validarEditarMiPerfil = [
+  body('nombres').optional().trim().isLength({ min: 2, max: 80 }).withMessage('Entre 2 y 80 caracteres').matches(REGEX.SOLO_LETRAS).withMessage('Solo letras'),
+  body('apellidos').optional().trim().isLength({ min: 2, max: 80 }).withMessage('Entre 2 y 80 caracteres').matches(REGEX.SOLO_LETRAS).withMessage('Solo letras'),
+  body('telefono').optional().trim().matches(REGEX.TELEFONO).withMessage('Teléfono inválido'),
+  body('tipoDocumento').optional().isIn(['CC','CE','PASAPORTE']).withMessage('Tipo de documento inválido'),
+  body('numeroDocumento').optional().trim().matches(REGEX.SOLO_NUMEROS).withMessage('Documento solo dígitos'),
+];
+
+export const validarActualizarCorreo = [
+  body('email').trim().isEmail().withMessage('Email inválido').isLength({ max: 100 }).withMessage('Máximo 100 caracteres').normalizeEmail(),
+  body('passwordActual').notEmpty().withMessage('Debes ingresar tu contraseña actual'),
+];
+
 export const validarEditarUsuario = [
   body('nombres').optional().trim().isLength({ min: 2, max: 50 }).withMessage('Entre 2 y 50 caracteres').matches(REGEX.SOLO_LETRAS).withMessage('Solo letras'),
   body('apellidos').optional().trim().isLength({ min: 2, max: 50 }).withMessage('Entre 2 y 50 caracteres').matches(REGEX.SOLO_LETRAS).withMessage('Solo letras'),
@@ -276,6 +289,12 @@ export async function miPerfil(req: Request, res: Response): Promise<void> {
 }
 
 export async function editarMiPerfil(req: Request, res: Response): Promise<void> {
+  const errores = validationResult(req);
+  if (!errores.isEmpty()) {
+    res.status(400).json({ ok: false, errores: errores.array().map(e => e.msg) });
+    return;
+  }
+
   const { telefono, nombres, apellidos, tipoDocumento, numeroDocumento } = req.body;
   try {
     const profesor = await prisma.profesor.findUnique({ where: { usuarioId: req.usuario!.sub } });
@@ -302,6 +321,12 @@ export async function editarMiPerfil(req: Request, res: Response): Promise<void>
 
 // ─── ACTUALIZAR CORREO (padre actualiza su propio correo de acceso) ───────────
 export async function actualizarCorreo(req: Request, res: Response): Promise<void> {
+  const errores = validationResult(req);
+  if (!errores.isEmpty()) {
+    res.status(400).json({ ok: false, errores: errores.array().map(e => e.msg) });
+    return;
+  }
+
   const { email, passwordActual } = req.body;
   try {
     const usuario = await prisma.usuario.findUnique({ where: { id: req.usuario!.sub } });

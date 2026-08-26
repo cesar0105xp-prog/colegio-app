@@ -1,4 +1,3 @@
-import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Wallet, CheckCircle, Clock, Download, CreditCard } from 'lucide-react';
 import api from '../services/api';

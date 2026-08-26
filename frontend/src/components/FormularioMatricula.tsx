@@ -71,12 +71,6 @@ export default function FormularioMatricula({ estudianteId, hijoNombre }: { estu
     staleTime: 0,
   });
 
-  // Tipos de documentos requeridos
-  const { data: tiposDoc = [] } = useQuery({
-    queryKey: ['tipos-documento'],
-    queryFn: async () => (await api.get('/tipos-documento')).data.datos ?? [],
-  });
-
   const { register: regP, handleSubmit: hP, formState: { errors: eP } } = useForm<DatosPadreForm>();
   const { register: regA, handleSubmit: hA, watch: wA, formState: { errors: eA } } = useForm<DatosAdicionalesForm>();
 

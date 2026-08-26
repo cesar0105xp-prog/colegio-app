@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
 import { PrismaClient, TipoActividad } from '@prisma/client';
-import { body, param, validationResult } from 'express-validator';
-import { REGEX } from '../types';
+import { body, validationResult } from 'express-validator';
 import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
 
@@ -23,6 +22,13 @@ export const validarActividad = [
   body('materiaId').isUUID().withMessage('Materia inválida'),
   body('gradoId').isUUID().withMessage('Grado inválido'),
   body('periodoId').isUUID().withMessage('Período inválido'),
+];
+
+export const validarEditarActividad = [
+  body('nombre').optional().trim().isLength({ min: 1, max: 100 }).withMessage('Nombre entre 1 y 100 caracteres'),
+  body('tipo').optional().isIn(Object.values(TipoActividad)).withMessage('Tipo de actividad inválido'),
+  body('descripcion').optional({ checkFalsy: true }).trim().isLength({ max: 500 }).withMessage('Máximo 500 caracteres'),
+  body('fechaEntrega').optional({ checkFalsy: true }).isISO8601().withMessage('Fecha de entrega inválida'),
 ];
 
 export const validarCalificacion = [
@@ -323,6 +329,12 @@ export async function obtenerBoletin(req: Request, res: Response): Promise<void>
 
 // ─── EDITAR ACTIVIDAD ─────────────────────────────────────────────────────────
 export async function editarActividad(req: Request, res: Response): Promise<void> {
+  const errores = validationResult(req);
+  if (!errores.isEmpty()) {
+    res.status(400).json({ ok: false, errores: errores.array().map(e => e.msg) });
+    return;
+  }
+
   const { id } = req.params;
   const { nombre, tipo, descripcion, fechaEntrega } = req.body;
 

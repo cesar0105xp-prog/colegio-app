@@ -138,7 +138,10 @@ export async function listarAsistenciaGrado(req: Request, res: Response): Promis
     const estudianteIds = estudiantes.map(e => e.id);
 
     const [registrosDelDia, registrosDelMes] = await Promise.all([
-      prisma.registroAsistencia.findMany({ where: { estudianteId: { in: estudianteIds }, fecha } }),
+      prisma.registroAsistencia.findMany({
+        where: { estudianteId: { in: estudianteIds }, fecha },
+        select: { id: true, estudianteId: true, estadoManana: true, estadoTarde: true, observacion: true, justificada: true },
+      }),
       prisma.registroAsistencia.findMany({
         where: { estudianteId: { in: estudianteIds }, fecha: { gte: inicioMes, lte: finMes } },
         select: { estudianteId: true, estadoManana: true, estadoTarde: true },

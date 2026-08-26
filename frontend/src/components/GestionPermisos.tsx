@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import { FileText, CheckCircle, AlertCircle, X, Check, Ban } from 'lucide-react';
+import { FileText, CheckCircle, AlertCircle, X, Check, Ban, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../services/api';
 
 function Toast({ mensaje, tipo, onClose }: { mensaje: string; tipo: 'ok' | 'error'; onClose: () => void }) {
@@ -52,16 +52,21 @@ export default function GestionPermisos() {
   const [estado, setEstado] = useState('PENDIENTE');
   const [fecha, setFecha] = useState('');
   const [gradoId, setGradoId] = useState('');
+  const [pagina, setPagina] = useState(1);
   const [rechazando, setRechazando] = useState<Solicitud | null>(null);
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'error' } | null>(null);
 
   const { data: grados = [] } = useQuery({ queryKey: ['grados'], queryFn: async () => (await api.get('/grados')).data.datos ?? [] });
 
-  const { data: solicitudes = [], isLoading } = useQuery({
-    queryKey: ['permisos', estado, fecha, gradoId],
-    queryFn: async () => (await api.get('/permisos', { params: { estado: estado || undefined, fecha: fecha || undefined, grado: gradoId || undefined } })).data.datos ?? [],
+  const { data, isLoading } = useQuery({
+    queryKey: ['permisos', estado, fecha, gradoId, pagina],
+    queryFn: async () => (await api.get('/permisos', { params: { estado: estado || undefined, fecha: fecha || undefined, grado: gradoId || undefined, pagina, limite: 20 } })).data,
     staleTime: 0,
   });
+  const solicitudes = data?.datos ?? [];
+  const meta = data?.meta as { pagina: number; totalPaginas: number; total: number } | undefined;
+
+  useEffect(() => { setPagina(1); }, [estado, fecha, gradoId]);
 
   const aprobarMutation = useMutation({
     mutationFn: (id: string) => api.patch(`/permisos/${id}/aprobar`),
@@ -138,6 +143,18 @@ export default function GestionPermisos() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        {meta && meta.total > 0 && (
+          <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 text-xs text-slate-400">
+            <span>{meta.total} solicitud(es) en total</span>
+            {meta.totalPaginas > 1 && (
+              <div className="flex items-center gap-2">
+                <button disabled={pagina <= 1} onClick={() => setPagina(p => p - 1)} className="p-1.5 rounded-lg border border-slate-200 disabled:opacity-30 hover:bg-slate-50 min-h-[32px] min-w-[32px]"><ChevronLeft className="w-3.5 h-3.5" /></button>
+                <span>Página {meta.pagina} de {meta.totalPaginas}</span>
+                <button disabled={pagina >= meta.totalPaginas} onClick={() => setPagina(p => p + 1)} className="p-1.5 rounded-lg border border-slate-200 disabled:opacity-30 hover:bg-slate-50 min-h-[32px] min-w-[32px]"><ChevronRight className="w-3.5 h-3.5" /></button>
+              </div>
+            )}
           </div>
         )}
       </div>

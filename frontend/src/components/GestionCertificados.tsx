@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { FileText, CheckCircle, AlertCircle, X, Settings, Sparkles, Upload, Clock } from 'lucide-react';
+import { FileText, CheckCircle, AlertCircle, X, Settings, Sparkles, Upload, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../services/api';
 
 function Toast({ mensaje, tipo, onClose }: { mensaje: string; tipo: 'ok' | 'error'; onClose: () => void }) {
@@ -32,7 +32,6 @@ const ESTADO_COLOR: Record<string, string> = { PENDIENTE: 'bg-amber-50 text-ambe
 const LABEL_ESTADO: Record<string, string> = { PENDIENTE: 'Pendiente', EN_PROCESO: 'En proceso', LISTO: 'Listo', ENTREGADO: 'Descargado' };
 const TIPOS_AUTO = ['ESTUDIO', 'NOTAS'];
 
-type Grado = { id: string; nombre: string; grupo: string };
 type Solicitud = {
   id: string; tipoCertificado: string; estado: string; observaciones: string | null; createdAt: string;
   estudiante: { id: string; nombres: string; apellidos: string; grado: { nombre: string; grupo: string } };
@@ -49,15 +48,20 @@ export default function GestionCertificados() {
   const [tipo, setTipo] = useState('');
   const [estado, setEstado] = useState('PENDIENTE');
   const [fecha, setFecha] = useState('');
+  const [pagina, setPagina] = useState(1);
   const [procesando, setProcesando] = useState<Solicitud | null>(null);
   const [archivo, setArchivo] = useState<File | null>(null);
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'error' } | null>(null);
 
-  const { data: solicitudes = [], isLoading } = useQuery({
-    queryKey: ['certificados', tipo, estado, fecha],
-    queryFn: async () => (await api.get('/certificados', { params: { tipo: tipo || undefined, estado: estado || undefined, fecha: fecha || undefined } })).data.datos ?? [],
+  const { data, isLoading } = useQuery({
+    queryKey: ['certificados', tipo, estado, fecha, pagina],
+    queryFn: async () => (await api.get('/certificados', { params: { tipo: tipo || undefined, estado: estado || undefined, fecha: fecha || undefined, pagina, limite: 20 } })).data,
     staleTime: 0,
   });
+  const solicitudes = data?.datos ?? [];
+  const meta = data?.meta as { pagina: number; totalPaginas: number; total: number } | undefined;
+
+  useEffect(() => { setPagina(1); }, [tipo, estado, fecha]);
 
   const cerrarModal = () => { setProcesando(null); setArchivo(null); };
 
@@ -131,6 +135,18 @@ export default function GestionCertificados() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        {meta && meta.total > 0 && (
+          <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 text-xs text-slate-400">
+            <span>{meta.total} solicitud(es) en total</span>
+            {meta.totalPaginas > 1 && (
+              <div className="flex items-center gap-2">
+                <button disabled={pagina <= 1} onClick={() => setPagina(p => p - 1)} className="p-1.5 rounded-lg border border-slate-200 disabled:opacity-30 hover:bg-slate-50 min-h-[32px] min-w-[32px]"><ChevronLeft className="w-3.5 h-3.5" /></button>
+                <span>Página {meta.pagina} de {meta.totalPaginas}</span>
+                <button disabled={pagina >= meta.totalPaginas} onClick={() => setPagina(p => p + 1)} className="p-1.5 rounded-lg border border-slate-200 disabled:opacity-30 hover:bg-slate-50 min-h-[32px] min-w-[32px]"><ChevronRight className="w-3.5 h-3.5" /></button>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -19,18 +19,12 @@ interface FormActividad {
   periodoId: string;
 }
 
-interface FormCalificacion {
-  valor: number;
-  observacion?: string;
-}
-
 const TIPOS_ACTIVIDAD = Object.keys(LABEL_TIPO_ACTIVIDAD) as TipoActividad[];
 
 export default function ProfesorNotas() {
   const [materiaSeleccionada, setMateriaSeleccionada] = useState<string>('');
   const [gradoSeleccionado, setGradoSeleccionado] = useState<string>('');
   const [periodoSeleccionado, setPeriodoSeleccionado] = useState<string>('');
-  const [actividadSeleccionada, setActividadSeleccionada] = useState<string>('');
   const [mostrarFormActividad, setMostrarFormActividad] = useState(false);
   const [mensaje, setMensaje] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
 

@@ -2,17 +2,17 @@ import { Router } from 'express';
 import { Rol } from '@prisma/client';
 import { login, logout, refreshToken, cambiarPassword, validarLogin, validarCambioPassword } from '../controllers/auth.controller';
 import { listarEstudiantes, obtenerEstudiante, crearEstudiante, editarEstudiante, cambiarEstadoEstudiante, validarEstudiante } from '../controllers/estudiantes.controller';
-import { listarUsuarios, obtenerUsuario, crearUsuario, editarUsuario, eliminarUsuario, cambiarEstadoUsuario, resetearPassword, validarCrearUsuario, validarEditarUsuario, miPerfil, editarMiPerfil, actualizarCorreo } from '../controllers/usuarios.controller';
+import { listarUsuarios, obtenerUsuario, crearUsuario, editarUsuario, eliminarUsuario, cambiarEstadoUsuario, resetearPassword, validarCrearUsuario, validarEditarUsuario, miPerfil, editarMiPerfil, actualizarCorreo, validarEditarMiPerfil, validarActualizarCorreo } from '../controllers/usuarios.controller';
 import { listarGrados, crearGrado, editarGrado, validarGrado, listarMaterias, crearMateria, editarMateria, eliminarMateria, validarMateria, asignarMateriaGrado, listarPeriodos, crearPeriodo, editarPeriodo, validarPeriodo, activarPeriodo, obtenerStats } from '../controllers/academico.controller';
-import { crearActividad, listarActividades, registrarCalificacion, obtenerBoletin, validarActividad, validarCalificacion, editarActividad, eliminarActividad } from '../controllers/calificaciones.controller';
-import { crearObservacion, listarObservaciones, marcarObservacionVista, validarObservacion, eliminarObservacion, editarObservacion } from '../controllers/observaciones.controller';
+import { crearActividad, listarActividades, registrarCalificacion, obtenerBoletin, validarActividad, validarCalificacion, editarActividad, eliminarActividad, validarEditarActividad } from '../controllers/calificaciones.controller';
+import { crearObservacion, listarObservaciones, marcarObservacionVista, validarObservacion, eliminarObservacion, editarObservacion, validarEditarObservacion } from '../controllers/observaciones.controller';
 import { subirArchivo, descargarArchivo, listarArchivos } from '../controllers/archivos.controller';
 import { misHijos, miPerfilEstudiante } from '../controllers/padre.controller';
 import { listarVinculos, crearVinculo, eliminarVinculo, validarVinculo } from '../controllers/vinculos.controller';
 import { reporteBoletinesPorGrado, reporteRendimientoMateria, reporteEstudiantesDestacados, reporteObservacionesPendientes } from '../controllers/reportes.controller';
 import { listarAuditoria } from '../controllers/auditoria.controller';
 import { autenticar, autorizar, validarAccesoPadreEstudiante, validarAccesoEstudiante } from '../middlewares/auth.middleware';
-import { uploadPDF } from '../middlewares/upload.middleware';
+import { uploadPDF, validarPDFReal } from '../middlewares/upload.middleware';
 
 const router = Router();
 const ADMIN = Rol.ADMINISTRADOR;
@@ -41,8 +41,8 @@ router.patch('/estudiantes/:id/estado', autenticar, autorizar(ADMIN), cambiarEst
 
 // USUARIOS
 router.get('/usuarios/mi-perfil',               autenticar, autorizar(PROF), miPerfil);
-router.put('/usuarios/mi-perfil',               autenticar, autorizar(PROF), editarMiPerfil);
-router.put('/usuarios/mi-correo',               autenticar, autorizar(PADRE), actualizarCorreo);
+router.put('/usuarios/mi-perfil',               autenticar, autorizar(PROF), validarEditarMiPerfil, editarMiPerfil);
+router.put('/usuarios/mi-correo',               autenticar, autorizar(PADRE), validarActualizarCorreo, actualizarCorreo);
 router.get('/usuarios',                         autenticar, autorizar(ADMIN, SEC, PADRE), listarUsuarios);
 router.get('/usuarios/:id',                 autenticar, autorizar(ADMIN), obtenerUsuario);
 router.post('/usuarios',                    autenticar, autorizar(ADMIN), validarCrearUsuario, crearUsuario);
@@ -59,7 +59,7 @@ router.delete('/vinculos/:id', autenticar, autorizar(ADMIN), eliminarVinculo);
 // GRADOS
 router.get('/grados',                  autenticar, autorizar(ADMIN, SEC, PROF), listarGrados);
 router.post('/grados',                 autenticar, autorizar(ADMIN), validarGrado, crearGrado);
-router.put('/grados/:id',              autenticar, autorizar(ADMIN), editarGrado);
+router.put('/grados/:id',              autenticar, autorizar(ADMIN), validarGrado, editarGrado);
 router.post('/grados/asignar-materia', autenticar, autorizar(ADMIN), asignarMateriaGrado);
 
 // MATERIAS
@@ -77,7 +77,7 @@ router.patch('/periodos/:id/activar', autenticar, autorizar(ADMIN), activarPerio
 // ACTIVIDADES
 router.get('/actividades',      autenticar, autorizar(ADMIN, SEC, PROF), listarActividades);
 router.post('/actividades',     autenticar, autorizar(ADMIN, PROF), validarActividad, crearActividad);
-router.put('/actividades/:id',  autenticar, autorizar(ADMIN, PROF), editarActividad);
+router.put('/actividades/:id',  autenticar, autorizar(ADMIN, PROF), validarEditarActividad, editarActividad);
 router.delete('/actividades/:id', autenticar, autorizar(ADMIN, PROF), eliminarActividad);
 
 // CALIFICACIONES
@@ -89,12 +89,12 @@ router.get('/boletin/:estudianteId', autenticar, autorizar(ADMIN, SEC, PROF, PAD
 // OBSERVACIONES
 router.get('/observaciones/:estudianteId',          autenticar, autorizar(ADMIN, SEC, PROF, PADRE, EST), validarAccesoPadreEstudiante, validarAccesoEstudiante, listarObservaciones);
 router.post('/observaciones',                       autenticar, autorizar(ADMIN, PROF), validarObservacion, crearObservacion);
-router.put('/observaciones/:id',                    autenticar, autorizar(ADMIN, PROF), editarObservacion);
+router.put('/observaciones/:id',                    autenticar, autorizar(ADMIN, PROF), validarEditarObservacion, editarObservacion);
 router.post('/observaciones/:observacionId/visto',  autenticar, autorizar(PADRE), marcarObservacionVista);
 router.delete('/observaciones/:id',                 autenticar, autorizar(ADMIN, PROF), eliminarObservacion);
 
 // ARCHIVOS
-router.post('/archivos',                         autenticar, autorizar(ADMIN, SEC, PADRE), uploadPDF.single('archivo'), subirArchivo);
+router.post('/archivos',                         autenticar, autorizar(ADMIN, SEC, PADRE), uploadPDF.single('archivo'), validarPDFReal, subirArchivo);
 router.get('/archivos/estudiante/:estudianteId', autenticar, autorizar(ADMIN, SEC, PROF, PADRE, EST), validarAccesoPadreEstudiante, validarAccesoEstudiante, listarArchivos);
 router.get('/archivos/:archivoId/descargar',     autenticar, descargarArchivo);
 
@@ -126,13 +126,13 @@ router.patch('/matriculas/:id/verificar',    autenticar, autorizar(ADMIN, SEC), 
 router.patch('/matriculas/:id/rechazar',     autenticar, autorizar(ADMIN, SEC), rechazarMatricula);
 
 // DATOS ADICIONALES Y TIPOS DE DOCUMENTO
-import { obtenerDatosAdicionales, guardarDatosAdicionales, validarDatosAdicionales, actualizarDatosPadre, validarDatosPadre, listarTiposDocumento, crearTipoDocumento, editarTipoDocumento } from '../controllers/datos_adicionales.controller';
+import { obtenerDatosAdicionales, guardarDatosAdicionales, validarDatosAdicionales, actualizarDatosPadre, validarDatosPadre, listarTiposDocumento, crearTipoDocumento, editarTipoDocumento, validarTipoDocumento } from '../controllers/datos_adicionales.controller';
 router.get('/estudiantes/:estudianteId/datos-adicionales',  autenticar, autorizar(ADMIN, SEC, PROF, PADRE), obtenerDatosAdicionales);
 router.put('/estudiantes/:estudianteId/datos-adicionales',  autenticar, autorizar(ADMIN, SEC, PADRE), validarDatosAdicionales, guardarDatosAdicionales);
 router.put('/padre/mis-datos',                              autenticar, autorizar(PADRE), validarDatosPadre, actualizarDatosPadre);
 router.get('/tipos-documento',                              autenticar, listarTiposDocumento);
-router.post('/tipos-documento',                             autenticar, autorizar(ADMIN), crearTipoDocumento);
-router.put('/tipos-documento/:id',                          autenticar, autorizar(ADMIN), editarTipoDocumento);
+router.post('/tipos-documento',                             autenticar, autorizar(ADMIN), validarTipoDocumento, crearTipoDocumento);
+router.put('/tipos-documento/:id',                          autenticar, autorizar(ADMIN), validarTipoDocumento, editarTipoDocumento);
 
 // CONTACTOS DE EMERGENCIA
 import { listarContactos, crearContacto, editarContacto, eliminarContacto, validarContacto } from '../controllers/contactos.controller';
@@ -227,5 +227,5 @@ import {
 router.post('/certificados',                autenticar, autorizar(PADRE), validarAccesoPadreEstudiante, validarSolicitud, crearSolicitud);
 router.get('/certificados/mis',             autenticar, autorizar(PADRE), misSolicitudes);
 router.get('/certificados',                 autenticar, autorizar(ADMIN, SEC), listarSolicitudes);
-router.patch('/certificados/:id/procesar',  autenticar, autorizar(ADMIN, SEC), uploadPDF.single('archivo'), validarIdCertificado, procesarSolicitud);
+router.patch('/certificados/:id/procesar',  autenticar, autorizar(ADMIN, SEC), uploadPDF.single('archivo'), validarPDFReal, validarIdCertificado, procesarSolicitud);
 router.get('/certificados/:id/descargar',   autenticar, autorizar(PADRE), descargarCertificado);

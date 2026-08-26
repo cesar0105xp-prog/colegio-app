@@ -104,8 +104,12 @@ export async function misSolicitudes(req: Request, res: Response): Promise<void>
 // ─── LISTAR TODAS (ADMIN/SECRETARIO) ───────────────────────────────────────────
 
 export async function listarSolicitudes(req: Request, res: Response): Promise<void> {
-  const { tipo, estado, fecha } = req.query;
+  const { tipo, estado, fecha, pagina = '1', limite = '20' } = req.query;
   try {
+    const paginaNum = Math.max(1, parseInt(pagina as string) || 1);
+    const limiteNum = Math.min(100, Math.max(1, parseInt(limite as string) || 20));
+    const skip = (paginaNum - 1) * limiteNum;
+
     const where: Record<string, unknown> = {};
     if (tipo && Object.values(TipoCertificado).includes(tipo as TipoCertificado)) where.tipoCertificado = tipo;
     if (estado && Object.values(EstadoCertificado).includes(estado as EstadoCertificado)) where.estado = estado;
@@ -117,15 +121,20 @@ export async function listarSolicitudes(req: Request, res: Response): Promise<vo
       where.createdAt = { gte: inicio, lte: fin };
     }
 
-    const solicitudes = await prisma.solicitudCertificado.findMany({
-      where,
-      include: {
-        estudiante: { select: { id: true, nombres: true, apellidos: true, grado: { select: { nombre: true, grupo: true } } } },
-        padre: { select: { email: true, perfilPadre: { select: { nombres: true, apellidos: true } } } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-    res.json({ ok: true, datos: solicitudes });
+    const [solicitudes, total] = await Promise.all([
+      prisma.solicitudCertificado.findMany({
+        where,
+        include: {
+          estudiante: { select: { id: true, nombres: true, apellidos: true, grado: { select: { nombre: true, grupo: true } } } },
+          padre: { select: { email: true, perfilPadre: { select: { nombres: true, apellidos: true } } } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limiteNum,
+      }),
+      prisma.solicitudCertificado.count({ where }),
+    ]);
+    res.json({ ok: true, datos: solicitudes, meta: { pagina: paginaNum, limite: limiteNum, total, totalPaginas: Math.ceil(total / limiteNum) } });
   } catch (err) {
     logger.error('Error al listar solicitudes de certificado', { err });
     res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
