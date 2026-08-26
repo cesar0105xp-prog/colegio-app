@@ -31,6 +31,8 @@ model Usuario {
   perfilSecretario      Secretario?
   asistenciasRegistradas RegistroAsistencia[]
   solicitudesPermiso    SolicitudPermiso[] @relation("PadrePermisos")
+  eventosCreados        EventoAgenda[]
+  tareasCreadas         TareaAgenda[]
 
   @@map("usuarios")
 }
@@ -162,6 +164,8 @@ model Grado {
   comunicados   Comunicado[]
   estudiantes   Estudiante[]
   materiaGrados MateriaGradoProfesor[]
+  eventosAgenda EventoAgenda[]
+  tareasAgenda  TareaAgenda[]
 
   @@unique([nombre, grupo, anio])
   @@map("grados")
@@ -175,6 +179,7 @@ model Materia {
   actividades   Actividad[]
   materiaGrados MateriaGradoProfesor[]
   observaciones Observacion[]
+  tareasAgenda  TareaAgenda[]
 
   @@map("materias")
 }
@@ -474,6 +479,45 @@ model SolicitudPermiso {
   @@map("solicitudes_permiso")
 }
 
+model EventoAgenda {
+  id          String     @id @default(uuid())
+  titulo      String     @db.VarChar(100)
+  descripcion String?    @db.VarChar(800)
+  fechaInicio DateTime   @map("fecha_inicio")
+  fechaFin    DateTime?  @map("fecha_fin")
+  tipoEvento  TipoEvento @map("tipo_evento")
+  gradoId     String?    @map("grado_id")
+  creadorId   String     @map("creador_id")
+  visible     Boolean    @default(true)
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  grado       Grado?     @relation(fields: [gradoId], references: [id])
+  creador     Usuario    @relation(fields: [creadorId], references: [id])
+
+  @@index([fechaInicio])
+  @@index([gradoId])
+  @@map("eventos_agenda")
+}
+
+model TareaAgenda {
+  id           String   @id @default(uuid())
+  titulo       String   @db.VarChar(100)
+  descripcion  String?  @db.VarChar(800)
+  fechaEntrega DateTime @map("fecha_entrega")
+  materiaId    String   @map("materia_id")
+  gradoId      String   @map("grado_id")
+  profesorId   String   @map("profesor_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  materia      Materia  @relation(fields: [materiaId], references: [id])
+  grado        Grado    @relation(fields: [gradoId], references: [id])
+  profesor     Usuario  @relation(fields: [profesorId], references: [id])
+
+  @@index([fechaEntrega])
+  @@index([gradoId])
+  @@map("tareas_agenda")
+}
+
 model TipoDocumentoRequerido {
   id          String    @id @default(uuid())
   nombre      String
@@ -581,6 +625,15 @@ enum EstadoPermiso {
   PENDIENTE
   APROBADO
   RECHAZADO
+}
+
+enum TipoEvento {
+  EXAMEN
+  TAREA
+  EVENTO_COLEGIO
+  FESTIVO
+  REUNION
+  OTRO
 }
 
 enum AccionAuditoria {

@@ -204,3 +204,17 @@ router.get('/permisos/mis',                      autenticar, autorizar(PADRE), m
 router.patch('/permisos/:id/aprobar',            autenticar, autorizar(ADMIN, SEC), validarAprobar, aprobarPermiso);
 router.patch('/permisos/:id/rechazar',           autenticar, autorizar(ADMIN, SEC), validarRechazar, rechazarPermiso);
 router.get('/permisos/estudiante/:estudianteId', autenticar, autorizar(ADMIN, PROF), historialPermisosEstudiante);
+
+// AGENDA ESCOLAR DIGITAL
+import {
+  listarAgenda, crearEvento, editarEvento, eliminarEvento, crearTarea, editarTarea, eliminarTarea, misTareas,
+  validarEvento, validarTarea, validarId,
+} from '../controllers/agenda.controller';
+router.get('/agenda',              autenticar, autorizar(ADMIN, SEC, PROF, PADRE, EST), listarAgenda);
+router.post('/agenda/eventos',     autenticar, autorizar(ADMIN, PROF), validarEvento, crearEvento);
+router.put('/agenda/eventos/:id',  autenticar, autorizar(ADMIN, PROF), validarId, validarEvento, editarEvento);
+router.delete('/agenda/eventos/:id', autenticar, autorizar(ADMIN), eliminarEvento);
+router.post('/agenda/tareas',      autenticar, autorizar(PROF), validarTarea, crearTarea);
+router.put('/agenda/tareas/:id',   autenticar, autorizar(ADMIN, PROF), validarId, validarTarea, editarTarea);
+router.delete('/agenda/tareas/:id', autenticar, autorizar(ADMIN, PROF), eliminarTarea);
+router.get('/agenda/mis-tareas',   autenticar, autorizar(PADRE), misTareas);
