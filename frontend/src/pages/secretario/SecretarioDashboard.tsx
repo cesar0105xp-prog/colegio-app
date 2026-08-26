@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, GraduationCap, FileText,
   LogOut, Menu, Search, UserPlus, Plus,
   CheckCircle, AlertCircle, X, RefreshCw, Edit2,
-  Eye, BookOpen, KeyRound, FileSpreadsheet, BarChart2, Trophy, TrendingUp, CreditCard
+  Eye, BookOpen, KeyRound, FileSpreadsheet, BarChart2, Trophy, TrendingUp, CreditCard, ClipboardList
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import { useNavigate } from 'react-router-dom';
@@ -14,8 +14,9 @@ import { CambiarPassword } from '../../components/CambiarPassword';
 import ReportesAdmin from '../../components/ReportesAdmin';
 import Matriculas from '../../components/Matriculas';
 import Pagos from '../../components/Pagos';
+import GestionPermisos from '../../components/GestionPermisos';
 
-type Seccion = 'resumen' | 'estudiantes' | 'padres' | 'reportes' | 'matriculas' | 'pagos';
+type Seccion = 'resumen' | 'estudiantes' | 'padres' | 'reportes' | 'matriculas' | 'pagos' | 'permisos';
 
 // ─── LÍMITES COLOMBIANOS ──────────────────────────────────────────────────────
 const DOC_REGLAS: Record<string, { min: number; max: number; soloNumeros: boolean; placeholder: string }> = {
@@ -408,6 +409,7 @@ const NAV = [
   { id: 'estudiantes',  label: 'Estudiantes',  icono: GraduationCap },
   { id: 'padres',       label: 'Padres',        icono: Users },
   { id: 'pagos',        label: 'Pagos y cartera', icono: CreditCard },
+  { id: 'permisos',     label: 'Permisos',       icono: ClipboardList },
   { id: 'reportes',     label: 'Reportes',      icono: BarChart2 },
 ] as const;
 
@@ -415,6 +417,7 @@ const TITULOS: Record<Seccion, string> = {
   resumen: 'Resumen', estudiantes: 'Gestión de estudiantes',
   padres: 'Padres y acudientes', reportes: 'Reportes',
   matriculas: 'Matrículas', pagos: 'Pagos y cartera',
+  permisos: 'Permisos y ausencias',
 };
 
 export default function SecretarioDashboard() {
@@ -432,6 +435,7 @@ export default function SecretarioDashboard() {
       case 'estudiantes': return <EstudiantesSecretario />;
       case 'padres':      return <PadresSecretario />;
       case 'pagos':       return <Pagos />;
+      case 'permisos':    return <GestionPermisos />;
       case 'reportes':    return <ReportesAdmin />;
       default: return null;
     }

@@ -6,7 +6,7 @@ import {
   FileText, Shield, LogOut, Menu, Search, UserPlus, Plus,
   CheckCircle, AlertCircle, AlertTriangle, X, Layers, RefreshCw, Edit2,
   Eye, Trash2, BookMarked, BarChart2, MessageSquare, UserCheck, Clock, FileSpreadsheet,
-  Mail, Phone, CreditCard, BookOpen as Book, KeyRound
+  Mail, Phone, CreditCard, BookOpen as Book, KeyRound, ClipboardList
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import { useNavigate } from 'react-router-dom';
@@ -17,8 +17,9 @@ import { CambiarPassword } from '../../components/CambiarPassword';
 import ContactosEmergencia from '../../components/ContactosEmergencia';
 import Pagos from '../../components/Pagos';
 import PeriodosAcademicos from '../../components/PeriodosAcademicos';
+import GestionPermisos from '../../components/GestionPermisos';
 
-type Seccion = 'resumen' | 'estudiantes' | 'usuarios' | 'vinculos' | 'grados' | 'materias' | 'periodos' | 'reportes' | 'auditoria' | 'directorio' | 'comunicados' | 'documentos' | 'pagos';
+type Seccion = 'resumen' | 'estudiantes' | 'usuarios' | 'vinculos' | 'grados' | 'materias' | 'periodos' | 'reportes' | 'auditoria' | 'directorio' | 'comunicados' | 'documentos' | 'pagos' | 'permisos';
 
 const DOC_REGLAS: Record<string, { min: number; max: number; soloNumeros: boolean; placeholder: string }> = {
   RC:        { min: 8,  max: 11, soloNumeros: true,  placeholder: '8 a 11 dígitos' },
@@ -1515,6 +1516,7 @@ const NAV = [
   { id: 'materias',    label: 'Materias',          icono: BookOpen },
   { id: 'periodos',    label: 'Períodos',          icono: Calendar },
   { id: 'pagos',       label: 'Pagos y cartera',   icono: CreditCard },
+  { id: 'permisos',    label: 'Permisos',          icono: ClipboardList },
   { id: 'reportes',    label: 'Reportes',          icono: FileText },
   { id: 'auditoria',   label: 'Auditoría',         icono: Shield },
   { id: 'documentos',  label: 'Documentos',         icono: FileText },
@@ -1529,6 +1531,7 @@ const TITULOS: Record<Seccion, string> = {
   periodos: 'Períodos académicos', reportes: 'Reportes', auditoria: 'Log de auditoría',
   directorio: 'Directorio de docentes', comunicados: 'Comunicados a padres',
   documentos: 'Documentos requeridos', pagos: 'Pagos y cartera',
+  permisos: 'Permisos y ausencias',
 };
 
 // ─── DIRECTORIO DE DOCENTES ───────────────────────────────────────────────────
@@ -1821,6 +1824,7 @@ export default function AdminDashboard() {
         </div>
       );
       case 'pagos':       return <Pagos />;
+      case 'permisos':    return <GestionPermisos />;
       case 'reportes':    return <ReportesAdmin />;
       case 'auditoria':   return <Auditoria />;
       case 'directorio':  return <DirectorioDocentes />;

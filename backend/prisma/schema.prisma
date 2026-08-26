@@ -30,6 +30,7 @@ model Usuario {
   perfilProfesor        Profesor?
   perfilSecretario      Secretario?
   asistenciasRegistradas RegistroAsistencia[]
+  solicitudesPermiso    SolicitudPermiso[] @relation("PadrePermisos")
 
   @@map("usuarios")
 }
@@ -130,6 +131,7 @@ model Estudiante {
   padres              PadreEstudiante[]
   cobros              Cobro[]
   asistencias         RegistroAsistencia[]
+  permisos            SolicitudPermiso[]
 
   @@map("estudiantes")
 }
@@ -450,6 +452,28 @@ model RegistroAsistencia {
   @@map("registros_asistencia")
 }
 
+model SolicitudPermiso {
+  id              String        @id @default(uuid())
+  estudianteId    String        @map("estudiante_id")
+  padreId         String        @map("padre_id")
+  fechaPermiso    DateTime      @db.Date @map("fecha_permiso")
+  motivoCodigo    MotivoPermiso @map("motivo_codigo")
+  descripcion     String        @db.VarChar(500)
+  estado          EstadoPermiso @default(PENDIENTE)
+  revisadoPor     String?       @map("revisado_por")
+  fechaRevision   DateTime?     @map("fecha_revision")
+  observacionResp String?       @db.VarChar(300) @map("observacion_resp")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  estudiante      Estudiante    @relation(fields: [estudianteId], references: [id])
+  padre           Usuario       @relation("PadrePermisos", fields: [padreId], references: [id])
+
+  @@unique([estudianteId, fechaPermiso])
+  @@index([estudianteId])
+  @@index([estado])
+  @@map("solicitudes_permiso")
+}
+
 model TipoDocumentoRequerido {
   id          String    @id @default(uuid())
   nombre      String
@@ -543,6 +567,20 @@ enum EstadoAsistencia {
   AUSENTE
   TARDE
   EXCUSA
+}
+
+enum MotivoPermiso {
+  CITA_MEDICA
+  DILIGENCIA_FAMILIAR
+  VIAJE
+  ENFERMEDAD
+  OTRO
+}
+
+enum EstadoPermiso {
+  PENDIENTE
+  APROBADO
+  RECHAZADO
 }
 
 enum AccionAuditoria {

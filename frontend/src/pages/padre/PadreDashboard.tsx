@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   GraduationCap, MessageSquare, FileText, LogOut, Menu,
   CheckCircle, AlertTriangle, ChevronDown, ChevronUp,
-  Download, Upload, X, BookOpen, Clock, AlertCircle, Mail, TrendingUp, KeyRound, Users, Search, Edit2, Wallet, CalendarCheck
+  Download, Upload, X, BookOpen, Clock, AlertCircle, Mail, TrendingUp, KeyRound, Users, Search, Edit2, Wallet, CalendarCheck, ClipboardList
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import { useNavigate } from 'react-router-dom';
@@ -15,8 +15,9 @@ import ContactosEmergencia from '../../components/ContactosEmergencia';
 import FormularioMatricula from '../../components/FormularioMatricula';
 import EstadoCuenta from '../../components/EstadoCuenta';
 import HistorialAsistencia from '../../components/HistorialAsistencia';
+import SolicitudPermiso from '../../components/SolicitudPermiso';
 
-type Seccion = 'boletin' | 'observaciones' | 'asistencia' | 'comunicados' | 'directorio' | 'cuenta' | 'matricula' | 'pagos';
+type Seccion = 'boletin' | 'observaciones' | 'asistencia' | 'permisos' | 'comunicados' | 'directorio' | 'cuenta' | 'matricula' | 'pagos';
 
 const COLOR_NOTA = (n: number | null) => {
   if (n === null) return 'text-slate-400';
@@ -211,6 +212,7 @@ export default function PadreDashboard() {
     { id: 'boletin',       label: 'Boletín',       icono: GraduationCap },
     { id: 'observaciones', label: 'Observaciones',  icono: MessageSquare },
     { id: 'asistencia',    label: 'Asistencia',      icono: CalendarCheck },
+    { id: 'permisos',      label: 'Permisos',        icono: ClipboardList },
     { id: 'pagos',         label: 'Pagos',           icono: Wallet },
     { id: 'comunicados',   label: 'Comunicados',    icono: Mail },
     { id: 'directorio',    label: 'Docentes',        icono: Users },
@@ -409,6 +411,9 @@ export default function PadreDashboard() {
               <p className="text-sm">Selecciona un estudiante para ver su asistencia</p>
             </div>
           )}
+
+          {/* ── PERMISOS ── */}
+          {seccion === 'permisos' && <SolicitudPermiso />}
 
           {/* ── PAGOS ── */}
           {seccion === 'pagos' && hijoSeleccionado && (
