@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   GraduationCap, MessageSquare, FileText, LogOut, Menu,
   CheckCircle, AlertTriangle, ChevronDown, ChevronUp,
-  Download, Upload, X, BookOpen, Clock, AlertCircle, Mail, TrendingUp, KeyRound, Users, Search, Edit2
+  Download, Upload, X, BookOpen, Clock, AlertCircle, Mail, TrendingUp, KeyRound, Users, Search, Edit2, Wallet
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import { useNavigate } from 'react-router-dom';
@@ -13,8 +13,9 @@ import { CambiarPassword } from '../../components/CambiarPassword';
 import ResumenAnual from '../../components/ResumenAnual';
 import ContactosEmergencia from '../../components/ContactosEmergencia';
 import FormularioMatricula from '../../components/FormularioMatricula';
+import EstadoCuenta from '../../components/EstadoCuenta';
 
-type Seccion = 'boletin' | 'observaciones' | 'comunicados' | 'directorio' | 'cuenta' | 'matricula';
+type Seccion = 'boletin' | 'observaciones' | 'comunicados' | 'directorio' | 'cuenta' | 'matricula' | 'pagos';
 
 const COLOR_NOTA = (n: number | null) => {
   if (n === null) return 'text-slate-400';
@@ -208,6 +209,7 @@ export default function PadreDashboard() {
   const NAV_PADRE = [
     { id: 'boletin',       label: 'Boletín',       icono: GraduationCap },
     { id: 'observaciones', label: 'Observaciones',  icono: MessageSquare },
+    { id: 'pagos',         label: 'Pagos',           icono: Wallet },
     { id: 'comunicados',   label: 'Comunicados',    icono: Mail },
     { id: 'directorio',    label: 'Docentes',        icono: Users },
     { id: 'cuenta',        label: 'Mi cuenta',        icono: KeyRound },
@@ -392,6 +394,17 @@ export default function PadreDashboard() {
                   </div>
                 ))
               )}
+            </div>
+          )}
+
+          {/* ── PAGOS ── */}
+          {seccion === 'pagos' && hijoSeleccionado && (
+            <EstadoCuenta estudianteId={hijoSeleccionado} />
+          )}
+          {seccion === 'pagos' && !hijoSeleccionado && (
+            <div className="text-center py-12 text-slate-400">
+              <Wallet className="w-10 h-10 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">Selecciona un estudiante para ver su estado de cuenta</p>
             </div>
           )}
 

@@ -15,8 +15,9 @@ import ReportesAdmin from '../../components/ReportesAdmin';
 import Comunicados from '../../components/Comunicados';
 import { CambiarPassword } from '../../components/CambiarPassword';
 import ContactosEmergencia from '../../components/ContactosEmergencia';
+import Pagos from '../../components/Pagos';
 
-type Seccion = 'resumen' | 'estudiantes' | 'usuarios' | 'vinculos' | 'grados' | 'materias' | 'periodos' | 'reportes' | 'auditoria' | 'directorio' | 'comunicados' | 'documentos';
+type Seccion = 'resumen' | 'estudiantes' | 'usuarios' | 'vinculos' | 'grados' | 'materias' | 'periodos' | 'reportes' | 'auditoria' | 'directorio' | 'comunicados' | 'documentos' | 'pagos';
 
 const DOC_REGLAS: Record<string, { min: number; max: number; soloNumeros: boolean; placeholder: string }> = {
   RC:        { min: 8,  max: 11, soloNumeros: true,  placeholder: '8 a 11 dígitos' },
@@ -1489,6 +1490,7 @@ const NAV = [
   { id: 'grados',      label: 'Grados',            icono: Layers },
   { id: 'materias',    label: 'Materias',          icono: BookOpen },
   { id: 'periodos',    label: 'Períodos',          icono: Calendar },
+  { id: 'pagos',       label: 'Pagos y cartera',   icono: CreditCard },
   { id: 'reportes',    label: 'Reportes',          icono: FileText },
   { id: 'auditoria',   label: 'Auditoría',         icono: Shield },
   { id: 'documentos',  label: 'Documentos',         icono: FileText },
@@ -1502,7 +1504,7 @@ const TITULOS: Record<Seccion, string> = {
   grados: 'Grados', materias: 'Materias',
   periodos: 'Períodos académicos', reportes: 'Reportes', auditoria: 'Log de auditoría',
   directorio: 'Directorio de docentes', comunicados: 'Comunicados a padres',
-  documentos: 'Documentos requeridos',
+  documentos: 'Documentos requeridos', pagos: 'Pagos y cartera',
 };
 
 // ─── DIRECTORIO DE DOCENTES ───────────────────────────────────────────────────
@@ -1786,6 +1788,7 @@ export default function AdminDashboard() {
       case 'grados':      return <Grados />;
       case 'materias':    return <Materias />;
       case 'periodos':    return <Periodos />;
+      case 'pagos':       return <Pagos />;
       case 'reportes':    return <ReportesAdmin />;
       case 'auditoria':   return <Auditoria />;
       case 'directorio':  return <DirectorioDocentes />;

@@ -127,6 +127,7 @@ model Estudiante {
   matricula           Matricula?
   observaciones       Observacion[]
   padres              PadreEstudiante[]
+  cobros              Cobro[]
 
   @@map("estudiantes")
 }
@@ -377,6 +378,41 @@ model DatosAdicionales {
   @@map("datos_adicionales")
 }
 
+model ConceptoPago {
+  id          String   @id @default(uuid())
+  nombre      String   @db.VarChar(100)
+  descripcion String?  @db.VarChar(300)
+  monto       Decimal  @db.Decimal(10, 2)
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  cobros      Cobro[]
+
+  @@map("conceptos_pago")
+}
+
+model Cobro {
+  id            String       @id @default(uuid())
+  estudianteId  String       @map("estudiante_id")
+  conceptoId    String       @map("concepto_id")
+  anio          Int
+  mes           Int
+  montoCobrado  Decimal      @db.Decimal(10, 2) @map("monto_cobrado")
+  estadoPago    EstadoPago   @default(PENDIENTE) @map("estado_pago")
+  fechaPago     DateTime?    @map("fecha_pago")
+  metodoPago    MetodoPago?  @map("metodo_pago")
+  observaciones String?      @db.VarChar(500)
+  registradoPor String       @map("registrado_por")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+  estudiante    Estudiante   @relation(fields: [estudianteId], references: [id])
+  concepto      ConceptoPago @relation(fields: [conceptoId], references: [id])
+
+  @@index([estudianteId])
+  @@index([estadoPago])
+  @@index([mes, anio])
+  @@map("cobros")
+}
+
 model TipoDocumentoRequerido {
   id          String    @id @default(uuid())
   nombre      String
@@ -449,6 +485,20 @@ enum TipoDocumentoArchivo {
   CERTIFICADO
   AUTORIZACION
   OTRO
+}
+
+enum EstadoPago {
+  PENDIENTE
+  PAGADO
+  EXONERADO
+}
+
+enum MetodoPago {
+  EFECTIVO
+  TRANSFERENCIA
+  BANCO_BOGOTA
+  PSE
+  NEQUI
 }
 
 enum AccionAuditoria {

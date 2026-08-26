@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, GraduationCap, FileText,
   LogOut, Menu, Search, UserPlus, Plus,
   CheckCircle, AlertCircle, X, RefreshCw, Edit2,
-  Eye, BookOpen, KeyRound, FileSpreadsheet, BarChart2, Trophy, TrendingUp
+  Eye, BookOpen, KeyRound, FileSpreadsheet, BarChart2, Trophy, TrendingUp, CreditCard
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import { useNavigate } from 'react-router-dom';
@@ -13,8 +13,9 @@ import api from '../../services/api';
 import { CambiarPassword } from '../../components/CambiarPassword';
 import ReportesAdmin from '../../components/ReportesAdmin';
 import Matriculas from '../../components/Matriculas';
+import Pagos from '../../components/Pagos';
 
-type Seccion = 'resumen' | 'estudiantes' | 'padres' | 'reportes' | 'matriculas';
+type Seccion = 'resumen' | 'estudiantes' | 'padres' | 'reportes' | 'matriculas' | 'pagos';
 
 // ─── LÍMITES COLOMBIANOS ──────────────────────────────────────────────────────
 const DOC_REGLAS: Record<string, { min: number; max: number; soloNumeros: boolean; placeholder: string }> = {
@@ -406,13 +407,14 @@ const NAV = [
   { id: 'matriculas',   label: 'Matrículas',   icono: FileText },
   { id: 'estudiantes',  label: 'Estudiantes',  icono: GraduationCap },
   { id: 'padres',       label: 'Padres',        icono: Users },
+  { id: 'pagos',        label: 'Pagos y cartera', icono: CreditCard },
   { id: 'reportes',     label: 'Reportes',      icono: BarChart2 },
 ] as const;
 
 const TITULOS: Record<Seccion, string> = {
   resumen: 'Resumen', estudiantes: 'Gestión de estudiantes',
   padres: 'Padres y acudientes', reportes: 'Reportes',
-  matriculas: 'Matrículas',
+  matriculas: 'Matrículas', pagos: 'Pagos y cartera',
 };
 
 export default function SecretarioDashboard() {
@@ -429,6 +431,7 @@ export default function SecretarioDashboard() {
       case 'matriculas':  return <Matriculas />;
       case 'estudiantes': return <EstudiantesSecretario />;
       case 'padres':      return <PadresSecretario />;
+      case 'pagos':       return <Pagos />;
       case 'reportes':    return <ReportesAdmin />;
       default: return null;
     }

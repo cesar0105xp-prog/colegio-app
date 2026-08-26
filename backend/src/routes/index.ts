@@ -151,3 +151,26 @@ router.get('/estudiantes/:id/ficha-completa', autenticar, autorizar(ADMIN, SEC),
 import { exportarNotasProfesor, exportarNotasGrado } from '../controllers/exportar.controller';
 router.get('/exportar/notas-profesor', autenticar, autorizar(PROF), exportarNotasProfesor);
 router.get('/exportar/notas-grado', autenticar, autorizar(ADMIN, SEC), exportarNotasGrado);
+
+// PAGOS Y CARTERA
+import {
+  listarConceptos, crearConcepto, editarConcepto, desactivarConcepto,
+  validarConceptoPago, validarConceptoPagoEditar, validarIdConcepto,
+  listarCobros, crearCobro, generarCobrosMasivo, marcarPagado, exonerarCobro,
+  validarCobro, validarCobroMasivo, validarMarcarPagado, validarExonerar,
+  reporteCartera, exportarCarteraCSV, miEstadoCuenta,
+} from '../controllers/pagos.controller';
+
+router.get('/conceptos',           autenticar, autorizar(ADMIN, SEC), listarConceptos);
+router.post('/conceptos',          autenticar, autorizar(ADMIN), validarConceptoPago, crearConcepto);
+router.put('/conceptos/:id',       autenticar, autorizar(ADMIN), validarConceptoPagoEditar, editarConcepto);
+router.delete('/conceptos/:id',    autenticar, autorizar(ADMIN), validarIdConcepto, desactivarConcepto);
+
+router.get('/cobros/reporte',      autenticar, autorizar(ADMIN, SEC), reporteCartera);
+router.get('/cobros/mi-estado',    autenticar, autorizar(PADRE), miEstadoCuenta);
+router.get('/cobros/exportar',     autenticar, autorizar(ADMIN), exportarCarteraCSV);
+router.get('/cobros',              autenticar, autorizar(ADMIN, SEC), listarCobros);
+router.post('/cobros/masivo',      autenticar, autorizar(ADMIN, SEC), validarCobroMasivo, generarCobrosMasivo);
+router.post('/cobros',             autenticar, autorizar(ADMIN, SEC), validarCobro, crearCobro);
+router.patch('/cobros/:id/pagar',    autenticar, autorizar(ADMIN, SEC), validarMarcarPagado, marcarPagado);
+router.patch('/cobros/:id/exonerar', autenticar, autorizar(ADMIN), validarExonerar, exonerarCobro);
