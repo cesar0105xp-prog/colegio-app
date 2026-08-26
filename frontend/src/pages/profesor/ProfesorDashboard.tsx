@@ -710,7 +710,10 @@ function MiPerfil() {
       setEditando(false);
       setToast({ msg: 'Perfil actualizado correctamente', tipo: 'ok' });
     },
-    onError: () => setToast({ msg: 'Error al actualizar el perfil', tipo: 'error' }),
+    onError: (e: unknown) => {
+      const d = (e as { response?: { data?: { mensaje?: string; errores?: string[] } } })?.response?.data;
+      setToast({ msg: d?.errores?.[0] ?? d?.mensaje ?? 'Error al actualizar el perfil', tipo: 'error' });
+    },
   });
 
   if (isLoading) return <div className="flex items-center justify-center h-40"><div className="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>;

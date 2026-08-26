@@ -50,22 +50,26 @@ export const uploadPDF = multer({
 });
 
 const FIRMA_PDF = '%PDF-';
+// El estándar PDF (ISO 32000-1 §7.5.2) permite que algunos generadores antepongan
+// unos pocos bytes (BOM, saltos de línea) antes del encabezado; los lectores
+// conformes buscan la firma dentro del primer KB en vez de exigirla en el byte 0.
+const BYTES_A_INSPECCIONAR = 1024;
 
 /**
  * La extensión y el Content-Type que llegan en la petición los controla el
  * cliente y son falsificables. Este middleware confirma que el contenido real
- * del archivo guardado empieza con la firma binaria de PDF antes de aceptarlo.
+ * del archivo guardado contiene la firma binaria de PDF antes de aceptarlo.
  */
 export function validarPDFReal(req: Request, res: Response, next: NextFunction): void {
   if (!req.file) { next(); return; }
 
-  const firma = Buffer.alloc(FIRMA_PDF.length);
+  const inicio = Buffer.alloc(BYTES_A_INSPECCIONAR);
   let coincide = false;
   try {
     const fd = fs.openSync(req.file.path, 'r');
-    fs.readSync(fd, firma, 0, FIRMA_PDF.length, 0);
+    const bytesLeidos = fs.readSync(fd, inicio, 0, BYTES_A_INSPECCIONAR, 0);
     fs.closeSync(fd);
-    coincide = firma.toString('ascii') === FIRMA_PDF;
+    coincide = inicio.subarray(0, bytesLeidos).toString('latin1').includes(FIRMA_PDF);
   } catch {
     coincide = false;
   }
