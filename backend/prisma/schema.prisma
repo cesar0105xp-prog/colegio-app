@@ -176,18 +176,33 @@ model Materia {
 }
 
 model Periodo {
-  id          String      @id @default(uuid())
+  id          String                  @id @default(uuid())
   nombre      String
   numero      Int
   anio        Int
-  fechaInicio DateTime    @map("fecha_inicio")
-  fechaFin    DateTime    @map("fecha_fin")
-  activo      Boolean     @default(false)
-  createdAt   DateTime    @default(now()) @map("created_at")
+  fechaInicio DateTime                @map("fecha_inicio")
+  fechaFin    DateTime                @map("fecha_fin")
+  activo      Boolean                 @default(false)
+  peso        Decimal                 @default(25.00) @db.Decimal(5, 2)
+  configId    String?                 @map("config_id")
+  createdAt   DateTime                @default(now()) @map("created_at")
   actividades Actividad[]
+  config      ConfiguracionAcademica? @relation(fields: [configId], references: [id])
 
   @@unique([numero, anio])
   @@map("periodos")
+}
+
+model ConfiguracionAcademica {
+  id          String    @id @default(uuid())
+  anio        Int       @unique
+  fechaInicio DateTime  @map("fecha_inicio")
+  fechaFin    DateTime  @map("fecha_fin")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  periodos    Periodo[]
+
+  @@map("configuraciones_academicas")
 }
 
 model MateriaGradoProfesor {

@@ -16,6 +16,7 @@ import Comunicados from '../../components/Comunicados';
 import { CambiarPassword } from '../../components/CambiarPassword';
 import ContactosEmergencia from '../../components/ContactosEmergencia';
 import Pagos from '../../components/Pagos';
+import PeriodosAcademicos from '../../components/PeriodosAcademicos';
 
 type Seccion = 'resumen' | 'estudiantes' | 'usuarios' | 'vinculos' | 'grados' | 'materias' | 'periodos' | 'reportes' | 'auditoria' | 'directorio' | 'comunicados' | 'documentos' | 'pagos';
 
@@ -135,8 +136,8 @@ function Resumen({ setSeccion }: { setSeccion: (s: Seccion) => void }) {
           <p className="text-blue-200 text-sm mb-1">Período académico activo</p>
           <h2 className="text-2xl font-bold">{data.periodoActivo.nombre} — {data.periodoActivo.anio}</h2>
           <p className="text-blue-200 text-sm mt-1">
-            {new Date(data.periodoActivo.fechaInicio).toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })} —{' '}
-            {new Date(data.periodoActivo.fechaFin).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}
+            {new Date(data.periodoActivo.fechaInicio).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', timeZone: 'UTC' })} —{' '}
+            {new Date(data.periodoActivo.fechaFin).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })}
           </p>
         </div>
       ) : (
@@ -1307,8 +1308,8 @@ function Periodos() {
                       {p.activo && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">Activo</span>}
                     </div>
                     <p className="text-sm text-slate-500 mt-0.5">
-                      {new Date(p.fechaInicio).toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })} —{' '}
-                      {new Date(p.fechaFin).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      {new Date(p.fechaInicio).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', timeZone: 'UTC' })} —{' '}
+                      {new Date(p.fechaFin).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })}
                     </p>
                   </div>
                 </div>
@@ -1787,7 +1788,15 @@ export default function AdminDashboard() {
       case 'vinculos':    return <Vinculos />;
       case 'grados':      return <Grados />;
       case 'materias':    return <Materias />;
-      case 'periodos':    return <Periodos />;
+      case 'periodos':    return (
+        <div className="space-y-6">
+          <PeriodosAcademicos />
+          <div>
+            <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Gestión manual de períodos</h2>
+            <Periodos />
+          </div>
+        </div>
+      );
       case 'pagos':       return <Pagos />;
       case 'reportes':    return <ReportesAdmin />;
       case 'auditoria':   return <Auditoria />;
