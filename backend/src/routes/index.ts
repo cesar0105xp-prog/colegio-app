@@ -174,3 +174,9 @@ router.post('/cobros/masivo',      autenticar, autorizar(ADMIN, SEC), validarCob
 router.post('/cobros',             autenticar, autorizar(ADMIN, SEC), validarCobro, crearCobro);
 router.patch('/cobros/:id/pagar',    autenticar, autorizar(ADMIN, SEC), validarMarcarPagado, marcarPagado);
 router.patch('/cobros/:id/exonerar', autenticar, autorizar(ADMIN), validarExonerar, exonerarCobro);
+
+// PERÍODOS ACADÉMICOS AUTOMÁTICOS
+import { previewPeriodos, confirmarPeriodos, listarConfiguraciones, validarPreview, validarConfirmar } from '../controllers/periodos.controller';
+router.get('/periodos/preview',        autenticar, autorizar(ADMIN), validarPreview, previewPeriodos);
+router.post('/periodos/confirmar',     autenticar, autorizar(ADMIN), validarConfirmar, confirmarPeriodos);
+router.get('/configuraciones-academicas', autenticar, autorizar(ADMIN), listarConfiguraciones);

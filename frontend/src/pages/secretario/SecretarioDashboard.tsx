@@ -104,8 +104,8 @@ function ResumenSecretario({ setSeccion }: { setSeccion: (s: Seccion) => void })
           <p className="text-blue-200 text-sm mb-1">Período académico activo</p>
           <h2 className="text-2xl font-bold">{data.periodoActivo.nombre} — {data.periodoActivo.anio}</h2>
           <p className="text-blue-200 text-sm mt-1">
-            {new Date(data.periodoActivo.fechaInicio).toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })} —{' '}
-            {new Date(data.periodoActivo.fechaFin).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}
+            {new Date(data.periodoActivo.fechaInicio).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', timeZone: 'UTC' })} —{' '}
+            {new Date(data.periodoActivo.fechaFin).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })}
           </p>
         </div>
       ) : (
