@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   GraduationCap, MessageSquare, FileText, LogOut, Menu,
   CheckCircle, AlertTriangle, ChevronDown, ChevronUp,
-  Download, Upload, X, BookOpen, Clock, AlertCircle, Mail, TrendingUp, KeyRound, Users, Search, Edit2, Wallet, CalendarCheck, ClipboardList, Calendar
+  Download, Upload, X, BookOpen, Clock, AlertCircle, Mail, TrendingUp, KeyRound, Users, Search, Edit2, Wallet, CalendarCheck, ClipboardList, Calendar, Award
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import { useNavigate } from 'react-router-dom';
@@ -17,8 +17,9 @@ import EstadoCuenta from '../../components/EstadoCuenta';
 import HistorialAsistencia from '../../components/HistorialAsistencia';
 import SolicitudPermiso from '../../components/SolicitudPermiso';
 import AgendaCalendario from '../../components/AgendaCalendario';
+import SolicitudCertificados from '../../components/SolicitudCertificados';
 
-type Seccion = 'boletin' | 'observaciones' | 'asistencia' | 'permisos' | 'agenda' | 'comunicados' | 'directorio' | 'cuenta' | 'matricula' | 'pagos';
+type Seccion = 'boletin' | 'observaciones' | 'asistencia' | 'permisos' | 'agenda' | 'certificados' | 'comunicados' | 'directorio' | 'cuenta' | 'matricula' | 'pagos';
 
 const COLOR_NOTA = (n: number | null) => {
   if (n === null) return 'text-slate-400';
@@ -215,6 +216,7 @@ export default function PadreDashboard() {
     { id: 'asistencia',    label: 'Asistencia',      icono: CalendarCheck },
     { id: 'permisos',      label: 'Permisos',        icono: ClipboardList },
     { id: 'agenda',        label: 'Agenda',          icono: Calendar },
+    { id: 'certificados',  label: 'Certificados',    icono: Award },
     { id: 'pagos',         label: 'Pagos',           icono: Wallet },
     { id: 'comunicados',   label: 'Comunicados',    icono: Mail },
     { id: 'directorio',    label: 'Docentes',        icono: Users },
@@ -419,6 +421,9 @@ export default function PadreDashboard() {
 
           {/* ── AGENDA ── */}
           {seccion === 'agenda' && <AgendaCalendario key={hijoActual?.id} gradoIdInicial={hijoActual?.grado.id} />}
+
+          {/* ── CERTIFICADOS ── */}
+          {seccion === 'certificados' && <SolicitudCertificados />}
 
           {/* ── PAGOS ── */}
           {seccion === 'pagos' && hijoSeleccionado && (

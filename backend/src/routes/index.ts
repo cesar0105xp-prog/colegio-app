@@ -218,3 +218,14 @@ router.post('/agenda/tareas',      autenticar, autorizar(PROF), validarTarea, cr
 router.put('/agenda/tareas/:id',   autenticar, autorizar(ADMIN, PROF), validarId, validarTarea, editarTarea);
 router.delete('/agenda/tareas/:id', autenticar, autorizar(ADMIN, PROF), eliminarTarea);
 router.get('/agenda/mis-tareas',   autenticar, autorizar(PADRE), misTareas);
+
+// CERTIFICADOS DESDE EL PORTAL
+import {
+  crearSolicitud, misSolicitudes, listarSolicitudes, procesarSolicitud, descargarCertificado,
+  validarSolicitud, validarId as validarIdCertificado,
+} from '../controllers/certificados.controller';
+router.post('/certificados',                autenticar, autorizar(PADRE), validarAccesoPadreEstudiante, validarSolicitud, crearSolicitud);
+router.get('/certificados/mis',             autenticar, autorizar(PADRE), misSolicitudes);
+router.get('/certificados',                 autenticar, autorizar(ADMIN, SEC), listarSolicitudes);
+router.patch('/certificados/:id/procesar',  autenticar, autorizar(SEC), uploadPDF.single('archivo'), validarIdCertificado, procesarSolicitud);
+router.get('/certificados/:id/descargar',   autenticar, autorizar(PADRE), descargarCertificado);
