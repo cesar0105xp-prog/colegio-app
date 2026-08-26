@@ -250,18 +250,16 @@ export async function generarCobrosMasivo(req: Request, res: Response): Promise<
     }
 
     const monto = montoCobrado != null ? montoCobrado : concepto.monto;
-    await prisma.$transaction(
-      pendientes.map(e => prisma.cobro.create({
-        data: {
-          estudianteId: e.id,
-          conceptoId,
-          anio: Number(anio),
-          mes: Number(mes),
-          montoCobrado: monto,
-          registradoPor: req.usuario!.sub,
-        },
-      }))
-    );
+    await prisma.cobro.createMany({
+      data: pendientes.map(e => ({
+        estudianteId: e.id,
+        conceptoId,
+        anio: Number(anio),
+        mes: Number(mes),
+        montoCobrado: monto,
+        registradoPor: req.usuario!.sub,
+      })),
+    });
 
     await audit({
       usuarioId: req.usuario!.sub, accion: 'CREAR', entidad: 'cobros',

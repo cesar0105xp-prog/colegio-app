@@ -115,7 +115,7 @@ export async function actualizarDatosPadre(req: Request, res: Response): Promise
 }
 
 // ─── TIPOS DE DOCUMENTOS REQUERIDOS ──────────────────────────────────────────
-export async function listarTiposDocumento(req: Request, res: Response): Promise<void> {
+export async function listarTiposDocumento(_req: Request, res: Response): Promise<void> {
   try {
     const tipos = await prisma.tipoDocumentoRequerido.findMany({
       where: { activo: true },
@@ -128,7 +128,20 @@ export async function listarTiposDocumento(req: Request, res: Response): Promise
   }
 }
 
+export const validarTipoDocumento = [
+  body('nombre').trim().notEmpty().withMessage('Nombre requerido').isLength({ max: 100 }).withMessage('Máximo 100 caracteres'),
+  body('descripcion').optional({ checkFalsy: true }).trim().isLength({ max: 300 }).withMessage('Máximo 300 caracteres'),
+  body('obligatorio').optional().isBoolean().withMessage('Valor inválido'),
+  body('orden').optional().isInt({ min: 1 }).withMessage('Orden inválido'),
+];
+
 export async function crearTipoDocumento(req: Request, res: Response): Promise<void> {
+  const errores = validationResult(req);
+  if (!errores.isEmpty()) {
+    res.status(400).json({ ok: false, errores: errores.array().map(e => e.msg) });
+    return;
+  }
+
   const { nombre, descripcion, obligatorio, orden } = req.body;
   try {
     const tipo = await prisma.tipoDocumentoRequerido.create({
@@ -147,6 +160,12 @@ export async function crearTipoDocumento(req: Request, res: Response): Promise<v
 }
 
 export async function editarTipoDocumento(req: Request, res: Response): Promise<void> {
+  const errores = validationResult(req);
+  if (!errores.isEmpty()) {
+    res.status(400).json({ ok: false, errores: errores.array().map(e => e.msg) });
+    return;
+  }
+
   const { id } = req.params;
   const { nombre, descripcion, obligatorio, activo, orden } = req.body;
   try {

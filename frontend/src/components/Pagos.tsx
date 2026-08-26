@@ -251,7 +251,7 @@ function TabGenerar() {
   const { data: grados = [] } = useQuery({ queryKey: ['grados'], queryFn: async () => (await api.get('/grados')).data.datos ?? [] });
   const { data: conceptos = [] } = useQuery({ queryKey: ['conceptos-pago', 'activos'], queryFn: async () => (await api.get('/conceptos', { params: { activo: 'true' } })).data.datos ?? [] });
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormGenerar>({ defaultValues: { anio: anioActual, mes: new Date().getMonth() + 1 } });
+  const { register, handleSubmit, formState: { errors } } = useForm<FormGenerar>({ defaultValues: { anio: anioActual, mes: new Date().getMonth() + 1 } });
 
   const generarMutation = useMutation({
     mutationFn: (d: FormGenerar) => api.post('/cobros/masivo', { ...d, montoCobrado: d.montoCobrado || undefined }),

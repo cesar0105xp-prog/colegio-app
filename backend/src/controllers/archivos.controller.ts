@@ -6,7 +6,6 @@ import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
 
 const prisma = new PrismaClient();
-const UPLOAD_DIR = process.env.UPLOAD_DIR ?? './uploads';
 
 // ─── SUBIR ARCHIVO ───────────────────────────────────────────────────────────
 
@@ -23,6 +22,12 @@ export async function subirArchivo(req: Request, res: Response): Promise<void> {
     // Eliminar archivo subido si la validación falla
     fs.unlinkSync(req.file.path);
     res.status(400).json({ ok: false, mensaje: 'Tipo de documento inválido' });
+    return;
+  }
+
+  if (descripcion && String(descripcion).length > 300) {
+    fs.unlinkSync(req.file.path);
+    res.status(400).json({ ok: false, mensaje: 'Descripción máximo 300 caracteres' });
     return;
   }
 

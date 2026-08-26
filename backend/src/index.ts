@@ -57,6 +57,8 @@ const limiterLogin = rateLimit({
 
 app.use(limiterGlobal);
 app.use('/api/auth/login', limiterLogin);
+app.use('/api/auth/refresh', limiterLogin);
+app.use('/api/auth/password', limiterLogin);
 
 // ─── PARSERS ──────────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '1mb' }));

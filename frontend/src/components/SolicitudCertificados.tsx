@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import {
   GraduationCap, BarChart2, ShieldCheck, FileCheck, Award, CheckCircle, AlertCircle, X,
-  Download, Clock, XCircle, FileText,
+  Download, Clock, FileText,
 } from 'lucide-react';
 import api from '../services/api';
 

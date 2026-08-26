@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   GraduationCap, MessageSquare, FileText, LogOut, Menu,
   CheckCircle, AlertTriangle, ChevronDown, ChevronUp,
-  Download, Upload, X, BookOpen, Clock, AlertCircle, Mail, TrendingUp, KeyRound, Users, Search, Edit2, Wallet, CalendarCheck, ClipboardList, Calendar, Award
+  X, BookOpen, Clock, AlertCircle, Mail, TrendingUp, KeyRound, Users, Search, Edit2, Wallet, CalendarCheck, ClipboardList, Calendar, Award
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import { useNavigate } from 'react-router-dom';
@@ -11,7 +11,6 @@ import { useForm } from 'react-hook-form';
 import api from '../../services/api';
 import { CambiarPassword } from '../../components/CambiarPassword';
 import ResumenAnual from '../../components/ResumenAnual';
-import ContactosEmergencia from '../../components/ContactosEmergencia';
 import FormularioMatricula from '../../components/FormularioMatricula';
 import EstadoCuenta from '../../components/EstadoCuenta';
 import HistorialAsistencia from '../../components/HistorialAsistencia';
@@ -42,22 +41,9 @@ function Toast({ mensaje, tipo, onClose }: { mensaje: string; tipo: 'ok' | 'erro
   );
 }
 
-async function verArchivo(archivoId: string, setToast: (t: { msg: string; tipo: 'ok' | 'error' } | null) => void) {
-  try {
-    const res = await api.get(`/archivos/${archivoId}/descargar`, { responseType: 'blob' });
-    const blob = new Blob([res.data], { type: 'application/pdf' });
-    const url = window.URL.createObjectURL(blob);
-    window.open(url, '_blank');
-    setTimeout(() => window.URL.revokeObjectURL(url), 10000);
-  } catch {
-    setToast({ msg: 'Error al abrir el archivo. Intenta de nuevo.', tipo: 'error' });
-  }
-}
-
 type Hijo = { id: string; nombres: string; apellidos: string; grado: { id: string; nombre: string; grupo: string }; estado: string };
 type MateriaBoletin = { materia: { id: string; nombre: string }; profesor: string; actividades: { id: string; nombre: string; tipo: string; porcentaje: number; nota: number | null; observacion?: string }[]; notaPeriodo: number | null; porcentajeTotal: number };
 type Observacion = { id: string; tipo: string; descripcion: string; fecha: string; yaVista: boolean; profesor: { nombres: string; apellidos: string }; materia?: { nombre: string } };
-type Archivo = { id: string; nombreOriginal: string; tipo: string; tamanoBytes: number; createdAt: string };
 type Periodo = { id: string; nombre: string; numero: number; activo: boolean };
 type ComunicadoRow = { id: string; titulo: string; mensaje: string; destinatario: string; createdAt: string; grado?: { nombre: string; grupo: string } };
 
@@ -121,7 +107,6 @@ export default function PadreDashboard() {
   const [sidebar, setSidebar] = useState(false);
   const [hijoSeleccionado, setHijoSeleccionado] = useState('');
   const [periodoId, setPeriodoId] = useState('');
-  const [subiendo, setSubiendo] = useState(false);
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'error' } | null>(null);
   const [tabBoletin, setTabBoletin] = useState<'periodo' | 'anual'>('periodo');
   const [modalPassword, setModalPassword] = useState(false);
@@ -167,43 +152,11 @@ export default function PadreDashboard() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['observaciones', hijoSeleccionado] }),
   });
 
-  const { data: archivos = [], isLoading: loadingArchivos, refetch: refetchArchivos } = useQuery({
-    queryKey: ['archivos', hijoSeleccionado],
-    queryFn: async () => (await api.get(`/archivos/estudiante/${hijoSeleccionado}`)).data.datos ?? [],
-    enabled: !!hijoSeleccionado,
-    staleTime: 0,
-  });
-
   const { data: comunicados = [], isLoading: loadingComunicados } = useQuery({
     queryKey: ['comunicados-padre'],
     queryFn: async () => (await api.get('/comunicados/padre')).data.datos ?? [],
     staleTime: 0,
   });
-
-  const subirArchivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !hijoSeleccionado) return;
-    if (file.type !== 'application/pdf') { setToast({ msg: 'Solo se permiten archivos PDF', tipo: 'error' }); return; }
-    if (file.size > 10 * 1024 * 1024) { setToast({ msg: 'El archivo no puede superar 10 MB', tipo: 'error' }); return; }
-    setSubiendo(true);
-    try {
-      const fd = new FormData();
-      fd.append('archivo', file);
-      fd.append('estudianteId', hijoSeleccionado);
-      fd.append('tipo', 'AUTORIZACION');
-      fd.append('descripcion', file.name);
-      fd.append('visibleParaPadre', 'true');
-      await api.post('/archivos', fd);
-      await qc.invalidateQueries({ queryKey: ['archivos', hijoSeleccionado] });
-      await refetchArchivos();
-      setToast({ msg: 'Archivo subido correctamente', tipo: 'ok' });
-      setSeccion('matricula')
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error al subir el archivo';
-      setToast({ msg, tipo: 'error' });
-    }
-    finally { setSubiendo(false); e.target.value = ''; }
-  };
 
   const materiasConNota = (boletinData?.boletin ?? []).filter((m: MateriaBoletin) => m.notaPeriodo != null);
   const promedio = materiasConNota.length > 0

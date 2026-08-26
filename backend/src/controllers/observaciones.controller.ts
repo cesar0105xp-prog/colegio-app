@@ -14,6 +14,13 @@ export const validarObservacion = [
   body('materiaId').optional().isUUID().withMessage('Materia inválida'),
 ];
 
+export const validarEditarObservacion = [
+  body('tipo').isIn(['POSITIVA','NEGATIVA','NEUTRA','DISCIPLINARIA','ACADEMICA','CONVIVENCIA']).withMessage('Tipo inválido'),
+  body('descripcion').trim().notEmpty().withMessage('La descripción es requerida')
+    .isLength({ min: 10, max: 1000 }).withMessage('Entre 10 y 1000 caracteres'),
+  body('materiaId').optional().isUUID().withMessage('Materia inválida'),
+];
+
 // ─── LISTAR OBSERVACIONES ─────────────────────────────────────────────────────
 export async function listarObservaciones(req: Request, res: Response): Promise<void> {
   const { estudianteId } = req.params;
@@ -88,6 +95,12 @@ export async function crearObservacion(req: Request, res: Response): Promise<voi
 
 // ─── EDITAR OBSERVACIÓN ───────────────────────────────────────────────────────
 export async function editarObservacion(req: Request, res: Response): Promise<void> {
+  const errores = validationResult(req);
+  if (!errores.isEmpty()) {
+    res.status(400).json({ ok: false, errores: errores.array().map(e => e.msg) });
+    return;
+  }
+
   const { id } = req.params;
   const { tipo, descripcion, materiaId } = req.body;
 

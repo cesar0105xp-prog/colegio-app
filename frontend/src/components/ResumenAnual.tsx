@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { TrendingUp, Trophy, AlertCircle, Minus } from 'lucide-react';
 import api from '../services/api';

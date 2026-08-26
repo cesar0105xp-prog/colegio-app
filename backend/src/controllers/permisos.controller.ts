@@ -88,23 +88,32 @@ export async function crearSolicitudPermiso(req: Request, res: Response): Promis
 // ─── LISTAR (ADMIN/SECRETARIO) ──────────────────────────────────────────────────
 
 export async function listarPermisos(req: Request, res: Response): Promise<void> {
-  const { estado, fecha, grado } = req.query;
+  const { estado, fecha, grado, pagina = '1', limite = '20' } = req.query;
   try {
+    const paginaNum = Math.max(1, parseInt(pagina as string) || 1);
+    const limiteNum = Math.min(100, Math.max(1, parseInt(limite as string) || 20));
+    const skip = (paginaNum - 1) * limiteNum;
+
     const where: Record<string, unknown> = {};
-    where.estado = estado && ESTADOS_PERMISO.includes(estado as string) ? estado : 'PENDIENTE';
+    if (estado && ESTADOS_PERMISO.includes(estado as string)) where.estado = estado;
     if (fecha && esFechaValida(fecha as string)) where.fechaPermiso = parseFechaUTC(fecha as string);
     if (grado && UUID_REGEX.test(grado as string)) where.estudiante = { gradoId: grado as string };
 
-    const solicitudes = await prisma.solicitudPermiso.findMany({
-      where,
-      include: {
-        estudiante: { select: { id: true, nombres: true, apellidos: true, grado: { select: { nombre: true, grupo: true } } } },
-        padre: { select: { email: true, perfilPadre: { select: { nombres: true, apellidos: true, telefono: true } } } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const [solicitudes, total] = await Promise.all([
+      prisma.solicitudPermiso.findMany({
+        where,
+        include: {
+          estudiante: { select: { id: true, nombres: true, apellidos: true, grado: { select: { nombre: true, grupo: true } } } },
+          padre: { select: { email: true, perfilPadre: { select: { nombres: true, apellidos: true, telefono: true } } } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limiteNum,
+      }),
+      prisma.solicitudPermiso.count({ where }),
+    ]);
 
-    res.json({ ok: true, datos: solicitudes });
+    res.json({ ok: true, datos: solicitudes, meta: { pagina: paginaNum, limite: limiteNum, total, totalPaginas: Math.ceil(total / limiteNum) } });
   } catch (err) {
     logger.error('Error al listar permisos', { err });
     res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });

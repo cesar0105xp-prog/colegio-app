@@ -77,7 +77,6 @@ const DOT_TIPO: Record<string, string> = {
 };
 
 const fmtFecha = (iso: string) => new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
-const claveISO = (d: Date) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
 
 type Grado = { id: string; nombre: string; grupo: string };
 type Evento = {

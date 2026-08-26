@@ -3,9 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import {
   LayoutDashboard, Users, GraduationCap, FileText,
-  LogOut, Menu, Search, UserPlus, Plus,
-  CheckCircle, AlertCircle, X, RefreshCw, Edit2,
-  Eye, BookOpen, KeyRound, FileSpreadsheet, BarChart2, Trophy, TrendingUp, CreditCard, ClipboardList, Calendar, Award
+  LogOut, Menu, Search, UserPlus,
+  CheckCircle, AlertCircle, X, Edit2,
+  Eye, KeyRound, BarChart2, CreditCard, ClipboardList, Calendar, Award
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import { useNavigate } from 'react-router-dom';
@@ -144,10 +144,6 @@ function EstudiantesSecretario() {
   const { register: regC, handleSubmit: hC, watch: wC, formState: { errors: eC } } = useForm<EstForm>();
   const { register: regE, handleSubmit: hE, watch: wE, formState: { errors: eE } } = useForm<EstForm>();
 
-  const tipoDocC = wC('tipoDocumento');
-  const tipoDocE = wE('tipoDocumento');
-  const reglaC = DOC_REGLAS[tipoDocC] ?? { min: 5, max: 12, soloNumeros: false, placeholder: 'Número de documento' };
-  const reglaE = DOC_REGLAS[tipoDocE] ?? { min: 5, max: 12, soloNumeros: false, placeholder: 'Número de documento' };
 
   const crearMutation = useMutation({
     mutationFn: (d: unknown) => api.post('/estudiantes', d),

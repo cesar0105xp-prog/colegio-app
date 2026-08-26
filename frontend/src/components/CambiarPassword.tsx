@@ -2,7 +2,7 @@
 // Usar en todos los dashboards (profesor, padre, estudiante, admin)
 // Importar y colocar en el sidebar debajo del botón de cerrar sesión
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { KeyRound, X, CheckCircle, AlertCircle, Eye, EyeOff } from 'lucide-react';

@@ -40,19 +40,19 @@ function generarEmailAcceso(nombres: string, apellidos: string, codigoMatricula:
 
 // ─── VALIDACIONES ─────────────────────────────────────────────────────────────
 export const validarMatricula = [
-  body('estudiante.nombres').trim().notEmpty().withMessage('Nombres del estudiante requeridos'),
-  body('estudiante.apellidos').trim().notEmpty().withMessage('Apellidos del estudiante requeridos'),
+  body('estudiante.nombres').trim().notEmpty().withMessage('Nombres del estudiante requeridos').isLength({ min: 2, max: 80 }).withMessage('Entre 2 y 80 caracteres'),
+  body('estudiante.apellidos').trim().notEmpty().withMessage('Apellidos del estudiante requeridos').isLength({ min: 2, max: 80 }).withMessage('Entre 2 y 80 caracteres'),
   body('estudiante.tipoDocumento').isIn(['RC','TI','CC','CE','PASAPORTE']).withMessage('Tipo de documento inválido'),
-  body('estudiante.numeroDocumento').trim().notEmpty().withMessage('Documento del estudiante requerido'),
+  body('estudiante.numeroDocumento').trim().notEmpty().withMessage('Documento del estudiante requerido').isLength({ min: 4, max: 20 }).withMessage('Entre 4 y 20 caracteres'),
   body('estudiante.fechaNacimiento').isDate().withMessage('Fecha de nacimiento inválida'),
   body('estudiante.genero').isIn(['MASCULINO','FEMENINO','OTRO']).withMessage('Género inválido'),
   body('estudiante.gradoId').isUUID().withMessage('Grado inválido'),
-  body('padre.nombres').trim().notEmpty().withMessage('Nombres del padre requeridos'),
-  body('padre.apellidos').trim().notEmpty().withMessage('Apellidos del padre requeridos'),
+  body('padre.nombres').trim().notEmpty().withMessage('Nombres del padre requeridos').isLength({ min: 2, max: 80 }).withMessage('Entre 2 y 80 caracteres'),
+  body('padre.apellidos').trim().notEmpty().withMessage('Apellidos del padre requeridos').isLength({ min: 2, max: 80 }).withMessage('Entre 2 y 80 caracteres'),
   body('padre.tipoDocumento').isIn(['CC','CE','PASAPORTE']).withMessage('Tipo de documento del padre inválido'),
-  body('padre.numeroDocumento').trim().notEmpty().withMessage('Documento del padre requerido'),
-  body('padre.email').optional({ checkFalsy: true }).isEmail().withMessage('Email de contacto inválido'),
-  body('padre.telefono').optional().trim(),
+  body('padre.numeroDocumento').trim().notEmpty().withMessage('Documento del padre requerido').isLength({ min: 4, max: 20 }).withMessage('Entre 4 y 20 caracteres'),
+  body('padre.email').optional({ checkFalsy: true }).isEmail().withMessage('Email de contacto inválido').isLength({ max: 100 }).withMessage('Máximo 100 caracteres'),
+  body('padre.telefono').optional().trim().isLength({ max: 15 }).withMessage('Máximo 15 caracteres'),
   body('padre.parentesco').isIn(['padre','madre','acudiente','abuelo','abuela','tio','tia','otro']).withMessage('Parentesco inválido'),
 ];
 
@@ -217,6 +217,10 @@ export async function listarMatriculas(req: Request, res: Response): Promise<voi
 export async function verificarMatricula(req: Request, res: Response): Promise<void> {
   const { id } = req.params;
   const { observaciones } = req.body;
+  if (observaciones && String(observaciones).length > 500) {
+    res.status(400).json({ ok: false, mensaje: 'Observaciones máximo 500 caracteres' });
+    return;
+  }
   try {
     const matricula = await prisma.matricula.findUnique({
       where: { id },
@@ -249,6 +253,10 @@ export async function verificarMatricula(req: Request, res: Response): Promise<v
 export async function rechazarMatricula(req: Request, res: Response): Promise<void> {
   const { id } = req.params;
   const { observaciones } = req.body;
+  if (observaciones && String(observaciones).length > 500) {
+    res.status(400).json({ ok: false, mensaje: 'Observaciones máximo 500 caracteres' });
+    return;
+  }
   try {
     await prisma.matricula.update({
       where: { id },
