@@ -33,6 +33,7 @@ model Usuario {
   solicitudesPermiso    SolicitudPermiso[] @relation("PadrePermisos")
   eventosCreados        EventoAgenda[]
   tareasCreadas         TareaAgenda[]
+  certificadosSolicitados SolicitudCertificado[] @relation("PadreCertificados")
 
   @@map("usuarios")
 }
@@ -134,6 +135,7 @@ model Estudiante {
   cobros              Cobro[]
   asistencias         RegistroAsistencia[]
   permisos            SolicitudPermiso[]
+  certificados        SolicitudCertificado[]
 
   @@map("estudiantes")
 }
@@ -518,6 +520,26 @@ model TareaAgenda {
   @@map("tareas_agenda")
 }
 
+model SolicitudCertificado {
+  id              String            @id @default(uuid())
+  estudianteId    String            @map("estudiante_id")
+  padreId         String            @map("padre_id")
+  tipoCertificado TipoCertificado   @map("tipo_certificado")
+  estado          EstadoCertificado @default(PENDIENTE)
+  observaciones   String?           @db.VarChar(300)
+  archivoUrl      String?           @map("archivo_url")
+  procesadoPor    String?           @map("procesado_por")
+  fechaProcesado  DateTime?         @map("fecha_procesado")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  estudiante      Estudiante        @relation(fields: [estudianteId], references: [id])
+  padre           Usuario           @relation("PadreCertificados", fields: [padreId], references: [id])
+
+  @@index([estudianteId])
+  @@index([estado])
+  @@map("solicitudes_certificado")
+}
+
 model TipoDocumentoRequerido {
   id          String    @id @default(uuid())
   nombre      String
@@ -634,6 +656,21 @@ enum TipoEvento {
   FESTIVO
   REUNION
   OTRO
+}
+
+enum TipoCertificado {
+  ESTUDIO
+  NOTAS
+  CONDUCTA
+  PAZ_Y_SALVO
+  DIPLOMA
+}
+
+enum EstadoCertificado {
+  PENDIENTE
+  EN_PROCESO
+  LISTO
+  ENTREGADO
 }
 
 enum AccionAuditoria {

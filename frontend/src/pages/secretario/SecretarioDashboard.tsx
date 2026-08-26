@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, GraduationCap, FileText,
   LogOut, Menu, Search, UserPlus, Plus,
   CheckCircle, AlertCircle, X, RefreshCw, Edit2,
-  Eye, BookOpen, KeyRound, FileSpreadsheet, BarChart2, Trophy, TrendingUp, CreditCard, ClipboardList, Calendar
+  Eye, BookOpen, KeyRound, FileSpreadsheet, BarChart2, Trophy, TrendingUp, CreditCard, ClipboardList, Calendar, Award
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import { useNavigate } from 'react-router-dom';
@@ -16,8 +16,9 @@ import Matriculas from '../../components/Matriculas';
 import Pagos from '../../components/Pagos';
 import GestionPermisos from '../../components/GestionPermisos';
 import AgendaCalendario from '../../components/AgendaCalendario';
+import GestionCertificados from '../../components/GestionCertificados';
 
-type Seccion = 'resumen' | 'estudiantes' | 'padres' | 'reportes' | 'matriculas' | 'pagos' | 'permisos' | 'agenda';
+type Seccion = 'resumen' | 'estudiantes' | 'padres' | 'reportes' | 'matriculas' | 'pagos' | 'permisos' | 'agenda' | 'certificados';
 
 // ─── LÍMITES COLOMBIANOS ──────────────────────────────────────────────────────
 const DOC_REGLAS: Record<string, { min: number; max: number; soloNumeros: boolean; placeholder: string }> = {
@@ -412,6 +413,7 @@ const NAV = [
   { id: 'pagos',        label: 'Pagos y cartera', icono: CreditCard },
   { id: 'permisos',     label: 'Permisos',       icono: ClipboardList },
   { id: 'agenda',       label: 'Agenda escolar', icono: Calendar },
+  { id: 'certificados', label: 'Certificados',   icono: Award },
   { id: 'reportes',     label: 'Reportes',      icono: BarChart2 },
 ] as const;
 
@@ -420,6 +422,7 @@ const TITULOS: Record<Seccion, string> = {
   padres: 'Padres y acudientes', reportes: 'Reportes',
   matriculas: 'Matrículas', pagos: 'Pagos y cartera',
   permisos: 'Permisos y ausencias', agenda: 'Agenda escolar digital',
+  certificados: 'Certificados desde el portal',
 };
 
 export default function SecretarioDashboard() {
@@ -439,6 +442,7 @@ export default function SecretarioDashboard() {
       case 'pagos':       return <Pagos />;
       case 'permisos':    return <GestionPermisos />;
       case 'agenda':      return <AgendaCalendario />;
+      case 'certificados': return <GestionCertificados />;
       case 'reportes':    return <ReportesAdmin />;
       default: return null;
     }
