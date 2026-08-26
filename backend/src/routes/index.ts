@@ -192,3 +192,15 @@ router.put('/asistencia/:id',                      autenticar, autorizar(PROF), 
 router.get('/asistencia/estudiante/:estudianteId', autenticar, autorizar(ADMIN, PROF, PADRE), validarAccesoPadreEstudiante, historialEstudiante);
 router.get('/asistencia/reporte',                  autenticar, autorizar(ADMIN), reporteAusencias);
 router.get('/asistencia/alertas',                  autenticar, autorizar(ADMIN), alertasAusencias);
+
+// PERMISOS Y AUSENCIAS
+import {
+  crearSolicitudPermiso, listarPermisos, misSolicitudesPermiso, aprobarPermiso, rechazarPermiso, historialPermisosEstudiante,
+  validarSolicitudPermiso, validarAprobar, validarRechazar,
+} from '../controllers/permisos.controller';
+router.post('/permisos',                         autenticar, autorizar(PADRE), validarAccesoPadreEstudiante, validarSolicitudPermiso, crearSolicitudPermiso);
+router.get('/permisos',                          autenticar, autorizar(ADMIN, SEC), listarPermisos);
+router.get('/permisos/mis',                      autenticar, autorizar(PADRE), misSolicitudesPermiso);
+router.patch('/permisos/:id/aprobar',            autenticar, autorizar(ADMIN, SEC), validarAprobar, aprobarPermiso);
+router.patch('/permisos/:id/rechazar',           autenticar, autorizar(ADMIN, SEC), validarRechazar, rechazarPermiso);
+router.get('/permisos/estudiante/:estudianteId', autenticar, autorizar(ADMIN, PROF), historialPermisosEstudiante);
