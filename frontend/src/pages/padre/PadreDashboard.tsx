@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   GraduationCap, MessageSquare, FileText, LogOut, Menu,
   CheckCircle, AlertTriangle, ChevronDown, ChevronUp,
-  Download, Upload, X, BookOpen, Clock, AlertCircle, Mail, TrendingUp, KeyRound, Users, Search, Edit2, Wallet, CalendarCheck, ClipboardList
+  Download, Upload, X, BookOpen, Clock, AlertCircle, Mail, TrendingUp, KeyRound, Users, Search, Edit2, Wallet, CalendarCheck, ClipboardList, Calendar
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import { useNavigate } from 'react-router-dom';
@@ -16,8 +16,9 @@ import FormularioMatricula from '../../components/FormularioMatricula';
 import EstadoCuenta from '../../components/EstadoCuenta';
 import HistorialAsistencia from '../../components/HistorialAsistencia';
 import SolicitudPermiso from '../../components/SolicitudPermiso';
+import AgendaCalendario from '../../components/AgendaCalendario';
 
-type Seccion = 'boletin' | 'observaciones' | 'asistencia' | 'permisos' | 'comunicados' | 'directorio' | 'cuenta' | 'matricula' | 'pagos';
+type Seccion = 'boletin' | 'observaciones' | 'asistencia' | 'permisos' | 'agenda' | 'comunicados' | 'directorio' | 'cuenta' | 'matricula' | 'pagos';
 
 const COLOR_NOTA = (n: number | null) => {
   if (n === null) return 'text-slate-400';
@@ -52,7 +53,7 @@ async function verArchivo(archivoId: string, setToast: (t: { msg: string; tipo: 
   }
 }
 
-type Hijo = { id: string; nombres: string; apellidos: string; grado: { nombre: string; grupo: string }; estado: string };
+type Hijo = { id: string; nombres: string; apellidos: string; grado: { id: string; nombre: string; grupo: string }; estado: string };
 type MateriaBoletin = { materia: { id: string; nombre: string }; profesor: string; actividades: { id: string; nombre: string; tipo: string; porcentaje: number; nota: number | null; observacion?: string }[]; notaPeriodo: number | null; porcentajeTotal: number };
 type Observacion = { id: string; tipo: string; descripcion: string; fecha: string; yaVista: boolean; profesor: { nombres: string; apellidos: string }; materia?: { nombre: string } };
 type Archivo = { id: string; nombreOriginal: string; tipo: string; tamanoBytes: number; createdAt: string };
@@ -213,6 +214,7 @@ export default function PadreDashboard() {
     { id: 'observaciones', label: 'Observaciones',  icono: MessageSquare },
     { id: 'asistencia',    label: 'Asistencia',      icono: CalendarCheck },
     { id: 'permisos',      label: 'Permisos',        icono: ClipboardList },
+    { id: 'agenda',        label: 'Agenda',          icono: Calendar },
     { id: 'pagos',         label: 'Pagos',           icono: Wallet },
     { id: 'comunicados',   label: 'Comunicados',    icono: Mail },
     { id: 'directorio',    label: 'Docentes',        icono: Users },
@@ -414,6 +416,9 @@ export default function PadreDashboard() {
 
           {/* ── PERMISOS ── */}
           {seccion === 'permisos' && <SolicitudPermiso />}
+
+          {/* ── AGENDA ── */}
+          {seccion === 'agenda' && <AgendaCalendario key={hijoActual?.id} gradoIdInicial={hijoActual?.grado.id} />}
 
           {/* ── PAGOS ── */}
           {seccion === 'pagos' && hijoSeleccionado && (

@@ -5,7 +5,7 @@ import {
   BookOpen, Users, MessageSquare, LogOut, Menu, Plus,
   Save, AlertCircle, CheckCircle, X, ChevronDown, ChevronUp,
   GraduationCap, BarChart2, Edit2, Eye, FileSpreadsheet, Trash2,
-  Calendar, KeyRound, Mail, Phone, CreditCard, BookOpen as BookOpenIcon, CalendarCheck
+  Calendar, KeyRound, Mail, Phone, CreditCard, BookOpen as BookOpenIcon, CalendarCheck, CalendarDays
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import { useNavigate } from 'react-router-dom';
@@ -13,8 +13,9 @@ import api from '../../services/api';
 import CalendarioAcademico from '../../components/CalendarioAcademico';
 import { CambiarPassword } from '../../components/CambiarPassword';
 import Asistencia from '../../components/Asistencia';
+import AgendaCalendario from '../../components/AgendaCalendario';
 
-type Seccion = 'notas' | 'observaciones' | 'asistencia' | 'calendario' | 'estudiantes' | 'perfil';
+type Seccion = 'notas' | 'observaciones' | 'asistencia' | 'agenda' | 'calendario' | 'estudiantes' | 'perfil';
 
 // ─── UI HELPERS ───────────────────────────────────────────────────────────────
 function Toast({ mensaje, tipo, onClose }: { mensaje: string; tipo: 'ok' | 'error'; onClose: () => void }) {
@@ -861,6 +862,7 @@ const NAV = [
   { id: 'notas',         label: 'Notas y actividades', icono: BarChart2 },
   { id: 'observaciones', label: 'Observaciones',        icono: MessageSquare },
   { id: 'asistencia',    label: 'Asistencia',           icono: CalendarCheck },
+  { id: 'agenda',        label: 'Agenda escolar',       icono: CalendarDays },
   { id: 'calendario',    label: 'Calendario',           icono: Calendar },
   { id: 'perfil',        label: 'Mi perfil',            icono: Users },
 ] as const;
@@ -869,6 +871,7 @@ const TITULOS: Record<Seccion, string> = {
   notas: 'Notas y actividades',
   observaciones: 'Observador del estudiante',
   asistencia: 'Asistencia diaria',
+  agenda: 'Agenda escolar digital',
   calendario: 'Calendario académico',
   perfil: 'Mi perfil',
   estudiantes: 'Mis estudiantes',
@@ -922,6 +925,7 @@ export default function ProfesorDashboard() {
           {seccion === 'notas' ? <ModuloNotas />
             : seccion === 'observaciones' ? <ModuloObservaciones />
             : seccion === 'asistencia' ? <Asistencia />
+            : seccion === 'agenda' ? <AgendaCalendario />
             : seccion === 'calendario' ? <CalendarioAcademico soloProfesor />
             : <MiPerfil />}
         </main>
