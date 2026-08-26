@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import {
   LayoutDashboard, Users, GraduationCap, BookOpen, Calendar,
   FileText, Shield, LogOut, Menu, Search, UserPlus, Plus,
-  CheckCircle, AlertCircle, X, Layers, RefreshCw, Edit2,
+  CheckCircle, AlertCircle, AlertTriangle, X, Layers, RefreshCw, Edit2,
   Eye, Trash2, BookMarked, BarChart2, MessageSquare, UserCheck, Clock, FileSpreadsheet,
   Mail, Phone, CreditCard, BookOpen as Book, KeyRound
 } from 'lucide-react';
@@ -111,8 +111,14 @@ function Badge({ texto, color }: { texto: string; color: string }) {
   return <span className={`text-xs px-2.5 py-1 rounded-lg font-medium ${color}`}>{texto}</span>;
 }
 
+type AlertaAsistencia = { estudianteId: string; nombres: string; apellidos: string; grado: string; ausenciasSinJustificar: number };
+
 function Resumen({ setSeccion }: { setSeccion: (s: Seccion) => void }) {
   const { data } = useQuery({ queryKey: ['stats'], queryFn: async () => (await api.get('/stats')).data.datos });
+  const { data: alertasAsistencia = [] } = useQuery({
+    queryKey: ['asistencia-alertas'],
+    queryFn: async () => (await api.get('/asistencia/alertas')).data.datos ?? [],
+  });
   const stats = [
     { label: 'Estudiantes activos', valor: data?.totalEstudiantes ?? '--', icono: GraduationCap, color: 'bg-blue-500', seccion: 'estudiantes' as Seccion },
     { label: 'Profesores',          valor: data?.totalProfesores  ?? '--', icono: Users,          color: 'bg-emerald-500', seccion: 'usuarios' as Seccion },
@@ -144,6 +150,23 @@ function Resumen({ setSeccion }: { setSeccion: (s: Seccion) => void }) {
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
           <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
           <p className="text-sm text-amber-700">No hay ningún período activo. Ve a <strong>Períodos</strong> para activar uno.</p>
+        </div>
+      )}
+
+      {(alertasAsistencia as AlertaAsistencia[]).length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
+            <p className="text-sm font-semibold text-red-700">Estudiantes con 3 o más ausencias sin justificar este mes</p>
+          </div>
+          <div className="space-y-1.5">
+            {(alertasAsistencia as AlertaAsistencia[]).map(a => (
+              <div key={a.estudianteId} className="flex items-center justify-between bg-white rounded-xl px-4 py-2.5">
+                <span className="text-sm text-slate-700">{a.nombres} {a.apellidos} <span className="text-slate-400">· {a.grado}</span></span>
+                <span className="text-xs bg-red-100 text-red-700 px-2.5 py-1 rounded-lg font-medium">{a.ausenciasSinJustificar} ausencias</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

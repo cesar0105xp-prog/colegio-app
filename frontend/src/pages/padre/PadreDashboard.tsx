@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   GraduationCap, MessageSquare, FileText, LogOut, Menu,
   CheckCircle, AlertTriangle, ChevronDown, ChevronUp,
-  Download, Upload, X, BookOpen, Clock, AlertCircle, Mail, TrendingUp, KeyRound, Users, Search, Edit2, Wallet
+  Download, Upload, X, BookOpen, Clock, AlertCircle, Mail, TrendingUp, KeyRound, Users, Search, Edit2, Wallet, CalendarCheck
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import { useNavigate } from 'react-router-dom';
@@ -14,8 +14,9 @@ import ResumenAnual from '../../components/ResumenAnual';
 import ContactosEmergencia from '../../components/ContactosEmergencia';
 import FormularioMatricula from '../../components/FormularioMatricula';
 import EstadoCuenta from '../../components/EstadoCuenta';
+import HistorialAsistencia from '../../components/HistorialAsistencia';
 
-type Seccion = 'boletin' | 'observaciones' | 'comunicados' | 'directorio' | 'cuenta' | 'matricula' | 'pagos';
+type Seccion = 'boletin' | 'observaciones' | 'asistencia' | 'comunicados' | 'directorio' | 'cuenta' | 'matricula' | 'pagos';
 
 const COLOR_NOTA = (n: number | null) => {
   if (n === null) return 'text-slate-400';
@@ -209,6 +210,7 @@ export default function PadreDashboard() {
   const NAV_PADRE = [
     { id: 'boletin',       label: 'Boletín',       icono: GraduationCap },
     { id: 'observaciones', label: 'Observaciones',  icono: MessageSquare },
+    { id: 'asistencia',    label: 'Asistencia',      icono: CalendarCheck },
     { id: 'pagos',         label: 'Pagos',           icono: Wallet },
     { id: 'comunicados',   label: 'Comunicados',    icono: Mail },
     { id: 'directorio',    label: 'Docentes',        icono: Users },
@@ -394,6 +396,17 @@ export default function PadreDashboard() {
                   </div>
                 ))
               )}
+            </div>
+          )}
+
+          {/* ── ASISTENCIA ── */}
+          {seccion === 'asistencia' && hijoSeleccionado && (
+            <HistorialAsistencia estudianteId={hijoSeleccionado} />
+          )}
+          {seccion === 'asistencia' && !hijoSeleccionado && (
+            <div className="text-center py-12 text-slate-400">
+              <CalendarCheck className="w-10 h-10 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">Selecciona un estudiante para ver su asistencia</p>
             </div>
           )}
 

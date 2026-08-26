@@ -180,3 +180,15 @@ import { previewPeriodos, confirmarPeriodos, listarConfiguraciones, validarPrevi
 router.get('/periodos/preview',        autenticar, autorizar(ADMIN), validarPreview, previewPeriodos);
 router.post('/periodos/confirmar',     autenticar, autorizar(ADMIN), validarConfirmar, confirmarPeriodos);
 router.get('/configuraciones-academicas', autenticar, autorizar(ADMIN), listarConfiguraciones);
+
+// ASISTENCIA
+import {
+  registrarAsistenciaGrado, listarAsistenciaGrado, editarAsistencia, historialEstudiante,
+  reporteAusencias, alertasAusencias, validarAsistenciaGrado, validarEditarAsistencia,
+} from '../controllers/asistencia.controller';
+router.post('/asistencia/grado',                  autenticar, autorizar(PROF), validarAsistenciaGrado, registrarAsistenciaGrado);
+router.get('/asistencia/grado/:gradoId',           autenticar, autorizar(PROF), listarAsistenciaGrado);
+router.put('/asistencia/:id',                      autenticar, autorizar(PROF), validarEditarAsistencia, editarAsistencia);
+router.get('/asistencia/estudiante/:estudianteId', autenticar, autorizar(ADMIN, PROF, PADRE), validarAccesoPadreEstudiante, historialEstudiante);
+router.get('/asistencia/reporte',                  autenticar, autorizar(ADMIN), reporteAusencias);
+router.get('/asistencia/alertas',                  autenticar, autorizar(ADMIN), alertasAusencias);
