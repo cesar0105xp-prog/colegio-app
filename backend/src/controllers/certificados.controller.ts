@@ -1,11 +1,12 @@
 import { Request, Response } from 'express';
-import { PrismaClient, TipoCertificado } from '@prisma/client';
+import { PrismaClient, Prisma, TipoCertificado, EstadoCertificado } from '@prisma/client';
 import { body, param, validationResult } from 'express-validator';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
+import { calcularNotaPeriodo } from './calificaciones.controller';
 import {
   construirCertificadoEstudio, construirCertificadoNotas, generarPDFArchivo, generarPDFStream,
   DatosEstudianteCert, MateriaNotaCert,
@@ -14,16 +15,18 @@ import {
 const prisma = new PrismaClient();
 const UPLOAD_DIR = process.env.UPLOAD_DIR ?? './uploads';
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const FECHA_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const TIPOS_AUTO_GENERABLES: TipoCertificado[] = ['ESTUDIO', 'NOTAS'];
+// Colombia no observa horario de verano: desfase fijo UTC-5 todo el año.
+const OFFSET_BOGOTA_MS = 5 * 60 * 60 * 1000;
 
-async function calcularNotaPeriodo(estudianteId: string, materiaId: string, periodoId: string): Promise<number | null> {
-  const calificaciones = await prisma.calificacion.findMany({
-    where: { estudianteId, actividad: { materiaId, periodoId } },
-    include: { actividad: { select: { porcentaje: true } } },
-  });
-  if (calificaciones.length === 0) return null;
-  const nota = calificaciones.reduce((acc, c) => acc + Number(c.valor) * (Number(c.actividad.porcentaje) / 100), 0);
-  return Math.round(nota * 10) / 10;
+interface NotasSnapshot { periodoNombre: string; materias: MateriaNotaCert[] }
+interface DatosSnapshot { datosEst: DatosEstudianteCert & { gradoId: string }; notas?: NotasSnapshot }
+
+/** Borra un archivo previamente asociado a una solicitud, sin interrumpir el flujo si falla. */
+function eliminarArchivoAnterior(ruta: string | null): void {
+  if (!ruta) return;
+  fs.unlink(ruta, err => { if (err && err.code !== 'ENOENT') logger.error('No se pudo eliminar el archivo anterior del certificado', { err, ruta }); });
 }
 
 async function datosEstudianteCert(estudianteId: string): Promise<DatosEstudianteCert & { gradoId: string }> {
@@ -105,10 +108,12 @@ export async function listarSolicitudes(req: Request, res: Response): Promise<vo
   try {
     const where: Record<string, unknown> = {};
     if (tipo && Object.values(TipoCertificado).includes(tipo as TipoCertificado)) where.tipoCertificado = tipo;
-    if (estado) where.estado = estado;
-    if (fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha as string)) {
-      const inicio = new Date(`${fecha}T00:00:00.000Z`);
-      const fin = new Date(`${fecha}T23:59:59.999Z`);
+    if (estado && Object.values(EstadoCertificado).includes(estado as EstadoCertificado)) where.estado = estado;
+    if (fecha && FECHA_REGEX.test(fecha as string)) {
+      // Los límites del día se calculan en hora de Bogotá (UTC-5), no en UTC,
+      // para que "hoy" coincida con el día calendario real del usuario.
+      const inicio = new Date(new Date(`${fecha}T00:00:00.000Z`).getTime() + OFFSET_BOGOTA_MS);
+      const fin = new Date(inicio.getTime() + 24 * 60 * 60 * 1000 - 1);
       where.createdAt = { gte: inicio, lte: fin };
     }
 
@@ -158,9 +163,11 @@ export async function procesarSolicitud(req: Request, res: Response): Promise<vo
       const datosEst = await datosEstudianteCert(solicitud.estudianteId);
       const nombreArchivo = `${uuidv4()}.pdf`;
       const rutaDestino = path.join(UPLOAD_DIR, nombreArchivo);
+      let snapshot: DatosSnapshot;
 
       if (solicitud.tipoCertificado === 'ESTUDIO') {
         await generarPDFArchivo(rutaDestino, doc => construirCertificadoEstudio(doc, datosEst, false));
+        snapshot = { datosEst };
       } else {
         const notas = await datosNotasCert(solicitud.estudianteId, datosEst.gradoId);
         if (!notas) {
@@ -168,12 +175,18 @@ export async function procesarSolicitud(req: Request, res: Response): Promise<vo
           return;
         }
         await generarPDFArchivo(rutaDestino, doc => construirCertificadoNotas(doc, { ...datosEst, ...notas }, false));
+        snapshot = { datosEst, notas };
       }
 
+      // Se guarda una foto exacta de los datos usados para el PDF original: si el
+      // padre vuelve a descargarlo después de que cambie el período activo o el
+      // grado del estudiante, la "copia" reproduce lo que realmente se certificó
+      // en vez de regenerarse con datos que ya cambiaron.
       const actualizada = await prisma.solicitudCertificado.update({
         where: { id },
-        data: { archivoUrl: rutaDestino, estado: 'LISTO', procesadoPor: req.usuario!.sub, fechaProcesado: new Date() },
+        data: { archivoUrl: rutaDestino, datosSnapshot: snapshot as object, estado: 'LISTO', procesadoPor: req.usuario!.sub, fechaProcesado: new Date() },
       });
+      eliminarArchivoAnterior(solicitud.archivoUrl);
       await audit({ usuarioId: req.usuario!.sub, accion: 'EDITAR', entidad: 'solicitudes_certificado', entidadId: id, datosDespues: { estado: 'LISTO', origen: 'automatico' }, ip: req.ip });
       res.json({ ok: true, mensaje: 'Certificado generado correctamente', datos: actualizada });
       return;
@@ -183,8 +196,9 @@ export async function procesarSolicitud(req: Request, res: Response): Promise<vo
     if (req.file) {
       const actualizada = await prisma.solicitudCertificado.update({
         where: { id },
-        data: { archivoUrl: req.file.path, estado: 'LISTO', procesadoPor: req.usuario!.sub, fechaProcesado: new Date() },
+        data: { archivoUrl: req.file.path, datosSnapshot: Prisma.JsonNull, estado: 'LISTO', procesadoPor: req.usuario!.sub, fechaProcesado: new Date() },
       });
+      eliminarArchivoAnterior(solicitud.archivoUrl);
       await audit({ usuarioId: req.usuario!.sub, accion: 'EDITAR', entidad: 'solicitudes_certificado', entidadId: id, datosDespues: { estado: 'LISTO', origen: 'manual' }, ip: req.ip });
       res.json({ ok: true, mensaje: 'Certificado cargado correctamente', datos: actualizada });
       return;
@@ -227,11 +241,16 @@ export async function descargarCertificado(req: Request, res: Response): Promise
     const esCopia = solicitud.estado === 'ENTREGADO';
 
     if (esCopia && TIPOS_AUTO_GENERABLES.includes(solicitud.tipoCertificado)) {
-      const datosEst = await datosEstudianteCert(solicitud.estudianteId);
+      // Se reproduce la "foto" de los datos guardada al generar el original
+      // (no se vuelve a consultar el grado/período actuales), para que la copia
+      // sea idéntica a lo que realmente se certificó la primera vez.
+      const snapshot = solicitud.datosSnapshot as unknown as DatosSnapshot | null;
+      const datosEst = snapshot?.datosEst ?? await datosEstudianteCert(solicitud.estudianteId);
+
       if (solicitud.tipoCertificado === 'ESTUDIO') {
         generarPDFStream(res, doc => construirCertificadoEstudio(doc, datosEst, true), 'certificado.pdf');
       } else {
-        const notas = await datosNotasCert(solicitud.estudianteId, datosEst.gradoId);
+        const notas = snapshot?.notas ?? await datosNotasCert(solicitud.estudianteId, datosEst.gradoId);
         if (!notas) { res.status(400).json({ ok: false, mensaje: 'No hay un período académico activo para regenerar el certificado' }); return; }
         generarPDFStream(res, doc => construirCertificadoNotas(doc, { ...datosEst, ...notas }, true), 'certificado.pdf');
       }

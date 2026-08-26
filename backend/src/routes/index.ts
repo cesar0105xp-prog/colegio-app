@@ -227,5 +227,5 @@ import {
 router.post('/certificados',                autenticar, autorizar(PADRE), validarAccesoPadreEstudiante, validarSolicitud, crearSolicitud);
 router.get('/certificados/mis',             autenticar, autorizar(PADRE), misSolicitudes);
 router.get('/certificados',                 autenticar, autorizar(ADMIN, SEC), listarSolicitudes);
-router.patch('/certificados/:id/procesar',  autenticar, autorizar(SEC), uploadPDF.single('archivo'), validarIdCertificado, procesarSolicitud);
+router.patch('/certificados/:id/procesar',  autenticar, autorizar(ADMIN, SEC), uploadPDF.single('archivo'), validarIdCertificado, procesarSolicitud);
 router.get('/certificados/:id/descargar',   autenticar, autorizar(PADRE), descargarCertificado);

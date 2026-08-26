@@ -1,6 +1,7 @@
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import { Response } from 'express';
+import { logger } from './logger';
 
 const NOMBRE_COLEGIO = 'Liceo Moderno San Marcos';
 const CIUDAD = 'Bogotá, Colombia';
@@ -42,14 +43,20 @@ function agregarMarcaDeAgua(doc: PDFKit.PDFDocument, esCopia: boolean): void {
   const xOrig = doc.x, yOrig = doc.y;
   // El texto rotado puede confundir el cálculo de paginación automática de pdfkit
   // y disparar una página en blanco adicional; se desactiva temporalmente.
+  // NOTA: esta función debe llamarse siempre antes de dibujar contenido del
+  // cuerpo del documento (doc.y cerca del margen superior); si se reordena
+  // podría reintroducirse el problema de paginación que este parche evita.
   const addPageOriginal = doc.addPage.bind(doc);
   doc.addPage = () => doc;
-  doc.save();
-  doc.rotate(-45, { origin: [cx, cy] });
-  doc.fontSize(90).font('Helvetica-Bold').fillColor('#cbd5e1').opacity(0.4)
-    .text('COPIA', cx - 250, cy - 45, { width: 500, align: 'center', lineBreak: false });
-  doc.restore();
-  doc.addPage = addPageOriginal;
+  try {
+    doc.save();
+    doc.rotate(-45, { origin: [cx, cy] });
+    doc.fontSize(90).font('Helvetica-Bold').fillColor('#cbd5e1').opacity(0.4)
+      .text('COPIA', cx - 250, cy - 45, { width: 500, align: 'center', lineBreak: false });
+    doc.restore();
+  } finally {
+    doc.addPage = addPageOriginal;
+  }
   doc.x = xOrig; doc.y = yOrig;
   doc.opacity(1).fillColor('#000');
 }
@@ -103,30 +110,46 @@ export function construirCertificadoNotas(doc: PDFKit.PDFDocument, datos: DatosN
   );
   doc.moveDown(1.5);
 
-  // Tabla simple
+  // Tabla simple, con salto de página cuando el contenido no cabe en la hoja actual
   const x = doc.page.margins.left;
   const anchoTabla = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const colMateria = anchoTabla * 0.7;
   const colNota = anchoTabla * 0.3;
-  let y = doc.y;
+  const limiteInferior = doc.page.height - doc.page.margins.bottom;
+  const ALTURA_ENCABEZADO = 22;
+  const ALTURA_FILA = 20;
 
-  doc.font('Helvetica-Bold').fontSize(10);
-  doc.rect(x, y, anchoTabla, 22).fill('#1e3a8a');
-  doc.fillColor('#fff').text('Materia', x + 8, y + 6, { width: colMateria - 8 });
-  doc.text('Nota', x + colMateria, y + 6, { width: colNota - 8, align: 'center' });
-  y += 22;
+  const dibujarEncabezado = (yInicio: number): number => {
+    doc.font('Helvetica-Bold').fontSize(10);
+    doc.rect(x, yInicio, anchoTabla, ALTURA_ENCABEZADO).fill('#1e3a8a');
+    doc.fillColor('#fff').text('Materia', x + 8, yInicio + 6, { width: colMateria - 8 });
+    doc.text('Nota', x + colMateria, yInicio + 6, { width: colNota - 8, align: 'center' });
+    doc.font('Helvetica').fontSize(10);
+    return yInicio + ALTURA_ENCABEZADO;
+  };
 
-  doc.font('Helvetica').fontSize(10);
+  let y = dibujarEncabezado(doc.y);
+
   datos.materias.forEach((m, i) => {
-    const alturaFila = 20;
-    doc.rect(x, y, anchoTabla, alturaFila).fill(i % 2 === 0 ? '#f8fafc' : '#ffffff');
+    if (y + ALTURA_FILA > limiteInferior) {
+      doc.addPage();
+      y = dibujarEncabezado(doc.page.margins.top);
+    }
+    doc.rect(x, y, anchoTabla, ALTURA_FILA).fill(i % 2 === 0 ? '#f8fafc' : '#ffffff');
     doc.fillColor('#000').text(m.nombre, x + 8, y + 5, { width: colMateria - 8 });
     doc.text(m.nota != null ? m.nota.toFixed(1) : '—', x + colMateria, y + 5, { width: colNota - 8, align: 'center' });
-    y += alturaFila;
+    y += ALTURA_FILA;
   });
 
   doc.rect(x, y, anchoTabla, 1).fill('#cbd5e1');
   doc.y = y + 10;
+
+  // Reservar espacio para promedio + firma + pie; si no cabe, saltar de página
+  const ESPACIO_CIERRE = 200;
+  if (doc.y + ESPACIO_CIERRE > limiteInferior) {
+    doc.addPage();
+    doc.y = doc.page.margins.top;
+  }
 
   const conNota = datos.materias.filter(m => m.nota != null);
   const promedio = conNota.length > 0 ? conNota.reduce((a, m) => a + (m.nota ?? 0), 0) / conNota.length : null;
@@ -141,19 +164,54 @@ export function generarPDFArchivo(rutaDestino: string, construir: (doc: PDFKit.P
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
     const stream = fs.createWriteStream(rutaDestino);
+
+    let fallo = false;
+    const limpiarYFallar = (err: Error) => {
+      if (fallo) return; // evitar reject/unlink duplicados si ambos streams emiten error
+      fallo = true;
+      stream.destroy();
+      fs.unlink(rutaDestino, () => {});
+      reject(err);
+    };
+
+    doc.on('error', limpiarYFallar);
+    stream.on('error', limpiarYFallar);
+    stream.on('finish', () => { if (!fallo) resolve(); });
+
     doc.pipe(stream);
-    construir(doc);
+    try {
+      construir(doc);
+    } catch (err) {
+      limpiarYFallar(err instanceof Error ? err : new Error(String(err)));
+      return;
+    }
     doc.end();
-    stream.on('finish', () => resolve());
-    stream.on('error', reject);
   });
 }
 
 export function generarPDFStream(res: Response, construir: (doc: PDFKit.PDFDocument) => void, nombreArchivo: string): void {
   const doc = new PDFDocument({ size: 'A4', margin: 50 });
+
+  const fallar = (err: Error) => {
+    logger.error('Error al generar PDF en vivo', { err });
+    if (!res.headersSent) {
+      res.status(500).json({ ok: false, mensaje: 'Error al generar el documento' });
+    } else {
+      res.destroy(err);
+    }
+  };
+
+  doc.on('error', fallar);
+
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `inline; filename="${nombreArchivo}"`);
   doc.pipe(res);
-  construir(doc);
+
+  try {
+    construir(doc);
+  } catch (err) {
+    fallar(err instanceof Error ? err : new Error(String(err)));
+    return;
+  }
   doc.end();
 }

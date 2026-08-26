@@ -72,7 +72,7 @@ async function validarSumaPorcentajes(
  * Calcula la nota final ponderada de un estudiante en una materia/período.
  * notaPeriodo = SUM(calificacion.valor * actividad.porcentaje / 100)
  */
-async function calcularNotaPeriodo(
+export async function calcularNotaPeriodo(
   estudianteId: string,
   materiaId: string,
   periodoId: string
