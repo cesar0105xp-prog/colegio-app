@@ -29,6 +29,7 @@ model Usuario {
   perfilPadre           Padre?
   perfilProfesor        Profesor?
   perfilSecretario      Secretario?
+  asistenciasRegistradas RegistroAsistencia[]
 
   @@map("usuarios")
 }
@@ -128,6 +129,7 @@ model Estudiante {
   observaciones       Observacion[]
   padres              PadreEstudiante[]
   cobros              Cobro[]
+  asistencias         RegistroAsistencia[]
 
   @@map("estudiantes")
 }
@@ -428,6 +430,26 @@ model Cobro {
   @@map("cobros")
 }
 
+model RegistroAsistencia {
+  id           String           @id @default(uuid())
+  estudianteId String           @map("estudiante_id")
+  profesorId   String           @map("profesor_id")
+  fecha        DateTime         @db.Date
+  estadoManana EstadoAsistencia @default(PRESENTE) @map("estado_manana")
+  estadoTarde  EstadoAsistencia @default(PRESENTE) @map("estado_tarde")
+  observacion  String?          @db.VarChar(300)
+  justificada  Boolean          @default(false)
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+  estudiante   Estudiante       @relation(fields: [estudianteId], references: [id])
+  profesor     Usuario          @relation(fields: [profesorId], references: [id])
+
+  @@unique([estudianteId, fecha])
+  @@index([estudianteId])
+  @@index([fecha])
+  @@map("registros_asistencia")
+}
+
 model TipoDocumentoRequerido {
   id          String    @id @default(uuid())
   nombre      String
@@ -514,6 +536,13 @@ enum MetodoPago {
   BANCO_BOGOTA
   PSE
   NEQUI
+}
+
+enum EstadoAsistencia {
+  PRESENTE
+  AUSENTE
+  TARDE
+  EXCUSA
 }
 
 enum AccionAuditoria {

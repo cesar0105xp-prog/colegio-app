@@ -5,15 +5,16 @@ import {
   BookOpen, Users, MessageSquare, LogOut, Menu, Plus,
   Save, AlertCircle, CheckCircle, X, ChevronDown, ChevronUp,
   GraduationCap, BarChart2, Edit2, Eye, FileSpreadsheet, Trash2,
-  Calendar, KeyRound, Mail, Phone, CreditCard, BookOpen as BookOpenIcon
+  Calendar, KeyRound, Mail, Phone, CreditCard, BookOpen as BookOpenIcon, CalendarCheck
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import CalendarioAcademico from '../../components/CalendarioAcademico';
 import { CambiarPassword } from '../../components/CambiarPassword';
+import Asistencia from '../../components/Asistencia';
 
-type Seccion = 'notas' | 'observaciones' | 'calendario' | 'estudiantes' | 'perfil';
+type Seccion = 'notas' | 'observaciones' | 'asistencia' | 'calendario' | 'estudiantes' | 'perfil';
 
 // ─── UI HELPERS ───────────────────────────────────────────────────────────────
 function Toast({ mensaje, tipo, onClose }: { mensaje: string; tipo: 'ok' | 'error'; onClose: () => void }) {
@@ -859,6 +860,7 @@ function MiPerfil() {
 const NAV = [
   { id: 'notas',         label: 'Notas y actividades', icono: BarChart2 },
   { id: 'observaciones', label: 'Observaciones',        icono: MessageSquare },
+  { id: 'asistencia',    label: 'Asistencia',           icono: CalendarCheck },
   { id: 'calendario',    label: 'Calendario',           icono: Calendar },
   { id: 'perfil',        label: 'Mi perfil',            icono: Users },
 ] as const;
@@ -866,6 +868,7 @@ const NAV = [
 const TITULOS: Record<Seccion, string> = {
   notas: 'Notas y actividades',
   observaciones: 'Observador del estudiante',
+  asistencia: 'Asistencia diaria',
   calendario: 'Calendario académico',
   perfil: 'Mi perfil',
   estudiantes: 'Mis estudiantes',
@@ -916,7 +919,11 @@ export default function ProfesorDashboard() {
           <h1 className="font-bold text-slate-800 flex-1">{TITULOS[seccion]}</h1>
         </header>
         <main className="flex-1 p-4 lg:p-6 overflow-auto">
-          {seccion === 'notas' ? <ModuloNotas /> : seccion === 'observaciones' ? <ModuloObservaciones /> : seccion === 'calendario' ? <CalendarioAcademico soloProfesor /> : <MiPerfil />}
+          {seccion === 'notas' ? <ModuloNotas />
+            : seccion === 'observaciones' ? <ModuloObservaciones />
+            : seccion === 'asistencia' ? <Asistencia />
+            : seccion === 'calendario' ? <CalendarioAcademico soloProfesor />
+            : <MiPerfil />}
         </main>
       </div>
       {modalPassword && <CambiarPassword onClose={() => setModalPassword(false)} />}
