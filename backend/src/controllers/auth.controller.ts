@@ -6,6 +6,7 @@ import { body, validationResult } from 'express-validator';
 import { JwtPayload, RefreshPayload, REGEX } from '../types';
 import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
+import { SALT_ROUNDS } from '../utils/config';
 
 const prisma = new PrismaClient();
 const MAX_INTENTOS = 5;
@@ -251,7 +252,7 @@ export async function cambiarPassword(req: Request, res: Response): Promise<void
       return;
     }
 
-    const nuevoHash = await bcrypt.hash(passwordNueva, 12);
+    const nuevoHash = await bcrypt.hash(passwordNueva, SALT_ROUNDS);
     await prisma.usuario.update({
       where: { id: usuario.id },
       data: { passwordHash: nuevoHash, refreshToken: null },
