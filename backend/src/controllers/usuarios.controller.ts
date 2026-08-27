@@ -21,9 +21,9 @@ export const validarCrearUsuario = [
 export const validarEditarMiPerfil = [
   body('nombres').optional().trim().isLength({ min: 2, max: 80 }).withMessage('Entre 2 y 80 caracteres').matches(REGEX.SOLO_LETRAS).withMessage('Solo letras'),
   body('apellidos').optional().trim().isLength({ min: 2, max: 80 }).withMessage('Entre 2 y 80 caracteres').matches(REGEX.SOLO_LETRAS).withMessage('Solo letras'),
-  body('telefono').optional().trim().matches(REGEX.TELEFONO).withMessage('Teléfono inválido'),
+  body('telefono').optional({ checkFalsy: true }).trim().matches(REGEX.TELEFONO).withMessage('Teléfono inválido'),
   body('tipoDocumento').optional().isIn(['CC','CE','PASAPORTE']).withMessage('Tipo de documento inválido'),
-  body('numeroDocumento').optional().trim().matches(REGEX.SOLO_NUMEROS).withMessage('Documento solo dígitos'),
+  body('numeroDocumento').optional({ checkFalsy: true }).trim().matches(REGEX.SOLO_NUMEROS).withMessage('Documento solo dígitos'),
 ];
 
 export const validarActualizarCorreo = [
@@ -303,7 +303,7 @@ export async function editarMiPerfil(req: Request, res: Response): Promise<void>
     const actualizado = await prisma.profesor.update({
       where: { id: profesor.id },
       data: {
-        telefono: telefono?.trim() ?? null,
+        telefono: telefono != null ? telefono.trim() || null : profesor.telefono,
         nombres: nombres?.trim() ?? profesor.nombres,
         apellidos: apellidos?.trim() ?? profesor.apellidos,
         tipoDocumento: tipoDocumento ?? profesor.tipoDocumento,

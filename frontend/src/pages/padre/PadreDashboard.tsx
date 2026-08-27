@@ -472,8 +472,8 @@ function MiCuentaPadre() {
       setToast({ msg: 'Correo actualizado. Usa el nuevo correo en tu próximo login.', tipo: 'ok' });
     },
     onError: (e: unknown) => {
-      const msg = (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error al actualizar';
-      setToast({ msg, tipo: 'error' });
+      const d = (e as { response?: { data?: { mensaje?: string; errores?: string[] } } })?.response?.data;
+      setToast({ msg: d?.errores?.[0] ?? d?.mensaje ?? 'Error al actualizar', tipo: 'error' });
     },
   });
 
