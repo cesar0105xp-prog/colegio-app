@@ -239,21 +239,21 @@ export default function AgendaCalendario({ gradoIdInicial }: { gradoIdInicial?: 
       </div>
 
       {/* Navegación de mes */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-        <div className="flex items-center justify-between mb-4">
-          <button onClick={() => cambiarMes(-1)} className="p-2 rounded-xl hover:bg-slate-100 transition-colors min-h-[40px] min-w-[40px]"><ChevronLeft className="w-5 h-5 text-slate-500" /></button>
-          <h2 className="text-lg font-bold text-slate-800">{MESES[mes]} {anio}</h2>
-          <button onClick={() => cambiarMes(1)} className="p-2 rounded-xl hover:bg-slate-100 transition-colors min-h-[40px] min-w-[40px]"><ChevronRight className="w-5 h-5 text-slate-500" /></button>
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 max-w-md">
+        <div className="flex items-center justify-between mb-2">
+          <button onClick={() => cambiarMes(-1)} className="p-1 rounded-lg hover:bg-slate-100 transition-colors min-h-[32px] min-w-[32px]"><ChevronLeft className="w-4 h-4 text-slate-500" /></button>
+          <h2 className="text-sm font-bold text-slate-800">{MESES[mes]} {anio}</h2>
+          <button onClick={() => cambiarMes(1)} className="p-1 rounded-lg hover:bg-slate-100 transition-colors min-h-[32px] min-w-[32px]"><ChevronRight className="w-4 h-4 text-slate-500" /></button>
         </div>
 
         {isLoading ? (
-          <div className="flex items-center justify-center h-40"><div className="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>
+          <div className="flex items-center justify-center h-24"><div className="w-5 h-5 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>
         ) : vista === 'calendario' ? (
           <>
-            <div className="grid grid-cols-7 mb-1.5">
-              {DIAS_SEMANA.map(d => <div key={d} className="text-center text-xs font-semibold text-slate-400 py-1">{d}</div>)}
+            <div className="grid grid-cols-7 mb-1">
+              {DIAS_SEMANA.map(d => <div key={d} className="text-center text-[10px] font-semibold text-slate-400 py-0.5">{d}</div>)}
             </div>
-            <div className="grid grid-cols-7 gap-1.5">
+            <div className="grid grid-cols-7 gap-1">
               {celdas.map((dia, i) => {
                 if (dia === null) return <div key={`vacio-${i}`} />;
                 const clave = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
@@ -262,14 +262,14 @@ export default function AgendaCalendario({ gradoIdInicial }: { gradoIdInicial?: 
                 const seleccionado = clave === diaSeleccionado;
                 return (
                   <button key={dia} onClick={() => setDiaSeleccionado(seleccionado ? null : clave)}
-                    className={`aspect-square min-h-14 p-1 rounded-xl border transition-all flex flex-col items-center ${
+                    className={`min-h-8 p-0.5 rounded-lg border transition-all flex flex-col items-center justify-center ${
                       seleccionado ? 'bg-blue-600 border-blue-600' : esHoy ? 'border-blue-300 bg-blue-50' : 'border-transparent hover:border-slate-200 hover:bg-slate-50'
                     }`}>
-                    <span className={`text-xs font-semibold ${seleccionado ? 'text-white' : esHoy ? 'text-blue-600' : 'text-slate-700'}`}>{dia}</span>
+                    <span className={`text-[11px] font-semibold ${seleccionado ? 'text-white' : esHoy ? 'text-blue-600' : 'text-slate-700'}`}>{dia}</span>
                     {items.length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-0.5 justify-center max-w-full">
+                      <div className="mt-0.5 flex flex-wrap gap-0.5 justify-center max-w-full">
                         {items.slice(0, 4).map((it, j) => (
-                          <span key={j} className={`w-1.5 h-1.5 rounded-full ${seleccionado ? 'bg-white' : DOT_TIPO[it.tipo === 'evento' ? (it.data as Evento).tipoEvento : 'TAREA']}`} />
+                          <span key={j} className={`w-1 h-1 rounded-full ${seleccionado ? 'bg-white' : DOT_TIPO[it.tipo === 'evento' ? (it.data as Evento).tipoEvento : 'TAREA']}`} />
                         ))}
                       </div>
                     )}
@@ -277,10 +277,10 @@ export default function AgendaCalendario({ gradoIdInicial }: { gradoIdInicial?: 
                 );
               })}
             </div>
-            <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t border-slate-100">
+            <div className="flex flex-wrap gap-2 mt-2 pt-2 border-t border-slate-100">
               {TIPOS_EVENTO.map(t => (
-                <div key={t} className="flex items-center gap-1.5 text-xs text-slate-500">
-                  <span className={`w-2.5 h-2.5 rounded-full ${DOT_TIPO[t]}`} /> {LABEL_TIPO[t]}
+                <div key={t} className="flex items-center gap-1 text-[10px] text-slate-500">
+                  <span className={`w-2 h-2 rounded-full ${DOT_TIPO[t]}`} /> {LABEL_TIPO[t]}
                 </div>
               ))}
             </div>

@@ -3,6 +3,10 @@ import { PrismaClient, MetodoPago } from '@prisma/client';
 import { body, param, validationResult } from 'express-validator';
 import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
+import {
+  WOMPI_PUBLIC_KEY, WOMPI_CHECKOUT_URL, generarReferenciaPago, firmarIntegridadCheckout,
+  montoACentavos, verificarFirmaEvento, metodoPagoDesdeWompi,
+} from '../utils/wompi';
 
 const prisma = new PrismaClient();
 
@@ -461,5 +465,101 @@ export async function miEstadoCuenta(req: Request, res: Response): Promise<void>
   } catch (err) {
     logger.error('Error al obtener estado de cuenta', { err });
     res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
+  }
+}
+
+// ─── PAGO EN LÍNEA CON WOMPI (PADRE) ────────────────────────────────────────────
+
+export const validarIdCobroPago = [param('id').isUUID().withMessage('ID inválido')];
+
+export async function iniciarPagoWompi(req: Request, res: Response): Promise<void> {
+  const errores = validationResult(req);
+  if (!errores.isEmpty()) { res.status(400).json({ ok: false, errores: errores.array().map(e => e.msg) }); return; }
+
+  const { id } = req.params;
+  try {
+    const padre = await prisma.padre.findUnique({ where: { usuarioId: req.usuario!.sub } });
+    if (!padre) { res.status(403).json({ ok: false, mensaje: 'Perfil de padre no encontrado' }); return; }
+
+    const cobro = await prisma.cobro.findUnique({ where: { id } });
+    if (!cobro) { res.status(404).json({ ok: false, mensaje: 'Cobro no encontrado' }); return; }
+
+    const vinculo = await prisma.padreEstudiante.findFirst({ where: { padreId: padre.id, estudianteId: cobro.estudianteId } });
+    if (!vinculo) { res.status(403).json({ ok: false, mensaje: 'No tienes acceso a este cobro' }); return; }
+
+    if (cobro.estadoPago !== 'PENDIENTE') { res.status(400).json({ ok: false, mensaje: 'Este cobro ya fue pagado o exonerado' }); return; }
+
+    if (!WOMPI_PUBLIC_KEY) { res.status(503).json({ ok: false, mensaje: 'El pago en línea no está disponible en este momento' }); return; }
+
+    // Cada intento necesita una referencia nueva (Wompi la exige única por transacción);
+    // si el padre reintenta un pago rechazado, la referencia anterior queda huérfana y
+    // se sobrescribe con la del nuevo intento.
+    const referencia = generarReferenciaPago(cobro.id);
+    const montoEnCentavos = montoACentavos(Number(cobro.montoCobrado));
+    const firma = firmarIntegridadCheckout(referencia, montoEnCentavos);
+
+    await prisma.cobro.update({ where: { id }, data: { referenciaPago: referencia } });
+
+    res.json({
+      ok: true,
+      datos: {
+        checkoutUrl: WOMPI_CHECKOUT_URL,
+        publicKey: WOMPI_PUBLIC_KEY,
+        currency: 'COP',
+        amountInCents: montoEnCentavos,
+        reference: referencia,
+        signature: firma,
+        redirectUrl: `${process.env.FRONTEND_URL ?? 'http://localhost:5173'}/padre?pago=confirmacion`,
+      },
+    });
+  } catch (err) {
+    logger.error('Error al iniciar pago con Wompi', { err });
+    res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
+  }
+}
+
+// ─── WEBHOOK DE WOMPI (público, sin autenticación de usuario) ──────────────────
+
+export async function webhookWompi(req: Request, res: Response): Promise<void> {
+  try {
+    const evento = req.body;
+
+    if (!verificarFirmaEvento(evento)) {
+      logger.error('Webhook de Wompi rechazado: firma inválida', { event: evento?.event });
+      res.status(401).json({ ok: false, mensaje: 'Firma inválida' });
+      return;
+    }
+
+    const transaccion = evento?.data?.transaction as { reference?: string; status?: string; payment_method_type?: string; id?: string } | undefined;
+    if (evento.event !== 'transaction.updated' || !transaccion?.reference) {
+      res.status(200).json({ ok: true });
+      return;
+    }
+
+    const cobro = await prisma.cobro.findUnique({ where: { referenciaPago: transaccion.reference } });
+    if (!cobro) {
+      logger.error('Webhook de Wompi: referencia sin cobro asociado', { reference: transaccion.reference });
+      res.status(200).json({ ok: true });
+      return;
+    }
+
+    if (transaccion.status === 'APPROVED' && cobro.estadoPago === 'PENDIENTE') {
+      const actualizado = await prisma.cobro.update({
+        where: { id: cobro.id },
+        data: { estadoPago: 'PAGADO', fechaPago: new Date(), metodoPago: metodoPagoDesdeWompi(transaccion.payment_method_type) },
+      });
+      await audit({
+        usuarioId: cobro.registradoPor, accion: 'EDITAR', entidad: 'cobros', entidadId: cobro.id,
+        datosDespues: { estadoPago: 'PAGADO', origen: 'wompi', transaccionId: transaccion.id }, ip: req.ip,
+      });
+      logger.info('Cobro marcado como pagado vía Wompi', { cobroId: actualizado.id, transaccionId: transaccion.id });
+    }
+
+    res.status(200).json({ ok: true });
+  } catch (err) {
+    logger.error('Error al procesar webhook de Wompi', { err });
+    // 500 para que Wompi reintente el envío del evento — un fallo aquí no debe
+    // silenciarse, ya que significa que el cobro podría no haberse actualizado.
+    res.status(500).json({ ok: false });
   }
 }

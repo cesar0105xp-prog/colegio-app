@@ -426,6 +426,7 @@ model Cobro {
   estadoPago    EstadoPago   @default(PENDIENTE) @map("estado_pago")
   fechaPago     DateTime?    @map("fecha_pago")
   metodoPago    MetodoPago?  @map("metodo_pago")
+  referenciaPago String?     @unique @map("referencia_pago")
   observaciones String?      @db.VarChar(500)
   registradoPor String       @map("registrado_por")
   createdAt     DateTime     @default(now()) @map("created_at")

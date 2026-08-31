@@ -159,6 +159,7 @@ import {
   listarCobros, crearCobro, generarCobrosMasivo, marcarPagado, exonerarCobro,
   validarCobro, validarCobroMasivo, validarMarcarPagado, validarExonerar,
   reporteCartera, exportarCarteraCSV, miEstadoCuenta,
+  iniciarPagoWompi, validarIdCobroPago, webhookWompi,
 } from '../controllers/pagos.controller';
 
 router.get('/conceptos',           autenticar, autorizar(ADMIN, SEC), listarConceptos);
@@ -174,6 +175,10 @@ router.post('/cobros/masivo',      autenticar, autorizar(ADMIN, SEC), validarCob
 router.post('/cobros',             autenticar, autorizar(ADMIN, SEC), validarCobro, crearCobro);
 router.patch('/cobros/:id/pagar',    autenticar, autorizar(ADMIN, SEC), validarMarcarPagado, marcarPagado);
 router.patch('/cobros/:id/exonerar', autenticar, autorizar(ADMIN), validarExonerar, exonerarCobro);
+router.post('/cobros/:id/iniciar-pago', autenticar, autorizar(PADRE), validarIdCobroPago, iniciarPagoWompi);
+
+// Webhook público de Wompi — sin autenticación de usuario, protegido por firma criptográfica.
+router.post('/webhooks/wompi', webhookWompi);
 
 // PERÍODOS ACADÉMICOS AUTOMÁTICOS
 import { previewPeriodos, confirmarPeriodos, listarConfiguraciones, validarPreview, validarConfirmar } from '../controllers/periodos.controller';
