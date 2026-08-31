@@ -6,7 +6,7 @@ import {
   FileText, Shield, LogOut, Menu, Search, UserPlus, Plus,
   CheckCircle, AlertCircle, AlertTriangle, X, Layers, RefreshCw, Edit2,
   Eye, Trash2, BookMarked, MessageSquare, UserCheck, Clock,
-  Mail, Phone, CreditCard, KeyRound, ClipboardList
+  Mail, Phone, CreditCard, KeyRound, ClipboardList, CalendarCheck, Award
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import { useNavigate } from 'react-router-dom';
@@ -19,8 +19,9 @@ import Pagos from '../../components/Pagos';
 import PeriodosAcademicos from '../../components/PeriodosAcademicos';
 import GestionPermisos from '../../components/GestionPermisos';
 import AgendaCalendario from '../../components/AgendaCalendario';
+import GestionCertificados from '../../components/GestionCertificados';
 
-type Seccion = 'resumen' | 'estudiantes' | 'usuarios' | 'vinculos' | 'grados' | 'materias' | 'periodos' | 'reportes' | 'auditoria' | 'directorio' | 'comunicados' | 'documentos' | 'pagos' | 'permisos' | 'agenda';
+type Seccion = 'resumen' | 'estudiantes' | 'usuarios' | 'vinculos' | 'grados' | 'materias' | 'periodos' | 'reportes' | 'auditoria' | 'directorio' | 'comunicados' | 'documentos' | 'pagos' | 'asistencia' | 'permisos' | 'agenda' | 'certificados';
 
 const DOC_REGLAS: Record<string, { min: number; max: number; soloNumeros: boolean; placeholder: string }> = {
   RC:        { min: 8,  max: 11, soloNumeros: true,  placeholder: '8 a 11 dígitos' },
@@ -1394,6 +1395,91 @@ function Auditoria() {
   );
 }
 
+type ResumenAsistencia = { estudianteId: string; nombres: string; apellidos: string; grado: string; totalAusencias: number; totalTardanzas: number; totalExcusas: number; ausenciasSinJustificar: number };
+type AlertaAusencia = { estudianteId: string; nombres: string; apellidos: string; grado: string; ausenciasSinJustificar: number };
+const MESES_NOMBRE = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+function AsistenciaAdmin() {
+  const hoy = new Date();
+  const [mes, setMes] = useState(hoy.getMonth() + 1);
+  const [anio, setAnio] = useState(hoy.getFullYear());
+  const [gradoId, setGradoId] = useState('');
+
+  const { data: grados = [] } = useQuery({ queryKey: ['grados'], queryFn: async () => (await api.get('/grados')).data.datos ?? [] });
+
+  const { data: reporte, isLoading: cargandoReporte } = useQuery({
+    queryKey: ['asistencia-reporte', mes, anio, gradoId],
+    queryFn: async () => (await api.get('/asistencia/reporte', { params: { mes, anio, grado: gradoId || undefined } })).data,
+  });
+
+  const { data: alertas = [] } = useQuery({
+    queryKey: ['asistencia-alertas-admin', mes, anio],
+    queryFn: async () => (await api.get('/asistencia/alertas', { params: { mes, anio } })).data.datos ?? [],
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <select value={mes} onChange={e => setMes(Number(e.target.value))} className="py-2.5 px-3 border border-slate-200 rounded-xl text-sm bg-white min-h-[44px]">
+          {MESES_NOMBRE.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+        </select>
+        <select value={anio} onChange={e => setAnio(Number(e.target.value))} className="py-2.5 px-3 border border-slate-200 rounded-xl text-sm bg-white min-h-[44px]">
+          {[hoy.getFullYear() - 1, hoy.getFullYear(), hoy.getFullYear() + 1].map(a => <option key={a} value={a}>{a}</option>)}
+        </select>
+        <select value={gradoId} onChange={e => setGradoId(e.target.value)} className="py-2.5 px-3 border border-slate-200 rounded-xl text-sm bg-white min-h-[44px]">
+          <option value="">Todos los grados</option>
+          {(grados as { id: string; nombre: string; grupo: string }[]).map(g => <option key={g.id} value={g.id}>{g.nombre}{g.grupo}</option>)}
+        </select>
+      </div>
+
+      {(alertas as AlertaAusencia[]).length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
+            <p className="text-sm font-semibold text-red-700">Estudiantes con 3 o más ausencias sin justificar este mes</p>
+          </div>
+          <div className="space-y-1.5">
+            {(alertas as AlertaAusencia[]).map(a => (
+              <div key={a.estudianteId} className="flex items-center justify-between bg-white rounded-xl px-4 py-2.5">
+                <span className="text-sm text-slate-700">{a.nombres} {a.apellidos} <span className="text-slate-400">· {a.grado}</span></span>
+                <span className="text-xs bg-red-100 text-red-700 px-2.5 py-1 rounded-lg font-medium">{a.ausenciasSinJustificar} ausencias</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        {cargandoReporte ? (
+          <div className="flex items-center justify-center h-32"><div className="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>
+        ) : (reporte?.datos ?? []).length === 0 ? (
+          <div className="text-center py-12 text-slate-400"><CalendarCheck className="w-10 h-10 mx-auto mb-2 opacity-30" /><p className="text-sm">Sin ausencias, tardanzas o excusas registradas este mes</p></div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[600px]">
+              <thead className="bg-slate-50 border-b border-slate-100">
+                <tr>{['Estudiante', 'Grado', 'Ausencias', 'Tardanzas', 'Excusas', 'Sin justificar'].map(h => <th key={h} className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">{h}</th>)}</tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {(reporte?.datos as ResumenAsistencia[]).map(r => (
+                  <tr key={r.estudianteId} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3 text-sm font-medium text-slate-800 whitespace-nowrap">{r.nombres} {r.apellidos}</td>
+                    <td className="px-4 py-3"><span className="text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg font-medium">{r.grado}</span></td>
+                    <td className="px-4 py-3 text-sm text-slate-600">{r.totalAusencias}</td>
+                    <td className="px-4 py-3 text-sm text-slate-600">{r.totalTardanzas}</td>
+                    <td className="px-4 py-3 text-sm text-slate-600">{r.totalExcusas}</td>
+                    <td className="px-4 py-3 text-sm">{r.ausenciasSinJustificar > 0 ? <span className="text-red-600 font-semibold">{r.ausenciasSinJustificar}</span> : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const NAV = [
   { id: 'resumen',     label: 'Resumen',          icono: LayoutDashboard },
   { id: 'estudiantes', label: 'Estudiantes',       icono: GraduationCap },
@@ -1403,8 +1489,10 @@ const NAV = [
   { id: 'materias',    label: 'Materias',          icono: BookOpen },
   { id: 'periodos',    label: 'Períodos',          icono: Calendar },
   { id: 'pagos',       label: 'Pagos y cartera',   icono: CreditCard },
+  { id: 'asistencia',  label: 'Asistencia',        icono: CalendarCheck },
   { id: 'permisos',    label: 'Permisos',          icono: ClipboardList },
   { id: 'agenda',      label: 'Agenda escolar',    icono: Calendar },
+  { id: 'certificados', label: 'Certificados',      icono: Award },
   { id: 'reportes',    label: 'Reportes',          icono: FileText },
   { id: 'auditoria',   label: 'Auditoría',         icono: Shield },
   { id: 'documentos',  label: 'Documentos',         icono: FileText },
@@ -1419,8 +1507,10 @@ const TITULOS: Record<Seccion, string> = {
   periodos: 'Períodos académicos', reportes: 'Reportes', auditoria: 'Log de auditoría',
   directorio: 'Directorio de docentes', comunicados: 'Comunicados a padres',
   documentos: 'Documentos requeridos', pagos: 'Pagos y cartera',
+  asistencia: 'Asistencia',
   permisos: 'Permisos y ausencias',
   agenda: 'Agenda escolar digital',
+  certificados: 'Certificados',
 };
 
 // ─── DIRECTORIO DE DOCENTES ───────────────────────────────────────────────────
@@ -1713,8 +1803,10 @@ export default function AdminDashboard() {
         </div>
       );
       case 'pagos':       return <Pagos />;
+      case 'asistencia':  return <AsistenciaAdmin />;
       case 'permisos':    return <GestionPermisos />;
       case 'agenda':      return <AgendaCalendario />;
+      case 'certificados': return <GestionCertificados />;
       case 'reportes':    return <ReportesAdmin />;
       case 'auditoria':   return <Auditoria />;
       case 'directorio':  return <DirectorioDocentes />;

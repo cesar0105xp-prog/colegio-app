@@ -48,7 +48,7 @@ const limiterGlobal = rateLimit({
 // Rate limiting estricto para login (evitar fuerza bruta)
 const limiterLogin = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 20, // 20 intentos por IP en 15 minutos (era 5)
+  max: parseInt(process.env.LOGIN_RATE_LIMIT_MAX ?? '20'),
   skipSuccessfulRequests: true, // NO cuenta los logins exitosos
   message: { ok: false, mensaje: 'Demasiados intentos de inicio de sesión. Intenta en 15 minutos' },
   standardHeaders: true,
