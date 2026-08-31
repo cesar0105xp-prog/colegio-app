@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
 import { REGEX } from '../types';
+import { SALT_ROUNDS } from '../utils/config';
 
 const prisma = new PrismaClient();
 
@@ -97,7 +98,7 @@ export async function crearUsuario(req: Request, res: Response): Promise<void> {
     if (existe) { res.status(409).json({ ok: false, mensaje: 'Ya existe un usuario con ese email' }); return; }
 
     const passwordTemporal = `${nombres.split(' ')[0]}2026!`;
-    const hash = await bcrypt.hash(passwordTemporal, 12);
+    const hash = await bcrypt.hash(passwordTemporal, SALT_ROUNDS);
 
     const data: Record<string, unknown> = { email: email.trim(), passwordHash: hash, rol, estado: 'ACTIVO' };
 
@@ -239,7 +240,7 @@ export async function resetearPassword(req: Request, res: Response): Promise<voi
     const perfil = usuario.perfilProfesor ?? usuario.perfilPadre ?? usuario.perfilSecretario ?? usuario.perfilAdmin;
     const nombre = perfil?.nombres?.split(' ')[0] ?? 'Usuario';
     const passwordTemporal = `${nombre}2026!`;
-    const hash = await bcrypt.hash(passwordTemporal, 12);
+    const hash = await bcrypt.hash(passwordTemporal, SALT_ROUNDS);
 
     await prisma.usuario.update({ where: { id }, data: { passwordHash: hash, refreshToken: null, intentosFallidos: 0, bloqueadoHasta: null } });
 
