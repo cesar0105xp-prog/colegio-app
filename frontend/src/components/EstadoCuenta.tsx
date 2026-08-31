@@ -1,6 +1,36 @@
-import { useQuery } from '@tanstack/react-query';
-import { Wallet, CheckCircle, Clock, Download, CreditCard } from 'lucide-react';
+import { useState } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { Wallet, CheckCircle, Clock, Download, CreditCard, ExternalLink, AlertCircle } from 'lucide-react';
 import api from '../services/api';
+
+type DatosCheckoutWompi = {
+  checkoutUrl: string; publicKey: string; currency: string; amountInCents: number;
+  reference: string; signature: string; redirectUrl: string;
+};
+
+/** Arma y envía el formulario POST que exige el Web Checkout de Wompi. */
+function redirigirAWompi(datos: DatosCheckoutWompi) {
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = datos.checkoutUrl;
+  const campos: Record<string, string> = {
+    'public-key': datos.publicKey,
+    'currency': datos.currency,
+    'amount-in-cents': String(datos.amountInCents),
+    'reference': datos.reference,
+    'signature:integrity': datos.signature,
+    'redirect-url': datos.redirectUrl,
+  };
+  for (const [nombre, valor] of Object.entries(campos)) {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = nombre;
+    input.value = valor;
+    form.appendChild(input);
+  }
+  document.body.appendChild(form);
+  form.submit();
+}
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const LABEL_METODO: Record<string, string> = { EFECTIVO: 'Efectivo', TRANSFERENCIA: 'Transferencia', BANCO_BOGOTA: 'Banco de Bogotá', PSE: 'PSE', NEQUI: 'Nequi' };
@@ -16,10 +46,21 @@ type CobroPadre = {
 };
 
 export default function EstadoCuenta({ estudianteId }: { estudianteId: string }) {
+  const [errorPago, setErrorPago] = useState('');
   const { data, isLoading } = useQuery({
     queryKey: ['mi-estado-cuenta', estudianteId],
     queryFn: async () => (await api.get('/cobros/mi-estado', { params: { estudianteId } })).data.datos,
     enabled: !!estudianteId,
+  });
+
+  const pagarMutation = useMutation({
+    mutationFn: (cobroId: string) => api.post(`/cobros/${cobroId}/iniciar-pago`),
+    onMutate: () => setErrorPago(''),
+    onSuccess: (res) => redirigirAWompi(res.data.datos as DatosCheckoutWompi),
+    onError: (e: unknown) => {
+      const d = (e as { response?: { data?: { mensaje?: string } } })?.response?.data;
+      setErrorPago(d?.mensaje ?? 'No se pudo iniciar el pago en línea. Intenta de nuevo.');
+    },
   });
 
   const cobros = (data?.cobros ?? []) as CobroPadre[];
@@ -49,6 +90,13 @@ export default function EstadoCuenta({ estudianteId }: { estudianteId: string })
 
   return (
     <div className="space-y-4">
+      {errorPago && (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-center gap-3 print:hidden">
+          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+          <p className="text-sm text-red-700">{errorPago}</p>
+        </div>
+      )}
+
       {/* Saldo pendiente */}
       <div className={`rounded-2xl p-6 text-white ${data.saldoPendiente > 0 ? 'bg-gradient-to-r from-red-600 to-red-700' : 'bg-gradient-to-r from-emerald-600 to-emerald-700'}`}>
         <p className="text-white/80 text-sm mb-1">Saldo pendiente</p>
@@ -79,11 +127,20 @@ export default function EstadoCuenta({ estudianteId }: { estudianteId: string })
                       <p className="text-sm font-medium text-slate-700 mb-2">{MESES[mes - 1]}</p>
                       <div className="space-y-1.5">
                         {items.map(c => (
-                          <div key={c.id} className="flex items-center justify-between text-sm">
+                          <div key={c.id} className="flex items-center justify-between text-sm flex-wrap gap-y-1">
                             <span className="text-slate-600">{c.concepto.nombre}</span>
                             <div className="flex items-center gap-2">
                               <span className="font-medium text-slate-700">{formatoCOP(Number(c.montoCobrado))}</span>
                               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[c.estadoPago]}`}>{LABEL_ESTADO[c.estadoPago]}</span>
+                              {c.estadoPago === 'PENDIENTE' && (
+                                <button
+                                  onClick={() => pagarMutation.mutate(c.id)}
+                                  disabled={pagarMutation.isPending}
+                                  className="flex items-center gap-1 px-2.5 py-1 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition disabled:opacity-50 min-h-[28px]">
+                                  <ExternalLink className="w-3 h-3" />
+                                  {pagarMutation.isPending && pagarMutation.variables === c.id ? 'Conectando...' : 'Pagar en línea'}
+                                </button>
+                              )}
                             </div>
                           </div>
                         ))}

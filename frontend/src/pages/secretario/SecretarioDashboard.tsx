@@ -129,6 +129,7 @@ function EstudiantesSecretario() {
   const qc = useQueryClient();
   const [busqueda, setBusqueda] = useState('');
   const [filtroGrado, setFiltroGrado] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState('');
   const [modalCrear, setModalCrear] = useState(false);
   const [modalEditar, setModalEditar] = useState<EstRow | null>(null);
   const [modalVer, setModalVer] = useState<EstRow | null>(null);
@@ -136,8 +137,8 @@ function EstudiantesSecretario() {
 
   const { data: gradosData } = useQuery({ queryKey: ['grados'], queryFn: async () => (await api.get('/grados')).data.datos ?? [] });
   const { data, isLoading } = useQuery({
-    queryKey: ['estudiantes', busqueda, filtroGrado],
-    queryFn: async () => (await api.get('/estudiantes', { params: { busqueda: busqueda || undefined, gradoId: filtroGrado || undefined } })).data,
+    queryKey: ['estudiantes', busqueda, filtroGrado, filtroEstado],
+    queryFn: async () => (await api.get('/estudiantes', { params: { busqueda: busqueda || undefined, gradoId: filtroGrado || undefined, estado: filtroEstado || undefined } })).data,
     staleTime: 0,
   });
 
@@ -258,6 +259,11 @@ function EstudiantesSecretario() {
         <select value={filtroGrado} onChange={e => setFiltroGrado(e.target.value)} className="py-2.5 px-3 border border-slate-200 rounded-xl text-sm bg-white">
           <option value="">Todos los grados</option>
           {(gradosData ?? []).map((g: { id: string; nombre: string; grupo: string }) => <option key={g.id} value={g.id}>{g.nombre}{g.grupo}</option>)}
+        </select>
+        <select value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)} className="py-2.5 px-3 border border-slate-200 rounded-xl text-sm bg-white">
+          <option value="">Todos los estados</option>
+          <option value="ACTIVO">Activo</option>
+          <option value="INACTIVO">Inactivo</option>
         </select>
         <button onClick={() => setModalCrear(true)} className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors">
           <UserPlus className="w-4 h-4" /> Nuevo estudiante

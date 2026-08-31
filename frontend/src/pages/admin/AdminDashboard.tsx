@@ -19,7 +19,6 @@ import Pagos from '../../components/Pagos';
 import PeriodosAcademicos from '../../components/PeriodosAcademicos';
 import GestionPermisos from '../../components/GestionPermisos';
 import AgendaCalendario from '../../components/AgendaCalendario';
-import GestionCertificados from '../../components/GestionCertificados';
 
 type Seccion = 'resumen' | 'estudiantes' | 'usuarios' | 'vinculos' | 'grados' | 'materias' | 'periodos' | 'reportes' | 'auditoria' | 'directorio' | 'comunicados' | 'documentos' | 'pagos' | 'asistencia' | 'permisos' | 'agenda' | 'certificados';
 
@@ -1480,6 +1479,70 @@ function AsistenciaAdmin() {
   );
 }
 
+const ESTADOS_CERT = ['PENDIENTE', 'EN_PROCESO', 'LISTO', 'ENTREGADO'] as const;
+const LABEL_ESTADO_CERT: Record<string, string> = { PENDIENTE: 'Pendientes', EN_PROCESO: 'En proceso', LISTO: 'Listos', ENTREGADO: 'Descargados' };
+const COLOR_ESTADO_CERT: Record<string, string> = { PENDIENTE: 'bg-amber-500', EN_PROCESO: 'bg-blue-500', LISTO: 'bg-emerald-500', ENTREGADO: 'bg-slate-400' };
+type SolicitudCertReciente = { id: string; tipoCertificado: string; estado: string; createdAt: string; estudiante: { nombres: string; apellidos: string } };
+
+function ResumenCertificados() {
+  const conteos = useQuery({
+    queryKey: ['certificados-conteos'],
+    queryFn: async () => {
+      const resultados = await Promise.all(
+        ESTADOS_CERT.map(estado => api.get('/certificados', { params: { estado, limite: 1 } }))
+      );
+      return Object.fromEntries(ESTADOS_CERT.map((estado, i) => [estado, resultados[i].data.meta?.total ?? 0]));
+    },
+  });
+
+  const { data: recientes = [], isLoading: cargandoRecientes } = useQuery({
+    queryKey: ['certificados-recientes'],
+    queryFn: async () => (await api.get('/certificados', { params: { limite: 8 } })).data.datos ?? [],
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center gap-3">
+        <Award className="w-5 h-5 text-blue-600 flex-shrink-0" />
+        <p className="text-sm text-blue-700">La gestión operativa de certificados (procesar solicitudes, subir PDF, cambiar estado) se realiza desde el dashboard de Secretaría. Aquí solo ves el resumen.</p>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {ESTADOS_CERT.map(estado => (
+          <div key={estado} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+            <div className={`w-10 h-10 ${COLOR_ESTADO_CERT[estado]} rounded-xl flex items-center justify-center mb-3`}><Award className="w-5 h-5 text-white" /></div>
+            <p className="text-3xl font-bold text-slate-800">{conteos.isLoading ? '—' : conteos.data?.[estado] ?? 0}</p>
+            <p className="text-sm text-slate-500 mt-0.5">{LABEL_ESTADO_CERT[estado]}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100">
+          <h3 className="font-semibold text-slate-700">Solicitudes recientes</h3>
+        </div>
+        {cargandoRecientes ? (
+          <div className="flex items-center justify-center h-24"><div className="w-5 h-5 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>
+        ) : (recientes as SolicitudCertReciente[]).length === 0 ? (
+          <div className="text-center py-10 text-slate-400 text-sm">Sin solicitudes registradas</div>
+        ) : (
+          <div className="divide-y divide-slate-50">
+            {(recientes as SolicitudCertReciente[]).map(s => (
+              <div key={s.id} className="px-5 py-3 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-800">{s.estudiante.nombres} {s.estudiante.apellidos}</p>
+                  <p className="text-xs text-slate-400">{s.tipoCertificado} · {new Date(s.createdAt).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                </div>
+                <span className={`text-xs px-2.5 py-1 rounded-full font-medium text-white ${COLOR_ESTADO_CERT[s.estado]}`}>{LABEL_ESTADO_CERT[s.estado]}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const NAV = [
   { id: 'resumen',     label: 'Resumen',          icono: LayoutDashboard },
   { id: 'estudiantes', label: 'Estudiantes',       icono: GraduationCap },
@@ -1806,7 +1869,7 @@ export default function AdminDashboard() {
       case 'asistencia':  return <AsistenciaAdmin />;
       case 'permisos':    return <GestionPermisos />;
       case 'agenda':      return <AgendaCalendario />;
-      case 'certificados': return <GestionCertificados />;
+      case 'certificados': return <ResumenCertificados />;
       case 'reportes':    return <ReportesAdmin />;
       case 'auditoria':   return <Auditoria />;
       case 'directorio':  return <DirectorioDocentes />;
