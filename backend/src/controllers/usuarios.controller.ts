@@ -304,7 +304,7 @@ export async function editarMiPerfil(req: Request, res: Response): Promise<void>
     const actualizado = await prisma.profesor.update({
       where: { id: profesor.id },
       data: {
-        telefono: telefono != null ? telefono.trim() || null : profesor.telefono,
+        telefono: telefono?.trim() || profesor.telefono,
         nombres: nombres?.trim() ?? profesor.nombres,
         apellidos: apellidos?.trim() ?? profesor.apellidos,
         tipoDocumento: tipoDocumento ?? profesor.tipoDocumento,
