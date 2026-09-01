@@ -81,3 +81,58 @@ export function validarPDFReal(req: Request, res: Response, next: NextFunction):
   }
   next();
 }
+
+// ─── COMPROBANTES DE PAGO (JPG, PNG o PDF) ────────────────────────────────────
+
+const MAX_COMPROBANTE_MB = 5;
+const EXTENSIONES_COMPROBANTE = ['.jpg', '.jpeg', '.png', '.pdf'];
+const TIPOS_COMPROBANTE = ['image/jpeg', 'image/png', 'application/pdf'];
+
+const storageComprobante = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `${uuidv4()}${EXTENSIONES_COMPROBANTE.includes(ext) ? ext : ''}`);
+  },
+});
+
+export const uploadComprobante = multer({
+  storage: storageComprobante,
+  fileFilter: (_req, file, cb) => {
+    const extOk = EXTENSIONES_COMPROBANTE.includes(path.extname(file.originalname).toLowerCase());
+    const mimeOk = TIPOS_COMPROBANTE.includes(file.mimetype);
+    if (extOk && mimeOk) cb(null, true);
+    else cb(new Error('Solo se permiten archivos JPG, PNG o PDF'));
+  },
+  limits: { fileSize: MAX_COMPROBANTE_MB * 1024 * 1024, files: 1 },
+});
+
+const FIRMAS_IMAGEN: { nombre: string; bytes: number[] }[] = [
+  { nombre: 'JPG', bytes: [0xff, 0xd8, 0xff] },
+  { nombre: 'PNG', bytes: [0x89, 0x50, 0x4e, 0x47] },
+];
+
+/** Igual que validarPDFReal, pero acepta también la firma binaria de JPG/PNG. */
+export function validarComprobanteReal(req: Request, res: Response, next: NextFunction): void {
+  if (!req.file) { next(); return; }
+
+  const inicio = Buffer.alloc(BYTES_A_INSPECCIONAR);
+  let coincide = false;
+  try {
+    const fd = fs.openSync(req.file.path, 'r');
+    const bytesLeidos = fs.readSync(fd, inicio, 0, BYTES_A_INSPECCIONAR, 0);
+    fs.closeSync(fd);
+    const buffer = inicio.subarray(0, bytesLeidos);
+    coincide = buffer.toString('latin1').includes(FIRMA_PDF)
+      || FIRMAS_IMAGEN.some(f => buffer.subarray(0, f.bytes.length).equals(Buffer.from(f.bytes)));
+  } catch {
+    coincide = false;
+  }
+
+  if (!coincide) {
+    fs.unlink(req.file.path, () => {});
+    res.status(400).json({ ok: false, mensaje: 'El archivo no es una imagen JPG/PNG ni un PDF válido' });
+    return;
+  }
+  next();
+}

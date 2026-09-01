@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import {
   CreditCard, Plus, Edit2, Power, Wallet, BarChart2, CheckCircle,
   AlertCircle, X, Search, Download, DollarSign, Ban, ChevronLeft, ChevronRight,
+  Receipt, Eye, Check, XCircle,
 } from 'lucide-react';
 import api from '../services/api';
 import { useAuthStore } from '../store/auth.store';
@@ -80,8 +81,8 @@ function mensajeError(e: unknown, fallback: string): string {
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const METODOS_PAGO = ['EFECTIVO', 'TRANSFERENCIA', 'BANCO_BOGOTA', 'PSE', 'NEQUI'];
 const LABEL_METODO: Record<string, string> = { EFECTIVO: 'Efectivo', TRANSFERENCIA: 'Transferencia', BANCO_BOGOTA: 'Banco de Bogotá', PSE: 'PSE', NEQUI: 'Nequi' };
-const ESTADO_COLOR: Record<string, string> = { PENDIENTE: 'bg-red-50 text-red-600', PAGADO: 'bg-emerald-50 text-emerald-700', EXONERADO: 'bg-slate-100 text-slate-500' };
-const LABEL_ESTADO: Record<string, string> = { PENDIENTE: 'Pendiente', PAGADO: 'Pagado', EXONERADO: 'Exonerado' };
+const ESTADO_COLOR: Record<string, string> = { PENDIENTE: 'bg-red-50 text-red-600', PAGADO: 'bg-emerald-50 text-emerald-700', EXONERADO: 'bg-slate-100 text-slate-500', EN_VERIFICACION: 'bg-amber-50 text-amber-700' };
+const LABEL_ESTADO: Record<string, string> = { PENDIENTE: 'Pendiente', PAGADO: 'Pagado', EXONERADO: 'Exonerado', EN_VERIFICACION: 'En verificación' };
 
 const formatoCOP = (n: number) => n.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
 
@@ -402,6 +403,7 @@ function TabCartera({ esAdmin }: { esAdmin: boolean }) {
         <select value={estado} onChange={e => setEstado(e.target.value)} className="py-2.5 px-3 border border-slate-200 rounded-xl text-sm bg-white min-h-[44px]">
           <option value="">Todos los estados</option>
           <option value="PENDIENTE">Pendiente</option>
+          <option value="EN_VERIFICACION">En verificación</option>
           <option value="PAGADO">Pagado</option>
           <option value="EXONERADO">Exonerado</option>
         </select>
@@ -506,6 +508,160 @@ function TabCartera({ esAdmin }: { esAdmin: boolean }) {
   );
 }
 
+// ─── TAB: COMPROBANTES POR VERIFICAR ────────────────────────────────────────────
+
+type Comprobante = {
+  id: string; nombreOriginal: string; observaciones: string | null; estado: 'PENDIENTE_VERIFICACION' | 'APROBADO' | 'RECHAZADO';
+  motivoRechazo: string | null; createdAt: string;
+  cobro: { id: string; montoCobrado: string; mes: number; anio: number; estudiante: { nombres: string; apellidos: string; grado: { nombre: string; grupo: string } }; concepto: { nombre: string } };
+  padre: { email: string; perfilPadre: { nombres: string; apellidos: string } | null };
+};
+
+const ESTADO_COMPROBANTE_COLOR: Record<string, string> = { PENDIENTE_VERIFICACION: 'bg-amber-50 text-amber-700', APROBADO: 'bg-emerald-50 text-emerald-700', RECHAZADO: 'bg-red-50 text-red-600' };
+const LABEL_ESTADO_COMPROBANTE: Record<string, string> = { PENDIENTE_VERIFICACION: 'Pendiente', APROBADO: 'Aprobado', RECHAZADO: 'Rechazado' };
+
+function TabComprobantes() {
+  const qc = useQueryClient();
+  const [estado, setEstado] = useState('PENDIENTE_VERIFICACION');
+  const [gradoId, setGradoId] = useState('');
+  const [fecha, setFecha] = useState('');
+  const [pagina, setPagina] = useState(1);
+  const [rechazando, setRechazando] = useState<Comprobante | null>(null);
+  const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'error' } | null>(null);
+
+  useEffect(() => { setPagina(1); }, [estado, gradoId, fecha]);
+
+  const { data: grados = [] } = useQuery({ queryKey: ['grados'], queryFn: async () => (await api.get('/grados')).data.datos ?? [] });
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['comprobantes', estado, gradoId, fecha, pagina],
+    queryFn: async () => (await api.get('/cobros/comprobantes', { params: { estado: estado || undefined, grado: gradoId || undefined, fecha: fecha || undefined, pagina, limite: 20 } })).data,
+    staleTime: 0,
+  });
+
+  const verArchivo = async (id: string) => {
+    try {
+      const res = await api.get(`/cobros/comprobantes/${id}/archivo`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(res.data);
+      window.open(url, '_blank');
+      setTimeout(() => window.URL.revokeObjectURL(url), 10000);
+    } catch {
+      setToast({ msg: 'No se pudo abrir el comprobante', tipo: 'error' });
+    }
+  };
+
+  const aprobarMutation = useMutation({
+    mutationFn: (id: string) => api.patch(`/cobros/comprobantes/${id}/aprobar`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['comprobantes'] }); qc.invalidateQueries({ queryKey: ['cobros'] }); setToast({ msg: 'Pago aprobado correctamente', tipo: 'ok' }); },
+    onError: (e: unknown) => setToast({ msg: mensajeError(e, 'Error al aprobar el pago'), tipo: 'error' }),
+  });
+
+  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<{ motivoRechazo: string }>();
+  const watchMotivo = watch('motivoRechazo');
+
+  const rechazarMutation = useMutation({
+    mutationFn: (d: { id: string; motivoRechazo: string }) => api.patch(`/cobros/comprobantes/${d.id}/rechazar`, { motivoRechazo: d.motivoRechazo }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['comprobantes'] }); qc.invalidateQueries({ queryKey: ['cobros'] }); setRechazando(null); reset(); setToast({ msg: 'Comprobante rechazado', tipo: 'ok' }); },
+    onError: (e: unknown) => setToast({ msg: mensajeError(e, 'Error al rechazar el comprobante'), tipo: 'error' }),
+  });
+
+  const meta = data?.meta as { pagina: number; totalPaginas: number; total: number } | undefined;
+
+  return (
+    <div className="space-y-4">
+      {toast && <Toast mensaje={toast.msg} tipo={toast.tipo} onClose={() => setToast(null)} />}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <select value={estado} onChange={e => setEstado(e.target.value)} className="py-2.5 px-3 border border-slate-200 rounded-xl text-sm bg-white min-h-[44px]">
+          <option value="PENDIENTE_VERIFICACION">Pendientes</option>
+          <option value="APROBADO">Aprobados</option>
+          <option value="RECHAZADO">Rechazados</option>
+          <option value="">Todos los estados</option>
+        </select>
+        <select value={gradoId} onChange={e => setGradoId(e.target.value)} className="py-2.5 px-3 border border-slate-200 rounded-xl text-sm bg-white min-h-[44px]">
+          <option value="">Todos los grados</option>
+          {(grados as Grado[]).map(g => <option key={g.id} value={g.id}>{g.nombre}{g.grupo}</option>)}
+        </select>
+        <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="py-2.5 px-3 border border-slate-200 rounded-xl text-sm bg-white min-h-[44px]" />
+        {fecha && <button onClick={() => setFecha('')} className="text-xs text-slate-400 hover:text-slate-600">Limpiar fecha</button>}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        {isLoading ? (
+          <div className="flex items-center justify-center h-32"><div className="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>
+        ) : (data?.datos ?? []).length === 0 ? (
+          <div className="text-center py-12 text-slate-400"><Receipt className="w-10 h-10 mx-auto mb-2 opacity-30" /><p className="text-sm">No hay comprobantes que coincidan con los filtros</p></div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px]">
+              <thead className="bg-slate-50 border-b border-slate-100">
+                <tr>{['Estudiante', 'Grado', 'Concepto', 'Monto', 'Padre/Acudiente', 'Enviado', 'Estado', 'Acciones'].map(h => <th key={h} className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">{h}</th>)}</tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {(data.datos as Comprobante[]).map(c => (
+                  <tr key={c.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3 text-sm font-medium text-slate-800 whitespace-nowrap">{c.cobro.estudiante.nombres} {c.cobro.estudiante.apellidos}</td>
+                    <td className="px-4 py-3"><Badge texto={`${c.cobro.estudiante.grado.nombre}${c.cobro.estudiante.grado.grupo}`} color="bg-blue-50 text-blue-700" /></td>
+                    <td className="px-4 py-3 text-sm text-slate-600">{c.cobro.concepto.nombre} · {MESES[c.cobro.mes - 1]} {c.cobro.anio}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-slate-700">{formatoCOP(Number(c.cobro.montoCobrado))}</td>
+                    <td className="px-4 py-3 text-sm text-slate-500">
+                      <p>{c.padre.perfilPadre ? `${c.padre.perfilPadre.nombres} ${c.padre.perfilPadre.apellidos}` : '—'}</p>
+                      <p className="text-xs text-slate-400">{c.padre.email}</p>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">{new Date(c.createdAt).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                    <td className="px-4 py-3"><Badge texto={LABEL_ESTADO_COMPROBANTE[c.estado]} color={ESTADO_COMPROBANTE_COLOR[c.estado]} /></td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        <button onClick={() => verArchivo(c.id)} title="Ver comprobante" className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"><Eye className="w-4 h-4" /></button>
+                        {c.estado === 'PENDIENTE_VERIFICACION' && (
+                          <>
+                            <button onClick={() => aprobarMutation.mutate(c.id)} title="Aprobar pago" className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"><Check className="w-4 h-4" /></button>
+                            <button onClick={() => { setRechazando(c); reset(); }} title="Rechazar" className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"><XCircle className="w-4 h-4" /></button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {meta && meta.total > 0 && (
+          <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 text-xs text-slate-400">
+            <span>{meta.total} comprobante(s) en total</span>
+            {meta.totalPaginas > 1 && (
+              <div className="flex items-center gap-2">
+                <button disabled={pagina <= 1} onClick={() => setPagina(p => p - 1)} className="p-1.5 rounded-lg border border-slate-200 disabled:opacity-30 hover:bg-slate-50 min-h-[32px] min-w-[32px]"><ChevronLeft className="w-3.5 h-3.5" /></button>
+                <span>Página {meta.pagina} de {meta.totalPaginas}</span>
+                <button disabled={pagina >= meta.totalPaginas} onClick={() => setPagina(p => p + 1)} className="p-1.5 rounded-lg border border-slate-200 disabled:opacity-30 hover:bg-slate-50 min-h-[32px] min-w-[32px]"><ChevronRight className="w-3.5 h-3.5" /></button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {rechazando && (
+        <Modal titulo="Rechazar comprobante" onClose={() => setRechazando(null)} ancho="max-w-sm">
+          <div className="mb-4 bg-slate-50 rounded-xl p-3">
+            <p className="text-sm font-medium text-slate-700">{rechazando.cobro.estudiante.nombres} {rechazando.cobro.estudiante.apellidos}</p>
+            <p className="text-xs text-slate-400">{rechazando.cobro.concepto.nombre} · {formatoCOP(Number(rechazando.cobro.montoCobrado))}</p>
+          </div>
+          <form onSubmit={handleSubmit(d => rechazarMutation.mutate({ id: rechazando.id, ...d }))} className="space-y-4">
+            <Campo label="Motivo del rechazo *" error={errors.motivoRechazo?.message}>
+              <textarea rows={4} maxLength={300} className={`${inputCls(errors.motivoRechazo?.message)} resize-none`}
+                placeholder="Ej: El comprobante no coincide con el monto del cobro..."
+                {...register('motivoRechazo', { required: 'El motivo es requerido', minLength: { value: 5, message: 'Mínimo 5 caracteres' }, maxLength: { value: 300, message: 'Máximo 300 caracteres' } })} />
+              <p className="mt-1 text-xs text-right text-slate-400">{watchMotivo?.length ?? 0} / 300 caracteres</p>
+            </Campo>
+            <BotonesForm onCancel={() => setRechazando(null)} cargando={rechazarMutation.isPending} labelGuardar="Rechazar comprobante" />
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
 // ─── TAB: REPORTE DE CARTERA ────────────────────────────────────────────────────
 
 type ResumenGrado = { gradoId: string; nombre: string; totalCobrado: number; totalPagado: number; totalPendiente: number; totalExonerado: number; cantidadCobros: number };
@@ -593,7 +749,7 @@ function TabReporte() {
 
 // ─── COMPONENTE PRINCIPAL ───────────────────────────────────────────────────────
 
-type Tab = 'conceptos' | 'generar' | 'cartera' | 'reporte';
+type Tab = 'conceptos' | 'generar' | 'cartera' | 'comprobantes' | 'reporte';
 
 export default function Pagos() {
   const { usuario } = useAuthStore();
@@ -604,6 +760,9 @@ export default function Pagos() {
     { id: 'conceptos', label: 'Conceptos', icono: CreditCard },
     { id: 'generar', label: 'Generar cobros', icono: Plus },
     { id: 'cartera', label: 'Estado de cartera', icono: Wallet },
+    // La verificación operativa de comprobantes vive en Secretaría; el admin
+    // solo necesita ver el estado de cartera y los reportes agregados.
+    ...(esAdmin ? [] : [{ id: 'comprobantes' as Tab, label: 'Comprobantes', icono: Receipt }]),
     { id: 'reporte', label: 'Reporte', icono: BarChart2 },
   ];
 
@@ -621,6 +780,7 @@ export default function Pagos() {
       {tab === 'conceptos' && <TabConceptos esAdmin={esAdmin} />}
       {tab === 'generar' && <TabGenerar />}
       {tab === 'cartera' && <TabCartera esAdmin={esAdmin} />}
+      {tab === 'comprobantes' && !esAdmin && <TabComprobantes />}
       {tab === 'reporte' && <TabReporte />}
     </div>
   );

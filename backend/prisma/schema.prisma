@@ -34,6 +34,7 @@ model Usuario {
   eventosCreados        EventoAgenda[]
   tareasCreadas         TareaAgenda[]
   certificadosSolicitados SolicitudCertificado[] @relation("PadreCertificados")
+  comprobantesPago      ComprobantePago[] @relation("PadreComprobantes")
 
   @@map("usuarios")
 }
@@ -426,18 +427,39 @@ model Cobro {
   estadoPago    EstadoPago   @default(PENDIENTE) @map("estado_pago")
   fechaPago     DateTime?    @map("fecha_pago")
   metodoPago    MetodoPago?  @map("metodo_pago")
-  referenciaPago String?     @unique @map("referencia_pago")
   observaciones String?      @db.VarChar(500)
   registradoPor String       @map("registrado_por")
   createdAt     DateTime     @default(now()) @map("created_at")
   updatedAt     DateTime     @updatedAt @map("updated_at")
   estudiante    Estudiante   @relation(fields: [estudianteId], references: [id])
   concepto      ConceptoPago @relation(fields: [conceptoId], references: [id])
+  comprobantes  ComprobantePago[]
 
   @@index([estudianteId])
   @@index([estadoPago])
   @@index([mes, anio])
   @@map("cobros")
+}
+
+model ComprobantePago {
+  id                String            @id @default(uuid())
+  cobroId           String            @map("cobro_id")
+  padreId           String            @map("padre_id")
+  archivoUrl        String            @map("archivo_url")
+  nombreOriginal    String            @map("nombre_original")
+  observaciones     String?           @db.VarChar(200)
+  estado            EstadoComprobante @default(PENDIENTE_VERIFICACION)
+  motivoRechazo     String?           @db.VarChar(300) @map("motivo_rechazo")
+  verificadoPor     String?           @map("verificado_por")
+  fechaVerificacion DateTime?         @map("fecha_verificacion")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  cobro             Cobro             @relation(fields: [cobroId], references: [id])
+  padre             Usuario           @relation("PadreComprobantes", fields: [padreId], references: [id])
+
+  @@index([cobroId])
+  @@index([estado])
+  @@map("comprobantes_pago")
 }
 
 model RegistroAsistencia {
@@ -620,6 +642,13 @@ enum EstadoPago {
   PENDIENTE
   PAGADO
   EXONERADO
+  EN_VERIFICACION
+}
+
+enum EstadoComprobante {
+  PENDIENTE_VERIFICACION
+  APROBADO
+  RECHAZADO
 }
 
 enum MetodoPago {
