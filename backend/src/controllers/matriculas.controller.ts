@@ -608,14 +608,19 @@ export async function reenviarLink(req: Request, res: Response): Promise<void> {
     const matricula = await prisma.matricula.findUnique({
       where: { id },
       include: {
-        padre: { include: { usuario: true } },
+        padre: { select: { emailContacto: true } },
         estudiante: { select: { nombres: true, apellidos: true } },
       },
     });
     if (!matricula) { res.status(404).json({ ok: false, mensaje: 'Matrícula no encontrada' }); return; }
 
+    if (!matricula.padre.emailContacto) {
+      res.status(400).json({ ok: false, mensaje: 'Este padre/acudiente no tiene un correo personal registrado. Actualízalo antes de reenviar el enlace.' });
+      return;
+    }
+
     const nombreCompleto = `${matricula.estudiante.nombres} ${matricula.estudiante.apellidos}`;
-    const { enviado } = await enviarMagicLink(matricula.id, matricula.padre.usuario.email, nombreCompleto);
+    const { enviado } = await enviarMagicLink(matricula.id, matricula.padre.emailContacto, nombreCompleto);
 
     await audit({ usuarioId: req.usuario!.sub, accion: 'EDITAR', entidad: 'matriculas', entidadId: id, datosDespues: { accion: 'reenviar_link' }, ip: req.ip });
 

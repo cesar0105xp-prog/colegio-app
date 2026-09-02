@@ -298,7 +298,7 @@ export default function Matriculas() {
                 <p className="font-mono font-bold text-blue-700 text-lg">{pinGenerado.codigo}</p>
               </div>
               <div className="bg-slate-50 rounded-xl p-4">
-                <p className="text-xs text-slate-400 mb-1 flex items-center gap-1"><Mail className="w-3 h-3" /> Correo de acceso al portal</p>
+                <p className="text-xs text-slate-400 mb-1 flex items-center gap-1"><Mail className="w-3 h-3" /> Correo de acceso al portal <span className="text-slate-300">(generado automáticamente, no es el correo real del padre)</span></p>
                 <div className="flex items-center justify-between gap-2">
                   <p className="font-mono text-sm font-medium text-slate-700 break-all">{pinGenerado.emailAcceso}</p>
                   <button onClick={() => { navigator.clipboard.writeText(pinGenerado.emailAcceso); setToast({ msg: 'Correo copiado', tipo: 'ok' }); }}
@@ -464,7 +464,7 @@ export default function Matriculas() {
                     <input className={inputCls()} placeholder="Teléfono" {...register('padre.telefono')} />
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-xs font-medium text-slate-500 mb-1.5">Correo electrónico * <span className="text-slate-300">(recibirá el enlace de acceso)</span></label>
+                    <label className="block text-xs font-medium text-slate-500 mb-1.5">Correo personal del acudiente * <span className="text-slate-300">(para notificaciones y el enlace de acceso)</span></label>
                     <input type="email" className={inputCls(errors.padre?.email?.message)} placeholder="correo@ejemplo.com"
                       {...register('padre.email', { required: 'Requerido para enviar el acceso a matrícula', pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Email inválido' } })} />
                     {errors.padre?.email && <p className="mt-1 text-xs text-red-500">{errors.padre.email.message}</p>}
@@ -660,7 +660,7 @@ function DetalleMatricula({ matricula, obsVerif, setObsVerif, onClose, verificar
                 ['Tel. alternativo', perfil?.telefonoAlt ?? '—'],
                 ['Ocupación', perfil?.ocupacion ?? '—'],
                 ['Dirección', perfil?.direccion ?? '—'],
-                ['Correo personal', perfil?.emailContacto ?? '—'],
+                ['Correo personal (notificaciones)', perfil?.emailContacto ?? '—'],
               ].map(([k, v]) => (
                 <div key={k} className="bg-slate-50 rounded-xl p-3">
                   <p className="text-xs text-slate-400 mb-0.5">{k}</p>

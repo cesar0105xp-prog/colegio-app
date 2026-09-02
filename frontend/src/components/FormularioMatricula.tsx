@@ -145,7 +145,7 @@ export default function FormularioMatricula({ estudianteId, hijoNombre }: { estu
               {eP.ocupacion && <p className="mt-1 text-xs text-red-500">{eP.ocupacion.message}</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1.5">Correo personal <span className="text-slate-300">(opcional)</span></label>
+              <label className="block text-xs font-medium text-slate-500 mb-1.5">Correo personal <span className="text-slate-300">(para notificaciones y enlaces de acceso — no lo dejes vacío)</span></label>
               <input type="email" className={inputCls(eP.emailContacto?.message)} placeholder="correo@personal.com" maxLength={100}
                 defaultValue={datosPadre?.emailContacto ?? ''}
                 {...regP('emailContacto', { pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Email inválido' } })} />
