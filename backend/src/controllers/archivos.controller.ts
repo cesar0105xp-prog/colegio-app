@@ -6,8 +6,18 @@ import fs from 'fs';
 import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
 import { recomputarProgresoDocumentos } from './matriculas.controller';
+import { enviarWhatsApp, PlantillasWhatsApp } from '../services/whatsapp.service';
 
 const prisma = new PrismaClient();
+
+/** Notifica por WhatsApp a los padres/acudientes vinculados a un estudiante. */
+async function notificarPadresEstudiante(estudianteId: string, mensaje: string): Promise<void> {
+  const vinculos = await prisma.padreEstudiante.findMany({
+    where: { estudianteId },
+    include: { padre: { select: { telefono: true } } },
+  });
+  await Promise.all(vinculos.map(v => enviarWhatsApp(v.padre.telefono, mensaje)));
+}
 
 // ─── SUBIR ARCHIVO ───────────────────────────────────────────────────────────
 
@@ -219,7 +229,10 @@ export const validarRechazoDocumento = [
 export async function aprobarDocumento(req: Request, res: Response): Promise<void> {
   const { id } = req.params;
   try {
-    const archivo = await prisma.archivo.findUnique({ where: { id } });
+    const archivo = await prisma.archivo.findUnique({
+      where: { id },
+      include: { tipoDocumento: { select: { nombre: true } }, estudiante: { select: { id: true, nombres: true, apellidos: true } } },
+    });
     if (!archivo) { res.status(404).json({ ok: false, mensaje: 'Documento no encontrado' }); return; }
 
     await prisma.archivo.update({
@@ -228,6 +241,14 @@ export async function aprobarDocumento(req: Request, res: Response): Promise<voi
     });
 
     await audit({ usuarioId: req.usuario!.sub, accion: 'EDITAR', entidad: 'archivos', entidadId: id, datosDespues: { estadoRevision: 'APROBADO' }, ip: req.ip });
+
+    if (archivo.estudiante) {
+      const nombreDoc = archivo.tipoDocumento?.nombre ?? archivo.nombreOriginal;
+      const nombreEst = `${archivo.estudiante.nombres} ${archivo.estudiante.apellidos}`;
+      notificarPadresEstudiante(archivo.estudiante.id, PlantillasWhatsApp.documentoAprobado(nombreEst, nombreDoc))
+        .catch(err => logger.error('Error al notificar aprobación de documento', { err }));
+    }
+
     res.json({ ok: true, mensaje: 'Documento aprobado' });
   } catch (err) {
     logger.error('Error al aprobar documento', { err });
@@ -246,7 +267,10 @@ export async function rechazarDocumento(req: Request, res: Response): Promise<vo
   const { motivoRechazo } = req.body;
 
   try {
-    const archivo = await prisma.archivo.findUnique({ where: { id } });
+    const archivo = await prisma.archivo.findUnique({
+      where: { id },
+      include: { tipoDocumento: { select: { nombre: true } }, estudiante: { select: { id: true, nombres: true, apellidos: true } } },
+    });
     if (!archivo) { res.status(404).json({ ok: false, mensaje: 'Documento no encontrado' }); return; }
 
     await prisma.archivo.update({
@@ -255,6 +279,14 @@ export async function rechazarDocumento(req: Request, res: Response): Promise<vo
     });
 
     await audit({ usuarioId: req.usuario!.sub, accion: 'EDITAR', entidad: 'archivos', entidadId: id, datosDespues: { estadoRevision: 'RECHAZADO' }, ip: req.ip });
+
+    if (archivo.estudiante) {
+      const nombreDoc = archivo.tipoDocumento?.nombre ?? archivo.nombreOriginal;
+      const nombreEst = `${archivo.estudiante.nombres} ${archivo.estudiante.apellidos}`;
+      notificarPadresEstudiante(archivo.estudiante.id, PlantillasWhatsApp.documentoRechazado(nombreEst, nombreDoc, motivoRechazo.trim()))
+        .catch(err => logger.error('Error al notificar rechazo de documento', { err }));
+    }
+
     res.json({ ok: true, mensaje: 'Documento rechazado' });
   } catch (err) {
     logger.error('Error al rechazar documento', { err });

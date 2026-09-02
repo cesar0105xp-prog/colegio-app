@@ -9,6 +9,7 @@ import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
 import { generarAccessToken, generarRefreshToken } from './auth.controller';
 import { enviarCorreo, plantillaAccesoMatricula } from '../services/correo.service';
+import { enviarWhatsApp, PlantillasWhatsApp } from '../services/whatsapp.service';
 
 const prisma = new PrismaClient();
 const MAGIC_LINK_HORAS = 72;
@@ -281,7 +282,7 @@ export async function verificarMatricula(req: Request, res: Response): Promise<v
   try {
     const matricula = await prisma.matricula.findUnique({
       where: { id },
-      include: { estudiante: true },
+      include: { estudiante: true, padre: { select: { telefono: true } } },
     });
     if (!matricula) { res.status(404).json({ ok: false, mensaje: 'Matrícula no encontrada' }); return; }
 
@@ -299,6 +300,11 @@ export async function verificarMatricula(req: Request, res: Response): Promise<v
     });
 
     await audit({ usuarioId: req.usuario!.sub, accion: 'EDITAR', entidad: 'matriculas', entidadId: id, datosDespues: { estado: 'VERIFICADO' }, ip: req.ip });
+
+    const nombreEst = `${matricula.estudiante.nombres} ${matricula.estudiante.apellidos}`;
+    enviarWhatsApp(matricula.padre.telefono, PlantillasWhatsApp.matriculaConfirmada(nombreEst))
+      .catch(err => logger.error('Error al notificar matrícula confirmada', { err }));
+
     res.json({ ok: true, mensaje: 'Matrícula verificada y estudiante activado correctamente' });
   } catch (err) {
     logger.error('Error al verificar matrícula', { err });
