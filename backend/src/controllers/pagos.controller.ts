@@ -1,17 +1,17 @@
 import { Request, Response } from 'express';
-import { PrismaClient, MetodoPago } from '@prisma/client';
+import { PrismaClient, MetodoPago, EstadoComprobante, Prisma } from '@prisma/client';
 import { body, param, validationResult } from 'express-validator';
+import fs from 'fs';
+import path from 'path';
 import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
-import {
-  WOMPI_PUBLIC_KEY, WOMPI_CHECKOUT_URL, generarReferenciaPago, firmarIntegridadCheckout,
-  montoACentavos, verificarFirmaEvento, metodoPagoDesdeWompi,
-} from '../utils/wompi';
 
 const prisma = new PrismaClient();
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const ESTADOS_PAGO = ['PENDIENTE', 'PAGADO', 'EXONERADO'];
+const ESTADOS_PAGO = ['PENDIENTE', 'PAGADO', 'EXONERADO', 'EN_VERIFICACION'];
+const OFFSET_BOGOTA_MS = 5 * 60 * 60 * 1000;
+const FECHA_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 // ─── VALIDACIONES ─────────────────────────────────────────────────────────────
 
@@ -315,6 +315,7 @@ export async function exonerarCobro(req: Request, res: Response): Promise<void> 
     const cobro = await prisma.cobro.findUnique({ where: { id } });
     if (!cobro) { res.status(404).json({ ok: false, mensaje: 'Cobro no encontrado' }); return; }
     if (cobro.estadoPago === 'PAGADO') { res.status(400).json({ ok: false, mensaje: 'No se puede exonerar un cobro que ya fue pagado' }); return; }
+    if (cobro.estadoPago === 'EN_VERIFICACION') { res.status(400).json({ ok: false, mensaje: 'Este cobro tiene un comprobante pendiente de verificación; apruébalo o recházalo primero' }); return; }
 
     const actualizado = await prisma.cobro.update({
       where: { id },
@@ -454,11 +455,18 @@ export async function miEstadoCuenta(req: Request, res: Response): Promise<void>
       select: {
         id: true, anio: true, mes: true, montoCobrado: true, estadoPago: true, fechaPago: true, metodoPago: true,
         concepto: { select: { nombre: true } },
+        comprobantes: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: { estado: true, motivoRechazo: true, createdAt: true },
+        },
       },
       orderBy: [{ anio: 'desc' }, { mes: 'desc' }],
     });
 
-    const saldoPendiente = cobros.filter(c => c.estadoPago === 'PENDIENTE').reduce((acc, c) => acc + Number(c.montoCobrado), 0);
+    const saldoPendiente = cobros
+      .filter(c => c.estadoPago === 'PENDIENTE' || c.estadoPago === 'EN_VERIFICACION')
+      .reduce((acc, c) => acc + Number(c.montoCobrado), 0);
     const totalPagado = cobros.filter(c => c.estadoPago === 'PAGADO').reduce((acc, c) => acc + Number(c.montoCobrado), 0);
 
     res.json({ ok: true, datos: { estudianteId: estudianteFinal, saldoPendiente, totalPagado, cobros } });
@@ -468,98 +476,201 @@ export async function miEstadoCuenta(req: Request, res: Response): Promise<void>
   }
 }
 
-// ─── PAGO EN LÍNEA CON WOMPI (PADRE) ────────────────────────────────────────────
+// ─── COMPROBANTES DE PAGO (transferencia manual) ───────────────────────────────
 
 export const validarIdCobroPago = [param('id').isUUID().withMessage('ID inválido')];
 
-export async function iniciarPagoWompi(req: Request, res: Response): Promise<void> {
+export const validarRechazarComprobante = [
+  param('id').isUUID().withMessage('ID inválido'),
+  body('motivoRechazo').trim().notEmpty().withMessage('El motivo del rechazo es requerido')
+    .isLength({ min: 5, max: 300 }).withMessage('Entre 5 y 300 caracteres'),
+];
+
+/** Borra un archivo de comprobante huérfano sin interrumpir el flujo si falla. */
+function eliminarComprobanteArchivo(ruta: string): void {
+  fs.unlink(ruta, err => { if (err && err.code !== 'ENOENT') logger.error('No se pudo eliminar el archivo de comprobante', { err, ruta }); });
+}
+
+// ─── REPORTAR PAGO (PADRE) ──────────────────────────────────────────────────────
+
+export async function reportarComprobante(req: Request, res: Response): Promise<void> {
+  const errores = validationResult(req);
+  if (!errores.isEmpty()) {
+    if (req.file) eliminarComprobanteArchivo(req.file.path);
+    res.status(400).json({ ok: false, errores: errores.array().map(e => e.msg) });
+    return;
+  }
+
+  const { id } = req.params;
+  if (!req.file) { res.status(400).json({ ok: false, mensaje: 'Debes adjuntar el comprobante de pago' }); return; }
+
+  const { observaciones } = req.body;
+  if (observaciones && String(observaciones).length > 200) {
+    eliminarComprobanteArchivo(req.file.path);
+    res.status(400).json({ ok: false, mensaje: 'Observaciones máximo 200 caracteres' });
+    return;
+  }
+
+  try {
+    const padre = await prisma.padre.findUnique({ where: { usuarioId: req.usuario!.sub } });
+    if (!padre) { eliminarComprobanteArchivo(req.file.path); res.status(403).json({ ok: false, mensaje: 'Perfil de padre no encontrado' }); return; }
+
+    const cobro = await prisma.cobro.findUnique({ where: { id } });
+    if (!cobro) { eliminarComprobanteArchivo(req.file.path); res.status(404).json({ ok: false, mensaje: 'Cobro no encontrado' }); return; }
+
+    const vinculo = await prisma.padreEstudiante.findFirst({ where: { padreId: padre.id, estudianteId: cobro.estudianteId } });
+    if (!vinculo) { eliminarComprobanteArchivo(req.file.path); res.status(403).json({ ok: false, mensaje: 'No tienes acceso a este cobro' }); return; }
+
+    if (cobro.estadoPago !== 'PENDIENTE') {
+      eliminarComprobanteArchivo(req.file.path);
+      res.status(400).json({ ok: false, mensaje: 'Este cobro no está pendiente de pago' });
+      return;
+    }
+
+    const [comprobante] = await prisma.$transaction([
+      prisma.comprobantePago.create({
+        data: {
+          cobroId: id,
+          padreId: req.usuario!.sub,
+          archivoUrl: req.file.path,
+          nombreOriginal: req.file.originalname,
+          observaciones: observaciones?.trim() || null,
+        },
+      }),
+      prisma.cobro.update({ where: { id }, data: { estadoPago: 'EN_VERIFICACION' } }),
+    ]);
+
+    await audit({ usuarioId: req.usuario!.sub, accion: 'CREAR', entidad: 'comprobantes_pago', entidadId: comprobante.id, ip: req.ip });
+    res.status(201).json({ ok: true, mensaje: 'Comprobante enviado. Secretaría lo verificará pronto.', datos: comprobante });
+  } catch (err) {
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    logger.error('Error al reportar comprobante de pago', { err });
+    res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
+  }
+}
+
+// ─── LISTAR COMPROBANTES (ADMIN/SECRETARIO) ────────────────────────────────────
+
+export async function listarComprobantes(req: Request, res: Response): Promise<void> {
+  const { estado, grado, fecha, pagina = '1', limite = '20' } = req.query;
+  try {
+    const paginaNum = Math.max(1, parseInt(pagina as string) || 1);
+    const limiteNum = Math.min(100, Math.max(1, parseInt(limite as string) || 20));
+    const skip = (paginaNum - 1) * limiteNum;
+
+    const where: Prisma.ComprobantePagoWhereInput = {};
+    if (estado && Object.values(EstadoComprobante).includes(estado as EstadoComprobante)) where.estado = estado as EstadoComprobante;
+    if (grado && UUID_REGEX.test(grado as string)) where.cobro = { estudiante: { gradoId: grado as string } };
+    if (fecha && FECHA_REGEX.test(fecha as string)) {
+      // Límites del día en hora de Bogotá (UTC-5), no UTC, para que "hoy" coincida
+      // con el día calendario real de quien filtra.
+      const inicio = new Date(new Date(`${fecha}T00:00:00.000Z`).getTime() + OFFSET_BOGOTA_MS);
+      const fin = new Date(inicio.getTime() + 24 * 60 * 60 * 1000 - 1);
+      where.createdAt = { gte: inicio, lte: fin };
+    }
+
+    const [comprobantes, total] = await Promise.all([
+      prisma.comprobantePago.findMany({
+        where,
+        include: {
+          cobro: { include: { estudiante: { select: { id: true, nombres: true, apellidos: true, grado: { select: { nombre: true, grupo: true } } } }, concepto: { select: { nombre: true } } } },
+          padre: { select: { email: true, perfilPadre: { select: { nombres: true, apellidos: true } } } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limiteNum,
+      }),
+      prisma.comprobantePago.count({ where }),
+    ]);
+
+    res.json({ ok: true, datos: comprobantes, meta: { pagina: paginaNum, limite: limiteNum, total, totalPaginas: Math.ceil(total / limiteNum) } });
+  } catch (err) {
+    logger.error('Error al listar comprobantes de pago', { err });
+    res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
+  }
+}
+
+// ─── VER ARCHIVO DE UN COMPROBANTE (ADMIN/SECRETARIO/PADRE dueño) ──────────────
+
+export async function verComprobanteArchivo(req: Request, res: Response): Promise<void> {
+  const { id } = req.params;
+  if (!UUID_REGEX.test(id)) { res.status(400).json({ ok: false, mensaje: 'ID inválido' }); return; }
+
+  try {
+    const comprobante = await prisma.comprobantePago.findUnique({ where: { id } });
+    if (!comprobante) { res.status(404).json({ ok: false, mensaje: 'Comprobante no encontrado' }); return; }
+
+    if (req.usuario!.rol === 'PADRE' && comprobante.padreId !== req.usuario!.sub) {
+      res.status(403).json({ ok: false, mensaje: 'No tienes acceso a este comprobante' });
+      return;
+    }
+
+    const rutaAbsoluta = path.resolve(comprobante.archivoUrl);
+    if (!fs.existsSync(rutaAbsoluta)) { res.status(404).json({ ok: false, mensaje: 'Archivo no disponible en el servidor' }); return; }
+
+    res.sendFile(rutaAbsoluta);
+  } catch (err) {
+    logger.error('Error al ver archivo de comprobante', { err });
+    res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
+  }
+}
+
+// ─── APROBAR COMPROBANTE (ADMIN/SECRETARIO) ────────────────────────────────────
+
+export async function aprobarComprobante(req: Request, res: Response): Promise<void> {
   const errores = validationResult(req);
   if (!errores.isEmpty()) { res.status(400).json({ ok: false, errores: errores.array().map(e => e.msg) }); return; }
 
   const { id } = req.params;
   try {
-    const padre = await prisma.padre.findUnique({ where: { usuarioId: req.usuario!.sub } });
-    if (!padre) { res.status(403).json({ ok: false, mensaje: 'Perfil de padre no encontrado' }); return; }
+    const comprobante = await prisma.comprobantePago.findUnique({ where: { id } });
+    if (!comprobante) { res.status(404).json({ ok: false, mensaje: 'Comprobante no encontrado' }); return; }
+    if (comprobante.estado !== 'PENDIENTE_VERIFICACION') { res.status(400).json({ ok: false, mensaje: 'Este comprobante ya fue verificado' }); return; }
 
-    const cobro = await prisma.cobro.findUnique({ where: { id } });
-    if (!cobro) { res.status(404).json({ ok: false, mensaje: 'Cobro no encontrado' }); return; }
+    await prisma.$transaction([
+      prisma.comprobantePago.update({
+        where: { id },
+        data: { estado: 'APROBADO', verificadoPor: req.usuario!.sub, fechaVerificacion: new Date() },
+      }),
+      prisma.cobro.update({
+        where: { id: comprobante.cobroId },
+        data: { estadoPago: 'PAGADO', fechaPago: new Date(), metodoPago: 'TRANSFERENCIA' },
+      }),
+    ]);
 
-    const vinculo = await prisma.padreEstudiante.findFirst({ where: { padreId: padre.id, estudianteId: cobro.estudianteId } });
-    if (!vinculo) { res.status(403).json({ ok: false, mensaje: 'No tienes acceso a este cobro' }); return; }
-
-    if (cobro.estadoPago !== 'PENDIENTE') { res.status(400).json({ ok: false, mensaje: 'Este cobro ya fue pagado o exonerado' }); return; }
-
-    if (!WOMPI_PUBLIC_KEY) { res.status(503).json({ ok: false, mensaje: 'El pago en línea no está disponible en este momento' }); return; }
-
-    // Cada intento necesita una referencia nueva (Wompi la exige única por transacción);
-    // si el padre reintenta un pago rechazado, la referencia anterior queda huérfana y
-    // se sobrescribe con la del nuevo intento.
-    const referencia = generarReferenciaPago(cobro.id);
-    const montoEnCentavos = montoACentavos(Number(cobro.montoCobrado));
-    const firma = firmarIntegridadCheckout(referencia, montoEnCentavos);
-
-    await prisma.cobro.update({ where: { id }, data: { referenciaPago: referencia } });
-
-    res.json({
-      ok: true,
-      datos: {
-        checkoutUrl: WOMPI_CHECKOUT_URL,
-        publicKey: WOMPI_PUBLIC_KEY,
-        currency: 'COP',
-        amountInCents: montoEnCentavos,
-        reference: referencia,
-        signature: firma,
-        redirectUrl: `${process.env.FRONTEND_URL ?? 'http://localhost:5173'}/padre?pago=confirmacion`,
-      },
-    });
+    await audit({ usuarioId: req.usuario!.sub, accion: 'EDITAR', entidad: 'comprobantes_pago', entidadId: id, datosDespues: { estado: 'APROBADO' }, ip: req.ip });
+    res.json({ ok: true, mensaje: 'Pago aprobado correctamente' });
   } catch (err) {
-    logger.error('Error al iniciar pago con Wompi', { err });
+    logger.error('Error al aprobar comprobante de pago', { err });
     res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
   }
 }
 
-// ─── WEBHOOK DE WOMPI (público, sin autenticación de usuario) ──────────────────
+// ─── RECHAZAR COMPROBANTE (ADMIN/SECRETARIO) ───────────────────────────────────
 
-export async function webhookWompi(req: Request, res: Response): Promise<void> {
+export async function rechazarComprobante(req: Request, res: Response): Promise<void> {
+  const errores = validationResult(req);
+  if (!errores.isEmpty()) { res.status(400).json({ ok: false, errores: errores.array().map(e => e.msg) }); return; }
+
+  const { id } = req.params;
+  const { motivoRechazo } = req.body;
   try {
-    const evento = req.body;
+    const comprobante = await prisma.comprobantePago.findUnique({ where: { id } });
+    if (!comprobante) { res.status(404).json({ ok: false, mensaje: 'Comprobante no encontrado' }); return; }
+    if (comprobante.estado !== 'PENDIENTE_VERIFICACION') { res.status(400).json({ ok: false, mensaje: 'Este comprobante ya fue verificado' }); return; }
 
-    if (!verificarFirmaEvento(evento)) {
-      logger.error('Webhook de Wompi rechazado: firma inválida', { event: evento?.event });
-      res.status(401).json({ ok: false, mensaje: 'Firma inválida' });
-      return;
-    }
+    await prisma.$transaction([
+      prisma.comprobantePago.update({
+        where: { id },
+        data: { estado: 'RECHAZADO', motivoRechazo: motivoRechazo.trim(), verificadoPor: req.usuario!.sub, fechaVerificacion: new Date() },
+      }),
+      prisma.cobro.update({ where: { id: comprobante.cobroId }, data: { estadoPago: 'PENDIENTE' } }),
+    ]);
 
-    const transaccion = evento?.data?.transaction as { reference?: string; status?: string; payment_method_type?: string; id?: string } | undefined;
-    if (evento.event !== 'transaction.updated' || !transaccion?.reference) {
-      res.status(200).json({ ok: true });
-      return;
-    }
-
-    const cobro = await prisma.cobro.findUnique({ where: { referenciaPago: transaccion.reference } });
-    if (!cobro) {
-      logger.error('Webhook de Wompi: referencia sin cobro asociado', { reference: transaccion.reference });
-      res.status(200).json({ ok: true });
-      return;
-    }
-
-    if (transaccion.status === 'APPROVED' && cobro.estadoPago === 'PENDIENTE') {
-      const actualizado = await prisma.cobro.update({
-        where: { id: cobro.id },
-        data: { estadoPago: 'PAGADO', fechaPago: new Date(), metodoPago: metodoPagoDesdeWompi(transaccion.payment_method_type) },
-      });
-      await audit({
-        usuarioId: cobro.registradoPor, accion: 'EDITAR', entidad: 'cobros', entidadId: cobro.id,
-        datosDespues: { estadoPago: 'PAGADO', origen: 'wompi', transaccionId: transaccion.id }, ip: req.ip,
-      });
-      logger.info('Cobro marcado como pagado vía Wompi', { cobroId: actualizado.id, transaccionId: transaccion.id });
-    }
-
-    res.status(200).json({ ok: true });
+    await audit({ usuarioId: req.usuario!.sub, accion: 'EDITAR', entidad: 'comprobantes_pago', entidadId: id, datosDespues: { estado: 'RECHAZADO', motivoRechazo }, ip: req.ip });
+    res.json({ ok: true, mensaje: 'Comprobante rechazado' });
   } catch (err) {
-    logger.error('Error al procesar webhook de Wompi', { err });
-    // 500 para que Wompi reintente el envío del evento — un fallo aquí no debe
-    // silenciarse, ya que significa que el cobro podría no haberse actualizado.
-    res.status(500).json({ ok: false });
+    logger.error('Error al rechazar comprobante de pago', { err });
+    res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
   }
 }

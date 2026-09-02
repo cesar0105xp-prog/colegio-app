@@ -159,8 +159,10 @@ import {
   listarCobros, crearCobro, generarCobrosMasivo, marcarPagado, exonerarCobro,
   validarCobro, validarCobroMasivo, validarMarcarPagado, validarExonerar,
   reporteCartera, exportarCarteraCSV, miEstadoCuenta,
-  iniciarPagoWompi, validarIdCobroPago, webhookWompi,
+  reportarComprobante, listarComprobantes, verComprobanteArchivo, aprobarComprobante, rechazarComprobante,
+  validarIdCobroPago, validarRechazarComprobante,
 } from '../controllers/pagos.controller';
+import { uploadComprobante, validarComprobanteReal } from '../middlewares/upload.middleware';
 
 router.get('/conceptos',           autenticar, autorizar(ADMIN, SEC), listarConceptos);
 router.post('/conceptos',          autenticar, autorizar(ADMIN), validarConceptoPago, crearConcepto);
@@ -170,15 +172,18 @@ router.delete('/conceptos/:id',    autenticar, autorizar(ADMIN), validarIdConcep
 router.get('/cobros/reporte',      autenticar, autorizar(ADMIN, SEC), reporteCartera);
 router.get('/cobros/mi-estado',    autenticar, autorizar(PADRE), miEstadoCuenta);
 router.get('/cobros/exportar',     autenticar, autorizar(ADMIN), exportarCarteraCSV);
+router.get('/cobros/comprobantes', autenticar, autorizar(ADMIN, SEC), listarComprobantes);
 router.get('/cobros',              autenticar, autorizar(ADMIN, SEC), listarCobros);
 router.post('/cobros/masivo',      autenticar, autorizar(ADMIN, SEC), validarCobroMasivo, generarCobrosMasivo);
 router.post('/cobros',             autenticar, autorizar(ADMIN, SEC), validarCobro, crearCobro);
 router.patch('/cobros/:id/pagar',    autenticar, autorizar(ADMIN, SEC), validarMarcarPagado, marcarPagado);
 router.patch('/cobros/:id/exonerar', autenticar, autorizar(ADMIN), validarExonerar, exonerarCobro);
-router.post('/cobros/:id/iniciar-pago', autenticar, autorizar(PADRE), validarIdCobroPago, iniciarPagoWompi);
 
-// Webhook público de Wompi — sin autenticación de usuario, protegido por firma criptográfica.
-router.post('/webhooks/wompi', webhookWompi);
+// COMPROBANTES DE PAGO (transferencia manual)
+router.post('/cobros/:id/comprobante',             autenticar, autorizar(PADRE), uploadComprobante.single('archivo'), validarComprobanteReal, validarIdCobroPago, reportarComprobante);
+router.get('/cobros/comprobantes/:id/archivo',     autenticar, autorizar(ADMIN, SEC, PADRE), verComprobanteArchivo);
+router.patch('/cobros/comprobantes/:id/aprobar',   autenticar, autorizar(ADMIN, SEC), validarIdCobroPago, aprobarComprobante);
+router.patch('/cobros/comprobantes/:id/rechazar',  autenticar, autorizar(ADMIN, SEC), validarRechazarComprobante, rechazarComprobante);
 
 // PERÍODOS ACADÉMICOS AUTOMÁTICOS
 import { previewPeriodos, confirmarPeriodos, listarConfiguraciones, validarPreview, validarConfirmar } from '../controllers/periodos.controller';

@@ -131,18 +131,6 @@ export default function PadreDashboard() {
     if ((hijos as Hijo[]).length > 0 && !hijoSeleccionado) setHijoSeleccionado((hijos as Hijo[])[0].id);
   }, [hijos]);
 
-  // Vuelta desde el checkout de Wompi: el webhook ya debería haber actualizado
-  // el cobro para cuando el navegador regresa, así que basta con refrescar el
-  // estado de cuenta y avisarle al padre.
-  React.useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('pago') === 'confirmacion') {
-      setSeccion('pagos');
-      qc.invalidateQueries({ queryKey: ['mi-estado-cuenta'] });
-      setToast({ msg: 'Verificando tu pago... si fue aprobado, el saldo se actualizará en unos segundos.', tipo: 'ok' });
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-  }, []);
 
   const hijoActual = (hijos as Hijo[]).find(h => h.id === hijoSeleccionado);
 
