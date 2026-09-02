@@ -2,10 +2,14 @@ import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { body, validationResult } from 'express-validator';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
+import { generarAccessToken, generarRefreshToken } from './auth.controller';
+import { enviarCorreo, plantillaAccesoMatricula } from '../services/correo.service';
 
 const prisma = new PrismaClient();
+const MAGIC_LINK_HORAS = 72;
 
 // ─── GENERAR PIN ALEATORIO (8 caracteres alfanuméricos) ───────────────────────
 function generarPin(): string {
@@ -38,6 +42,30 @@ function generarEmailAcceso(nombres: string, apellidos: string, codigoMatricula:
   return `${nombre}${apellido}${codigo}@portalescolar.edu.co`;
 }
 
+// ─── GENERAR TOKEN DE MAGIC LINK ───────────────────────────────────────────────
+function generarMagicLinkToken(): string {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+async function enviarMagicLink(matriculaId: string, emailPadre: string, nombreEstudiante: string): Promise<{ token: string; enviado: boolean }> {
+  const token = generarMagicLinkToken();
+  const expiry = new Date(Date.now() + MAGIC_LINK_HORAS * 60 * 60 * 1000);
+
+  await prisma.matricula.update({
+    where: { id: matriculaId },
+    data: { magicLinkToken: token, magicLinkExpiry: expiry, magicLinkUsedAt: null },
+  });
+
+  const enlace = `${(process.env.FRONTEND_URL ?? 'http://localhost:5173').replace(/\/$/, '')}/acceso-matricula/${token}`;
+  const enviado = await enviarCorreo({
+    para: emailPadre,
+    asunto: `Continúa la matrícula de ${nombreEstudiante}`,
+    html: plantillaAccesoMatricula(nombreEstudiante, enlace, MAGIC_LINK_HORAS),
+  });
+
+  return { token, enviado };
+}
+
 // ─── VALIDACIONES ─────────────────────────────────────────────────────────────
 export const validarMatricula = [
   body('estudiante.nombres').trim().notEmpty().withMessage('Nombres del estudiante requeridos').isLength({ min: 2, max: 80 }).withMessage('Entre 2 y 80 caracteres'),
@@ -51,7 +79,7 @@ export const validarMatricula = [
   body('padre.apellidos').trim().notEmpty().withMessage('Apellidos del padre requeridos').isLength({ min: 2, max: 80 }).withMessage('Entre 2 y 80 caracteres'),
   body('padre.tipoDocumento').isIn(['CC','CE','PASAPORTE']).withMessage('Tipo de documento del padre inválido'),
   body('padre.numeroDocumento').trim().notEmpty().withMessage('Documento del padre requerido').isLength({ min: 4, max: 20 }).withMessage('Entre 4 y 20 caracteres'),
-  body('padre.email').optional({ checkFalsy: true }).isEmail().withMessage('Email de contacto inválido').isLength({ max: 100 }).withMessage('Máximo 100 caracteres'),
+  body('padre.email').trim().notEmpty().withMessage('El correo del padre/acudiente es requerido para enviar el acceso a matrícula').isEmail().withMessage('Email inválido').isLength({ max: 100 }).withMessage('Máximo 100 caracteres'),
   body('padre.telefono').optional().trim().isLength({ max: 15 }).withMessage('Máximo 15 caracteres'),
   body('padre.parentesco').isIn(['padre','madre','acudiente','abuelo','abuela','tio','tia','otro']).withMessage('Parentesco inválido'),
 ];
@@ -108,7 +136,7 @@ export async function crearMatricula(req: Request, res: Response): Promise<void>
           apellidos: datosPadre.apellidos.trim(),
           tipoDocumento: datosPadre.tipoDocumento,
           numeroDocumento: datosPadre.numeroDocumento.trim(),
-          telefono: datosPadre.telefono?.trim() ?? null,
+          telefono: datosPadre.telefono?.trim() || '',
           emailContacto: datosPadre.email?.trim() ?? null,
         },
       });
@@ -162,6 +190,9 @@ export async function crearMatricula(req: Request, res: Response): Promise<void>
       ip: req.ip,
     });
 
+    const nombreCompleto = `${resultado.nuevoEst.nombres} ${resultado.nuevoEst.apellidos}`;
+    const { enviado: magicLinkEnviado } = await enviarMagicLink(resultado.matricula.id, datosPadre.email.trim(), nombreCompleto);
+
     res.status(201).json({
       ok: true,
       mensaje: 'Matrícula creada exitosamente',
@@ -170,6 +201,7 @@ export async function crearMatricula(req: Request, res: Response): Promise<void>
         emailAcceso,
         emailContacto: datosPadre.email ?? null,
         pin,
+        magicLinkEnviado,
         estudiante: {
           nombres: resultado.nuevoEst.nombres,
           apellidos: resultado.nuevoEst.apellidos,
@@ -271,6 +303,104 @@ export async function rechazarMatricula(req: Request, res: Response): Promise<vo
     res.json({ ok: true, mensaje: 'Matrícula rechazada' });
   } catch (err) {
     logger.error('Error al rechazar matrícula', { err });
+    res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
+  }
+}
+
+// ─── ACCEDER CON MAGIC LINK (público, sin autenticación) ──────────────────────
+export async function accederConMagicLink(req: Request, res: Response): Promise<void> {
+  const { token } = req.params;
+
+  try {
+    const matricula = await prisma.matricula.findUnique({
+      where: { magicLinkToken: token },
+      include: {
+        padre: { include: { usuario: true } },
+        estudiante: { select: { nombres: true, apellidos: true } },
+      },
+    });
+
+    if (!matricula) {
+      res.status(404).json({ ok: false, mensaje: 'Enlace de acceso inválido' });
+      return;
+    }
+
+    if (matricula.magicLinkUsedAt) {
+      res.status(410).json({ ok: false, mensaje: 'Este enlace ya fue utilizado. Ingresa con tu correo y PIN, o pide a secretaría que reenvíe el enlace.' });
+      return;
+    }
+
+    if (!matricula.magicLinkExpiry || matricula.magicLinkExpiry < new Date()) {
+      res.status(410).json({ ok: false, mensaje: 'Este enlace expiró. Ingresa con tu correo y PIN, o pide a secretaría que reenvíe el enlace.' });
+      return;
+    }
+
+    const usuario = matricula.padre.usuario;
+    if (usuario.estado !== 'ACTIVO') {
+      res.status(403).json({ ok: false, mensaje: 'Cuenta inactiva. Contacta al colegio.' });
+      return;
+    }
+
+    const accessToken = generarAccessToken({ sub: usuario.id, email: usuario.email, rol: usuario.rol });
+    const refreshToken = generarRefreshToken(usuario.id);
+    const refreshHash = await bcrypt.hash(refreshToken, 10);
+
+    await prisma.$transaction([
+      prisma.usuario.update({
+        where: { id: usuario.id },
+        data: { refreshToken: refreshHash, ultimoLogin: new Date(), intentosFallidos: 0, bloqueadoHasta: null },
+      }),
+      prisma.matricula.update({
+        where: { id: matricula.id },
+        data: { magicLinkUsedAt: new Date() },
+      }),
+    ]);
+
+    await audit({ usuarioId: usuario.id, accion: 'LOGIN', ip: req.ip, userAgent: req.headers['user-agent'] });
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.json({
+      ok: true,
+      datos: {
+        accessToken,
+        usuario: { id: usuario.id, email: usuario.email, rol: usuario.rol },
+        matriculaId: matricula.id,
+        estudiante: matricula.estudiante,
+      },
+    });
+  } catch (err) {
+    logger.error('Error al acceder con magic link', { err });
+    res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
+  }
+}
+
+// ─── REENVIAR MAGIC LINK (secretario/admin) ────────────────────────────────────
+export async function reenviarLink(req: Request, res: Response): Promise<void> {
+  const { id } = req.params;
+  try {
+    const matricula = await prisma.matricula.findUnique({
+      where: { id },
+      include: {
+        padre: { include: { usuario: true } },
+        estudiante: { select: { nombres: true, apellidos: true } },
+      },
+    });
+    if (!matricula) { res.status(404).json({ ok: false, mensaje: 'Matrícula no encontrada' }); return; }
+
+    const nombreCompleto = `${matricula.estudiante.nombres} ${matricula.estudiante.apellidos}`;
+    const { enviado } = await enviarMagicLink(matricula.id, matricula.padre.usuario.email, nombreCompleto);
+
+    await audit({ usuarioId: req.usuario!.sub, accion: 'EDITAR', entidad: 'matriculas', entidadId: id, datosDespues: { accion: 'reenviar_link' }, ip: req.ip });
+
+    res.json({ ok: true, mensaje: enviado ? 'Enlace reenviado al correo del padre/acudiente' : 'Enlace regenerado, pero el correo no pudo enviarse. Verifica la configuración de correo.' });
+  } catch (err) {
+    logger.error('Error al reenviar enlace de matrícula', { err });
     res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
   }
 }

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import {
   UserPlus, CheckCircle, XCircle, Clock, Eye, X,
-  AlertCircle, Copy, GraduationCap, Users, FileText, Search, Mail
+  AlertCircle, Copy, GraduationCap, Users, FileText, Search, Mail, Send
 } from 'lucide-react';
 import api from '../services/api';
 
@@ -55,7 +55,7 @@ export default function Matriculas() {
   const qc = useQueryClient();
   const [modal, setModal] = useState(false);
   const [modalDetalle, setModalDetalle] = useState<MatriculaRow | null>(null);
-  const [pinGenerado, setPinGenerado] = useState<{ pin: string; emailAcceso: string; emailContacto?: string; codigo: string; nombre: string } | null>(null);
+  const [pinGenerado, setPinGenerado] = useState<{ pin: string; emailAcceso: string; emailContacto?: string; codigo: string; nombre: string; magicLinkEnviado?: boolean } | null>(null);
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'error' } | null>(null);
   const [filtro, setFiltro] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('');
@@ -82,6 +82,7 @@ export default function Matriculas() {
         emailContacto: res.data.datos.emailContacto,
         codigo: res.data.datos.codigoMatricula,
         nombre: `${res.data.datos.estudiante.nombres} ${res.data.datos.estudiante.apellidos}`,
+        magicLinkEnviado: res.data.datos.magicLinkEnviado,
       });
     },
     onError: (e: unknown) => {
@@ -100,6 +101,15 @@ export default function Matriculas() {
     mutationFn: ({ id, obs }: { id: string; obs?: string }) => api.patch(`/matriculas/${id}/rechazar`, { observaciones: obs }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['matriculas'] }); setModalDetalle(null); setToast({ msg: 'Matrícula rechazada', tipo: 'ok' }); },
     onError: () => setToast({ msg: 'Error al rechazar', tipo: 'error' }),
+  });
+
+  const reenviarLinkMutation = useMutation({
+    mutationFn: (id: string) => api.patch(`/matriculas/${id}/reenviar-link`),
+    onSuccess: (res) => setToast({ msg: res.data.mensaje ?? 'Enlace reenviado', tipo: 'ok' }),
+    onError: (e: unknown) => {
+      const d = (e as { response?: { data?: { mensaje?: string } } })?.response?.data;
+      setToast({ msg: d?.mensaje ?? 'Error al reenviar el enlace', tipo: 'error' });
+    },
   });
 
   const inputCls = (err?: string) =>
@@ -200,6 +210,17 @@ export default function Matriculas() {
             </div>
 
             <div className="space-y-3 mb-5">
+              {pinGenerado.magicLinkEnviado ? (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center gap-2">
+                  <Send className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                  <p className="text-xs text-emerald-700">Se envió un enlace de acceso directo al correo del padre/acudiente. También puede ingresar con el correo y PIN de respaldo.</p>
+                </div>
+              ) : (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                  <p className="text-xs text-amber-700">No se pudo enviar el enlace por correo. Usa el correo y PIN de respaldo, o reenvía el enlace luego desde el detalle de la matrícula.</p>
+                </div>
+              )}
               <div className="bg-slate-50 rounded-xl p-4">
                 <p className="text-xs text-slate-400 mb-1">Estudiante</p>
                 <p className="font-semibold text-slate-800">{pinGenerado.nombre}</p>
@@ -249,6 +270,7 @@ export default function Matriculas() {
           onClose={() => setModalDetalle(null)}
           verificarMutation={verificarMutation}
           rechazarMutation={rechazarMutation}
+          reenviarLinkMutation={reenviarLinkMutation}
           setToast={setToast}
         />
       )}
@@ -368,6 +390,12 @@ export default function Matriculas() {
                     <label className="block text-xs font-medium text-slate-500 mb-1.5">Teléfono (opcional)</label>
                     <input className={inputCls()} placeholder="Teléfono" {...register('padre.telefono')} />
                   </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-slate-500 mb-1.5">Correo electrónico * <span className="text-slate-300">(recibirá el enlace de acceso)</span></label>
+                    <input type="email" className={inputCls(errors.padre?.email?.message)} placeholder="correo@ejemplo.com"
+                      {...register('padre.email', { required: 'Requerido para enviar el acceso a matrícula', pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Email inválido' } })} />
+                    {errors.padre?.email && <p className="mt-1 text-xs text-red-500">{errors.padre.email.message}</p>}
+                  </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-500 mb-1.5">Parentesco *</label>
                     <select className={inputCls(errors.padre?.parentesco?.message)}
@@ -383,7 +411,7 @@ export default function Matriculas() {
 
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
                 <p className="text-xs text-blue-700">
-                  <strong>Acceso automático:</strong> El sistema generará un correo y PIN únicos para que el padre acceda al portal. Estos datos solo se muestran una vez — anótalos antes de cerrar.
+                  <strong>Acceso automático:</strong> El sistema enviará un enlace de acceso directo al correo del padre/acudiente y generará un correo y PIN de respaldo. Estos datos solo se muestran una vez — anótalos antes de cerrar.
                 </p>
               </div>
 
@@ -404,13 +432,14 @@ export default function Matriculas() {
 }
 
 // ─── DETALLE COMPLETO DE MATRÍCULA PARA SECRETARIO ───────────────────────────
-function DetalleMatricula({ matricula, obsVerif, setObsVerif, onClose, verificarMutation, rechazarMutation, setToast }: {
+function DetalleMatricula({ matricula, obsVerif, setObsVerif, onClose, verificarMutation, rechazarMutation, reenviarLinkMutation, setToast }: {
   matricula: MatriculaRow;
   obsVerif: string;
   setObsVerif: (v: string) => void;
   onClose: () => void;
   verificarMutation: { mutate: (d: { id: string; obs?: string }) => void; isPending: boolean };
   rechazarMutation: { mutate: (d: { id: string; obs?: string }) => void; isPending: boolean };
+  reenviarLinkMutation: { mutate: (id: string) => void; isPending: boolean };
   setToast: (t: { msg: string; tipo: 'ok' | 'error' } | null) => void;
 }) {
   const estudianteId = matricula.estudiante.id;
@@ -468,8 +497,16 @@ function DetalleMatricula({ matricula, obsVerif, setObsVerif, onClose, verificar
 
         <div className="px-6 py-5 space-y-5">
           {/* Estado */}
-          <div className={`flex items-center gap-2 px-3 py-2 rounded-xl w-fit text-sm font-medium ${COLOR_ESTADO[matricula.estadoDocumentos]}`}>
-            {ICONO_ESTADO[matricula.estadoDocumentos]} {matricula.estadoDocumentos}
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-xl w-fit text-sm font-medium ${COLOR_ESTADO[matricula.estadoDocumentos]}`}>
+              {ICONO_ESTADO[matricula.estadoDocumentos]} {matricula.estadoDocumentos}
+            </div>
+            {matricula.estadoDocumentos === 'PENDIENTE' && (
+              <button onClick={() => reenviarLinkMutation.mutate(matricula.id)} disabled={reenviarLinkMutation.isPending}
+                className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 text-xs font-medium rounded-xl hover:bg-blue-100 transition disabled:opacity-50">
+                <Send className="w-3.5 h-3.5" /> {reenviarLinkMutation.isPending ? 'Enviando...' : 'Reenviar enlace de acceso'}
+              </button>
+            )}
           </div>
 
           {/* Info básica */}

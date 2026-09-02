@@ -119,11 +119,13 @@ router.get('/comunicados/padre',        autenticar, autorizar(PADRE), comunicado
 router.patch('/comunicados/:id/archivar', autenticar, autorizar(ADMIN, SEC), archivarComunicado);
 
 // MATRÍCULAS
-import { crearMatricula, listarMatriculas, verificarMatricula, rechazarMatricula, validarMatricula } from '../controllers/matriculas.controller';
+import { crearMatricula, listarMatriculas, verificarMatricula, rechazarMatricula, validarMatricula, accederConMagicLink, reenviarLink } from '../controllers/matriculas.controller';
 router.get('/matriculas',                    autenticar, autorizar(ADMIN, SEC), listarMatriculas);
 router.post('/matriculas',                   autenticar, autorizar(ADMIN, SEC), validarMatricula, crearMatricula);
 router.patch('/matriculas/:id/verificar',    autenticar, autorizar(ADMIN, SEC), verificarMatricula);
 router.patch('/matriculas/:id/rechazar',     autenticar, autorizar(ADMIN, SEC), rechazarMatricula);
+router.get('/matriculas/acceso/:token',      accederConMagicLink);
+router.patch('/matriculas/:id/reenviar-link', autenticar, autorizar(ADMIN, SEC), reenviarLink);
 
 // DATOS ADICIONALES Y TIPOS DE DOCUMENTO
 import { obtenerDatosAdicionales, guardarDatosAdicionales, validarDatosAdicionales, actualizarDatosPadre, validarDatosPadre, listarTiposDocumento, crearTipoDocumento, editarTipoDocumento, validarTipoDocumento } from '../controllers/datos_adicionales.controller';

@@ -59,6 +59,7 @@ app.use(limiterGlobal);
 app.use('/api/auth/login', limiterLogin);
 app.use('/api/auth/refresh', limiterLogin);
 app.use('/api/auth/password', limiterLogin);
+app.use('/api/matriculas/acceso', limiterLogin);
 
 // ─── PARSERS ──────────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '1mb' }));

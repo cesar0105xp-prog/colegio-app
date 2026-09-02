@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   GraduationCap, MessageSquare, FileText, LogOut, Menu,
@@ -114,6 +114,16 @@ export default function PadreDashboard() {
   const navigate = useNavigate();
 
   const handleLogout = async () => { try { await api.post('/auth/logout'); } catch {} clearAuth(); navigate('/login'); };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const seccionParam = params.get('seccion') as Seccion | null;
+    const SECCIONES_VALIDAS: Seccion[] = ['boletin', 'observaciones', 'asistencia', 'permisos', 'agenda', 'certificados', 'comunicados', 'directorio', 'cuenta', 'matricula', 'pagos'];
+    if (seccionParam && SECCIONES_VALIDAS.includes(seccionParam)) {
+      setSeccion(seccionParam);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   const { data: hijos = [] } = useQuery({
     queryKey: ['mis-hijos'],
