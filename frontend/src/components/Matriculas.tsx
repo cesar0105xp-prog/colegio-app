@@ -547,7 +547,36 @@ function DetalleMatricula({ matricula, obsVerif, setObsVerif, onClose, verificar
   };
 
   type Contacto = { id: string; nombres: string; apellidos: string; parentesco: string; telefono: string; telefono2?: string; orden: number };
-  type ArchivoRow2 = { id: string; nombreOriginal: string; tamanoBytes: number; tipoDocumento?: { nombre: string } };
+  type ArchivoRow2 = { id: string; nombreOriginal: string; tamanoBytes: number; tipoDocumento?: { nombre: string }; estadoRevision: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO'; motivoRechazo?: string | null };
+  const qc = useQueryClient();
+  const [modalRechazoDoc, setModalRechazoDoc] = useState<ArchivoRow2 | null>(null);
+  const [motivoRechazoDoc, setMotivoRechazoDoc] = useState('');
+
+  const aprobarDocMutation = useMutation({
+    mutationFn: (id: string) => api.patch(`/archivos/${id}/aprobar`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['archivos-matricula-sec', estudianteId] }); setToast({ msg: 'Documento aprobado', tipo: 'ok' }); },
+    onError: () => setToast({ msg: 'Error al aprobar documento', tipo: 'error' }),
+  });
+
+  const rechazarDocMutation = useMutation({
+    mutationFn: ({ id, motivo }: { id: string; motivo: string }) => api.patch(`/archivos/${id}/rechazar`, { motivoRechazo: motivo }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['archivos-matricula-sec', estudianteId] });
+      setModalRechazoDoc(null);
+      setMotivoRechazoDoc('');
+      setToast({ msg: 'Documento rechazado', tipo: 'ok' });
+    },
+    onError: (e: unknown) => {
+      const d = (e as { response?: { data?: { errores?: string[]; mensaje?: string } } })?.response?.data;
+      setToast({ msg: d?.errores?.[0] ?? d?.mensaje ?? 'Error al rechazar documento', tipo: 'error' });
+    },
+  });
+
+  const BADGE_DOC: Record<string, string> = {
+    PENDIENTE: 'bg-amber-100 text-amber-700',
+    APROBADO: 'bg-emerald-100 text-emerald-700',
+    RECHAZADO: 'bg-red-100 text-red-700',
+  };
   type PadreDetalle = { perfil?: { telefono?: string; telefonoAlt?: string; direccion?: string; ocupacion?: string; emailContacto?: string } };
 
   const perfil = (datosPadre as PadreDetalle)?.perfil;
@@ -686,16 +715,38 @@ function DetalleMatricula({ matricula, obsVerif, setObsVerif, onClose, verificar
             ) : (
               <div className="space-y-2">
                 {(archivos as ArchivoRow2[]).map(a => (
-                  <div key={a.id} className="flex items-center justify-between bg-slate-50 rounded-xl p-3">
-                    <div>
-                      {a.tipoDocumento && <p className="text-xs text-blue-600 font-medium mb-0.5">{a.tipoDocumento.nombre}</p>}
-                      <p className="text-sm font-medium text-slate-800">{a.nombreOriginal}</p>
-                      <p className="text-xs text-slate-400">{(a.tamanoBytes / 1024).toFixed(0)} KB</p>
+                  <div key={a.id} className="bg-slate-50 rounded-xl p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {a.tipoDocumento && <p className="text-xs text-blue-600 font-medium">{a.tipoDocumento.nombre}</p>}
+                          <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${BADGE_DOC[a.estadoRevision]}`}>{a.estadoRevision}</span>
+                        </div>
+                        <p className="text-sm font-medium text-slate-800 truncate">{a.nombreOriginal}</p>
+                        <p className="text-xs text-slate-400">{(a.tamanoBytes / 1024).toFixed(0)} KB</p>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button onClick={() => verArchivo(a.id)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition">
+                          <Eye className="w-3.5 h-3.5" /> Ver
+                        </button>
+                        {a.estadoRevision === 'PENDIENTE' && (
+                          <>
+                            <button onClick={() => aprobarDocMutation.mutate(a.id)} disabled={aprobarDocMutation.isPending}
+                              className="px-2.5 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded-lg hover:bg-emerald-700 transition disabled:opacity-50">
+                              Aprobar
+                            </button>
+                            <button onClick={() => { setModalRechazoDoc(a); setMotivoRechazoDoc(''); }}
+                              className="px-2.5 py-1.5 bg-red-50 text-red-600 text-xs font-medium rounded-lg hover:bg-red-100 transition">
+                              Rechazar
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <button onClick={() => verArchivo(a.id)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition">
-                      <Eye className="w-3.5 h-3.5" /> Ver PDF
-                    </button>
+                    {a.estadoRevision === 'RECHAZADO' && a.motivoRechazo && (
+                      <p className="text-xs text-red-600 mt-2">Motivo: {a.motivoRechazo}</p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -748,6 +799,27 @@ function DetalleMatricula({ matricula, obsVerif, setObsVerif, onClose, verificar
           )}
         </div>
       </div>
+
+      {modalRechazoDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6">
+            <h2 className="font-bold text-slate-800 mb-1">Rechazar documento</h2>
+            <p className="text-sm text-slate-500 mb-4">{modalRechazoDoc.nombreOriginal}</p>
+            <textarea value={motivoRechazoDoc} onChange={e => setMotivoRechazoDoc(e.target.value)}
+              placeholder="Motivo del rechazo (mínimo 10 caracteres)..." rows={3} maxLength={300}
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+            <p className="text-xs text-right text-slate-400 mt-0.5">{motivoRechazoDoc.length}/300</p>
+            <div className="flex gap-2 mt-3">
+              <button onClick={() => setModalRechazoDoc(null)} className="flex-1 py-2.5 text-sm text-slate-600">Cancelar</button>
+              <button onClick={() => rechazarDocMutation.mutate({ id: modalRechazoDoc.id, motivo: motivoRechazoDoc })}
+                disabled={rechazarDocMutation.isPending || motivoRechazoDoc.trim().length < 10}
+                className="flex-1 py-2.5 bg-red-600 text-white text-sm font-medium rounded-xl hover:bg-red-700 transition disabled:opacity-50">
+                {rechazarDocMutation.isPending ? 'Rechazando...' : 'Rechazar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

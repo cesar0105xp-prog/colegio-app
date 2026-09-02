@@ -326,7 +326,13 @@ function DocumentosMatricula({ estudianteId }: { estudianteId: string }) {
   });
 
   type TipoDoc = { id: string; nombre: string; descripcion?: string; obligatorio: boolean };
-  type ArchivoRow = { id: string; nombreOriginal: string; tamanoBytes: number; tipoDocumentoId?: string; tipoDocumento?: { nombre: string } };
+  type ArchivoRow = { id: string; nombreOriginal: string; tamanoBytes: number; tipoDocumentoId?: string; tipoDocumento?: { nombre: string }; estadoRevision: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO'; motivoRechazo?: string | null };
+
+  const BADGE_ESTADO: Record<string, { label: string; cls: string }> = {
+    PENDIENTE: { label: '🟡 En revisión', cls: 'bg-amber-100 text-amber-700' },
+    APROBADO: { label: '🟢 Aprobado', cls: 'bg-emerald-100 text-emerald-700' },
+    RECHAZADO: { label: '🔴 Rechazado', cls: 'bg-red-100 text-red-700' },
+  };
 
   const archivosPorTipo = (tipo: TipoDoc) =>
     (archivos as ArchivoRow[]).filter(a => a.tipoDocumentoId === tipo.id);
@@ -348,6 +354,7 @@ function DocumentosMatricula({ estudianteId }: { estudianteId: string }) {
       fd.append('tipoDocumentoId', tipoId);
       await api.post('/archivos', fd);
       await qc.invalidateQueries({ queryKey: ['archivos-matricula', estudianteId] });
+      await qc.invalidateQueries({ queryKey: ['mi-matricula', estudianteId] });
       await refetch();
       setToast({ msg: 'Documento subido correctamente', tipo: 'ok' });
     } catch (err: unknown) {
@@ -380,11 +387,12 @@ function DocumentosMatricula({ estudianteId }: { estudianteId: string }) {
       {(tiposDoc as TipoDoc[]).map(tipo => {
         const docs = archivosPorTipo(tipo);
         const subido = docs.length > 0;
+        const ultimo = docs[0] as ArchivoRow | undefined;
         return (
           <div key={tipo.id} className={`rounded-xl border p-4 ${subido ? 'border-emerald-200 bg-emerald-50' : tipo.obligatorio ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-slate-50'}`}>
             <div className="flex items-center justify-between gap-3">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   {subido
                     ? <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
                     : <AlertCircle className={`w-4 h-4 flex-shrink-0 ${tipo.obligatorio ? 'text-red-500' : 'text-slate-400'}`} />
@@ -392,8 +400,16 @@ function DocumentosMatricula({ estudianteId }: { estudianteId: string }) {
                   <p className="text-sm font-medium text-slate-800">
                     {tipo.nombre} {tipo.obligatorio && <span className="text-red-500">*</span>}
                   </p>
+                  {ultimo && (
+                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${BADGE_ESTADO[ultimo.estadoRevision].cls}`}>
+                      {BADGE_ESTADO[ultimo.estadoRevision].label}
+                    </span>
+                  )}
                 </div>
                 {tipo.descripcion && <p className="text-xs text-slate-400 mt-0.5 ml-6">{tipo.descripcion}</p>}
+                {ultimo?.estadoRevision === 'RECHAZADO' && ultimo.motivoRechazo && (
+                  <p className="text-xs text-red-600 mt-1 ml-6">Motivo: {ultimo.motivoRechazo}</p>
+                )}
                 {subido && (
                   <div className="ml-6 mt-2 space-y-1">
                     {docs.map(doc => (

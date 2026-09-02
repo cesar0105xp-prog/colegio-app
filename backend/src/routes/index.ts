@@ -6,7 +6,7 @@ import { listarUsuarios, obtenerUsuario, crearUsuario, editarUsuario, eliminarUs
 import { listarGrados, crearGrado, editarGrado, validarGrado, listarMaterias, crearMateria, editarMateria, eliminarMateria, validarMateria, asignarMateriaGrado, listarPeriodos, crearPeriodo, editarPeriodo, validarPeriodo, activarPeriodo, obtenerStats } from '../controllers/academico.controller';
 import { crearActividad, listarActividades, registrarCalificacion, obtenerBoletin, validarActividad, validarCalificacion, editarActividad, eliminarActividad, validarEditarActividad } from '../controllers/calificaciones.controller';
 import { crearObservacion, listarObservaciones, marcarObservacionVista, validarObservacion, eliminarObservacion, editarObservacion, validarEditarObservacion } from '../controllers/observaciones.controller';
-import { subirArchivo, descargarArchivo, listarArchivos } from '../controllers/archivos.controller';
+import { subirArchivo, descargarArchivo, listarArchivos, aprobarDocumento, rechazarDocumento, validarRechazoDocumento } from '../controllers/archivos.controller';
 import { misHijos, miPerfilEstudiante } from '../controllers/padre.controller';
 import { listarVinculos, crearVinculo, eliminarVinculo, validarVinculo } from '../controllers/vinculos.controller';
 import { reporteBoletinesPorGrado, reporteRendimientoMateria, reporteEstudiantesDestacados, reporteObservacionesPendientes } from '../controllers/reportes.controller';
@@ -97,6 +97,8 @@ router.delete('/observaciones/:id',                 autenticar, autorizar(ADMIN,
 router.post('/archivos',                         autenticar, autorizar(ADMIN, SEC, PADRE), uploadPDF.single('archivo'), validarPDFReal, subirArchivo);
 router.get('/archivos/estudiante/:estudianteId', autenticar, autorizar(ADMIN, SEC, PROF, PADRE, EST), validarAccesoPadreEstudiante, validarAccesoEstudiante, listarArchivos);
 router.get('/archivos/:archivoId/descargar',     autenticar, descargarArchivo);
+router.patch('/archivos/:id/aprobar',            autenticar, autorizar(ADMIN, SEC), aprobarDocumento);
+router.patch('/archivos/:id/rechazar',           autenticar, autorizar(ADMIN, SEC), validarRechazoDocumento, rechazarDocumento);
 
 // REPORTES
 router.get('/reportes/boletines-grado',          autenticar, autorizar(ADMIN, SEC), reporteBoletinesPorGrado);

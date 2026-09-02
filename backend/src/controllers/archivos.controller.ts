@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { PrismaClient, TipoDocumentoArchivo } from '@prisma/client';
+import { body, validationResult } from 'express-validator';
 import path from 'path';
 import fs from 'fs';
 import { audit } from '../utils/audit';
@@ -194,6 +195,9 @@ export async function listarArchivos(req: Request, res: Response): Promise<void>
         visibleParaPadre: true,
         tipoDocumentoId: true,
         tipoDocumento: { select: { id: true, nombre: true, obligatorio: true } },
+        estadoRevision: true,
+        motivoRechazo: true,
+        fechaRevision: true,
         createdAt: true,
       },
       orderBy: { createdAt: 'desc' },
@@ -202,6 +206,58 @@ export async function listarArchivos(req: Request, res: Response): Promise<void>
     res.json({ ok: true, datos: archivos });
   } catch (err) {
     logger.error('Error al listar archivos', { err });
+    res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
+  }
+}
+
+// ─── APROBAR / RECHAZAR DOCUMENTO (checklist de matrícula) ────────────────────
+export const validarRechazoDocumento = [
+  body('motivoRechazo').trim().notEmpty().withMessage('El motivo de rechazo es requerido')
+    .isLength({ min: 10, max: 300 }).withMessage('Entre 10 y 300 caracteres'),
+];
+
+export async function aprobarDocumento(req: Request, res: Response): Promise<void> {
+  const { id } = req.params;
+  try {
+    const archivo = await prisma.archivo.findUnique({ where: { id } });
+    if (!archivo) { res.status(404).json({ ok: false, mensaje: 'Documento no encontrado' }); return; }
+
+    await prisma.archivo.update({
+      where: { id },
+      data: { estadoRevision: 'APROBADO', motivoRechazo: null, revisadoPor: req.usuario!.sub, fechaRevision: new Date() },
+    });
+
+    await audit({ usuarioId: req.usuario!.sub, accion: 'EDITAR', entidad: 'archivos', entidadId: id, datosDespues: { estadoRevision: 'APROBADO' }, ip: req.ip });
+    res.json({ ok: true, mensaje: 'Documento aprobado' });
+  } catch (err) {
+    logger.error('Error al aprobar documento', { err });
+    res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
+  }
+}
+
+export async function rechazarDocumento(req: Request, res: Response): Promise<void> {
+  const errores = validationResult(req);
+  if (!errores.isEmpty()) {
+    res.status(400).json({ ok: false, errores: errores.array().map(e => e.msg) });
+    return;
+  }
+
+  const { id } = req.params;
+  const { motivoRechazo } = req.body;
+
+  try {
+    const archivo = await prisma.archivo.findUnique({ where: { id } });
+    if (!archivo) { res.status(404).json({ ok: false, mensaje: 'Documento no encontrado' }); return; }
+
+    await prisma.archivo.update({
+      where: { id },
+      data: { estadoRevision: 'RECHAZADO', motivoRechazo: motivoRechazo.trim(), revisadoPor: req.usuario!.sub, fechaRevision: new Date() },
+    });
+
+    await audit({ usuarioId: req.usuario!.sub, accion: 'EDITAR', entidad: 'archivos', entidadId: id, datosDespues: { estadoRevision: 'RECHAZADO' }, ip: req.ip });
+    res.json({ ok: true, mensaje: 'Documento rechazado' });
+  } catch (err) {
+    logger.error('Error al rechazar documento', { err });
     res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
   }
 }
