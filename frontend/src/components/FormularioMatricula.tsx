@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import ContactosEmergencia from './ContactosEmergencia';
+import ProgresoMatricula from './ProgresoMatricula';
 
 const soloNumerosKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
   if (['Backspace','Delete','Tab','ArrowLeft','ArrowRight'].includes(e.key)) return;
@@ -93,6 +94,8 @@ export default function FormularioMatricula({ estudianteId, hijoNombre }: { estu
   return (
     <div className="space-y-4">
       {toast && <Toast mensaje={toast.msg} tipo={toast.tipo} onClose={() => setToast(null)} />}
+
+      <ProgresoMatricula estudianteId={estudianteId} />
 
       <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
         <p className="text-sm font-semibold text-blue-800 mb-1">Formulario de matrícula — {hijoNombre}</p>
@@ -228,6 +231,78 @@ export default function FormularioMatricula({ estudianteId, hijoNombre }: { estu
       <Seccion titulo="Documentos requeridos" icono={<FileText className="w-5 h-5 text-emerald-600" />}>
         <DocumentosMatricula estudianteId={estudianteId} />
       </Seccion>
+
+      {/* Firma digital */}
+      <Seccion titulo="Firma y envío" icono={<Save className="w-5 h-5 text-violet-600" />}>
+        <FirmaDigital estudianteId={estudianteId} hijoNombre={hijoNombre} />
+      </Seccion>
+    </div>
+  );
+}
+
+// ─── FIRMA DIGITAL ────────────────────────────────────────────────────────────
+type FirmaForm = { nombreCompleto: string };
+
+function FirmaDigital({ estudianteId, hijoNombre }: { estudianteId: string; hijoNombre: string }) {
+  const qc = useQueryClient();
+  const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'error' } | null>(null);
+  const { register, handleSubmit, formState: { errors } } = useForm<FirmaForm>();
+
+  const { data: progreso } = useQuery<{ firmaDigitalNombre: string | null; firmaDigitalFecha: string | null }>({
+    queryKey: ['mi-matricula', estudianteId],
+    queryFn: async () => (await api.get(`/matriculas/estudiante/${estudianteId}`)).data.datos,
+    enabled: !!estudianteId,
+  });
+
+  const firmarMutation = useMutation({
+    mutationFn: (d: FirmaForm) => api.patch(`/matriculas/estudiante/${estudianteId}/firmar`, d),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['mi-matricula', estudianteId] });
+      setToast({ msg: 'Formulario firmado correctamente', tipo: 'ok' });
+    },
+    onError: (e: unknown) => {
+      const d = (e as { response?: { data?: { mensaje?: string; errores?: string[] } } })?.response?.data;
+      setToast({ msg: d?.errores?.[0] ?? d?.mensaje ?? 'Error al firmar', tipo: 'error' });
+    },
+  });
+
+  if (progreso?.firmaDigitalNombre) {
+    return (
+      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-3">
+        <CheckCircle className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+        <div>
+          <p className="text-sm font-medium text-emerald-800">Formulario firmado por {progreso.firmaDigitalNombre}</p>
+          {progreso.firmaDigitalFecha && (
+            <p className="text-xs text-emerald-600">{new Date(progreso.firmaDigitalFecha).toLocaleString('es-CO')}</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {toast && <Toast mensaje={toast.msg} tipo={toast.tipo} onClose={() => setToast(null)} />}
+      <div className="bg-slate-50 rounded-xl p-4 max-h-40 overflow-y-auto text-xs text-slate-500 leading-relaxed">
+        Al firmar declaro que la información y los documentos suministrados en este formulario de matrícula
+        de {hijoNombre} son veraces y completos. Autorizo al colegio a verificarlos y entiendo que cualquier
+        inconsistencia puede retrasar o afectar el proceso de matrícula. Esta firma electrónica tiene la misma
+        validez que una firma manuscrita para efectos del proceso de matrícula.
+      </div>
+      <form onSubmit={handleSubmit(d => firmarMutation.mutate(d))} className="space-y-3">
+        <div>
+          <label className="block text-xs font-medium text-slate-500 mb-1.5">Escribe tu nombre completo como firma *</label>
+          <input className={inputCls(errors.nombreCompleto?.message)} placeholder="Nombre y apellidos completos"
+            {...register('nombreCompleto', { required: 'Requerido', minLength: { value: 5, message: 'Mínimo 5 caracteres' }, maxLength: { value: 100, message: 'Máximo 100 caracteres' } })} />
+          {errors.nombreCompleto && <p className="mt-1 text-xs text-red-500">{errors.nombreCompleto.message}</p>}
+        </div>
+        <div className="flex justify-end">
+          <button type="submit" disabled={firmarMutation.isPending}
+            className="flex items-center gap-2 px-5 py-2 bg-violet-600 text-white text-sm font-medium rounded-xl hover:bg-violet-700 transition disabled:opacity-50">
+            <Save className="w-4 h-4" /> {firmarMutation.isPending ? 'Firmando...' : 'Firmar y completar formulario'}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

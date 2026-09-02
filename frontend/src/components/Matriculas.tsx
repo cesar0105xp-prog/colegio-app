@@ -22,6 +22,8 @@ type MatriculaRow = {
   estadoDocumentos: string;
   fechaMatricula: string;
   observaciones?: string;
+  firmaDigitalNombre?: string | null;
+  firmaDigitalFecha?: string | null;
   estudiante: { id: string; nombres: string; apellidos: string; codigoMatricula?: string; grado: { nombre: string; grupo: string } };
   padre: { nombres: string; apellidos: string; usuario: { email: string } };
   verificador?: { email: string };
@@ -696,6 +698,21 @@ function DetalleMatricula({ matricula, obsVerif, setObsVerif, onClose, verificar
                     </button>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* Firma digital */}
+          <div>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Firma digital</p>
+            {matricula.firmaDigitalNombre ? (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+                <p className="text-sm text-emerald-800">Firmado por <strong>{matricula.firmaDigitalNombre}</strong></p>
+                {matricula.firmaDigitalFecha && <p className="text-xs text-emerald-600 mt-0.5">{new Date(matricula.firmaDigitalFecha).toLocaleString('es-CO')}</p>}
+              </div>
+            ) : (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                <p className="text-xs text-amber-700">El padre aún no ha firmado el formulario.</p>
               </div>
             )}
           </div>

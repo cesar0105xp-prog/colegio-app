@@ -329,6 +329,107 @@ export async function rechazarMatricula(req: Request, res: Response): Promise<vo
   }
 }
 
+// ─── MI MATRÍCULA (padre) — datos para el tracker de progreso ─────────────────
+export async function miMatriculaEstudiante(req: Request, res: Response): Promise<void> {
+  const { estudianteId } = req.params;
+  try {
+    const matricula = await prisma.matricula.findUnique({
+      where: { estudianteId },
+      include: { solicitudCupo: { select: { createdAt: true } } },
+    });
+    if (!matricula) { res.status(404).json({ ok: false, mensaje: 'No se encontró la matrícula de este estudiante' }); return; }
+
+    res.json({
+      ok: true,
+      datos: {
+        id: matricula.id,
+        estadoDocumentos: matricula.estadoDocumentos,
+        fechaSolicitud: matricula.solicitudCupo?.createdAt ?? matricula.fechaMatricula,
+        fechaAccesoOtorgado: matricula.fechaMatricula,
+        fechaFormularioCompletado: matricula.fechaFormularioCompletado,
+        fechaDocumentosSubidos: matricula.fechaDocumentosSubidos,
+        fechaVerificacion: matricula.fechaVerificacion,
+        firmaDigitalNombre: matricula.firmaDigitalNombre,
+        firmaDigitalFecha: matricula.firmaDigitalFecha,
+        formularioPagado: matricula.formularioPagado,
+        formularioComprobanteUrl: matricula.formularioComprobanteUrl ? true : false,
+        formularioFechaPago: matricula.formularioFechaPago,
+        observaciones: matricula.observaciones,
+      },
+    });
+  } catch (err) {
+    logger.error('Error al obtener matrícula del estudiante', { err });
+    res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
+  }
+}
+
+// ─── RECOMPUTAR "DOCUMENTOS SUBIDOS" (llamado tras cada carga de archivo) ─────
+export async function recomputarProgresoDocumentos(estudianteId: string): Promise<void> {
+  try {
+    const matricula = await prisma.matricula.findUnique({ where: { estudianteId } });
+    if (!matricula || matricula.estadoDocumentos !== 'PENDIENTE') return;
+
+    const tiposObligatorios = await prisma.tipoDocumentoRequerido.findMany({ where: { obligatorio: true, activo: true } });
+    if (tiposObligatorios.length === 0) return;
+
+    const archivos = await prisma.archivo.findMany({
+      where: { estudianteId, tipoDocumentoId: { in: tiposObligatorios.map(t => t.id) } },
+      select: { tipoDocumentoId: true },
+    });
+    const tiposConArchivo = new Set(archivos.map(a => a.tipoDocumentoId));
+    const completo = tiposObligatorios.every(t => tiposConArchivo.has(t.id));
+
+    if (completo) {
+      await prisma.matricula.update({ where: { id: matricula.id }, data: { fechaDocumentosSubidos: new Date() } });
+    }
+  } catch (err) {
+    logger.error('Error al recomputar progreso de documentos', { err });
+  }
+}
+
+// ─── FIRMAR DIGITALMENTE EL FORMULARIO DE MATRÍCULA (padre) ───────────────────
+export const validarFirmaDigital = [
+  body('nombreCompleto').trim().notEmpty().withMessage('Debes escribir tu nombre completo')
+    .isLength({ min: 5, max: 100 }).withMessage('Entre 5 y 100 caracteres'),
+];
+
+export async function firmarMatricula(req: Request, res: Response): Promise<void> {
+  const errores = validationResult(req);
+  if (!errores.isEmpty()) {
+    res.status(400).json({ ok: false, errores: errores.array().map(e => e.msg) });
+    return;
+  }
+
+  const { estudianteId } = req.params;
+  const { nombreCompleto } = req.body;
+
+  try {
+    const matricula = await prisma.matricula.findUnique({ where: { estudianteId } });
+    if (!matricula) { res.status(404).json({ ok: false, mensaje: 'No se encontró la matrícula de este estudiante' }); return; }
+    if (matricula.firmaDigitalNombre) {
+      res.status(400).json({ ok: false, mensaje: 'Ya firmaste este formulario de matrícula' });
+      return;
+    }
+
+    const ahora = new Date();
+    await prisma.matricula.update({
+      where: { id: matricula.id },
+      data: {
+        firmaDigitalNombre: nombreCompleto.trim(),
+        firmaDigitalFecha: ahora,
+        firmaDigitalIp: req.ip ?? null,
+        fechaFormularioCompletado: matricula.fechaFormularioCompletado ?? ahora,
+      },
+    });
+
+    await audit({ usuarioId: req.usuario!.sub, accion: 'EDITAR', entidad: 'matriculas', entidadId: matricula.id, datosDespues: { firmaDigital: true }, ip: req.ip });
+    res.json({ ok: true, mensaje: 'Formulario firmado correctamente' });
+  } catch (err) {
+    logger.error('Error al firmar matrícula', { err });
+    res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
+  }
+}
+
 // ─── ACCEDER CON MAGIC LINK (público, sin autenticación) ──────────────────────
 export async function accederConMagicLink(req: Request, res: Response): Promise<void> {
   const { token } = req.params;

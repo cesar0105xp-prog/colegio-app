@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
+import { recomputarProgresoDocumentos } from './matriculas.controller';
 
 const prisma = new PrismaClient();
 
@@ -80,6 +81,10 @@ export async function subirArchivo(req: Request, res: Response): Promise<void> {
       datosDespues: { nombreOriginal: archivo.nombreOriginal, tipo, estudianteId },
       ip: req.ip,
     });
+
+    if (estudianteId && archivo.tipoDocumentoId) {
+      await recomputarProgresoDocumentos(estudianteId);
+    }
 
     res.status(201).json({
       ok: true,
