@@ -121,7 +121,8 @@ router.get('/comunicados/padre',        autenticar, autorizar(PADRE), comunicado
 router.patch('/comunicados/:id/archivar', autenticar, autorizar(ADMIN, SEC), archivarComunicado);
 
 // MATRÍCULAS
-import { crearMatricula, listarMatriculas, verificarMatricula, rechazarMatricula, validarMatricula, accederConMagicLink, reenviarLink, miMatriculaEstudiante, firmarMatricula, validarFirmaDigital } from '../controllers/matriculas.controller';
+import { crearMatricula, listarMatriculas, verificarMatricula, rechazarMatricula, validarMatricula, accederConMagicLink, reenviarLink, miMatriculaEstudiante, firmarMatricula, validarFirmaDigital, reportarPagoFormulario, verComprobanteFormulario, verificarPagoFormulario } from '../controllers/matriculas.controller';
+import { uploadComprobante, validarComprobanteReal } from '../middlewares/upload.middleware';
 router.get('/matriculas',                    autenticar, autorizar(ADMIN, SEC), listarMatriculas);
 router.post('/matriculas',                   autenticar, autorizar(ADMIN, SEC), validarMatricula, crearMatricula);
 router.patch('/matriculas/:id/verificar',    autenticar, autorizar(ADMIN, SEC), verificarMatricula);
@@ -130,6 +131,9 @@ router.get('/matriculas/acceso/:token',      accederConMagicLink);
 router.patch('/matriculas/:id/reenviar-link', autenticar, autorizar(ADMIN, SEC), reenviarLink);
 router.get('/matriculas/estudiante/:estudianteId',        autenticar, autorizar(PADRE), validarAccesoPadreEstudiante, miMatriculaEstudiante);
 router.patch('/matriculas/estudiante/:estudianteId/firmar', autenticar, autorizar(PADRE), validarAccesoPadreEstudiante, validarFirmaDigital, firmarMatricula);
+router.post('/matriculas/estudiante/:estudianteId/formulario/comprobante', autenticar, autorizar(PADRE), validarAccesoPadreEstudiante, uploadComprobante.single('archivo'), validarComprobanteReal, reportarPagoFormulario);
+router.get('/matriculas/:id/formulario/archivo',    autenticar, autorizar(ADMIN, SEC, PADRE), verComprobanteFormulario);
+router.patch('/matriculas/:id/formulario/verificar', autenticar, autorizar(ADMIN, SEC), verificarPagoFormulario);
 
 // SOLICITUDES DE CUPO (público + secretaría)
 import { crearSolicitudCupo, listarSolicitudesCupo, actualizarEstadoSolicitud, validarSolicitudCupo, validarEstadoSolicitud } from '../controllers/solicitudes_cupo.controller';
@@ -174,8 +178,6 @@ import {
   reportarComprobante, listarComprobantes, verComprobanteArchivo, aprobarComprobante, rechazarComprobante,
   validarIdCobroPago, validarRechazarComprobante,
 } from '../controllers/pagos.controller';
-import { uploadComprobante, validarComprobanteReal } from '../middlewares/upload.middleware';
-
 router.get('/conceptos',           autenticar, autorizar(ADMIN, SEC), listarConceptos);
 router.post('/conceptos',          autenticar, autorizar(ADMIN), validarConceptoPago, crearConcepto);
 router.put('/conceptos/:id',       autenticar, autorizar(ADMIN), validarConceptoPagoEditar, editarConcepto);

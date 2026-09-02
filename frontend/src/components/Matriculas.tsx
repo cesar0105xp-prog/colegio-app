@@ -24,6 +24,10 @@ type MatriculaRow = {
   observaciones?: string;
   firmaDigitalNombre?: string | null;
   firmaDigitalFecha?: string | null;
+  formularioPagado?: boolean;
+  formularioComprobanteUrl?: string | null;
+  formularioReferencia?: string | null;
+  formularioFechaPago?: string | null;
   estudiante: { id: string; nombres: string; apellidos: string; codigoMatricula?: string; grado: { nombre: string; grupo: string } };
   padre: { nombres: string; apellidos: string; usuario: { email: string } };
   verificador?: { email: string };
@@ -577,6 +581,27 @@ function DetalleMatricula({ matricula, obsVerif, setObsVerif, onClose, verificar
     APROBADO: 'bg-emerald-100 text-emerald-700',
     RECHAZADO: 'bg-red-100 text-red-700',
   };
+
+  const verificarFormularioMutation = useMutation({
+    mutationFn: () => api.patch(`/matriculas/${matricula.id}/formulario/verificar`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['matriculas'] });
+      setToast({ msg: 'Pago del formulario verificado', tipo: 'ok' });
+    },
+    onError: (e: unknown) => {
+      const d = (e as { response?: { data?: { mensaje?: string } } })?.response?.data;
+      setToast({ msg: d?.mensaje ?? 'Error al verificar el pago', tipo: 'error' });
+    },
+  });
+
+  const verComprobanteFormulario = async () => {
+    try {
+      const res = await api.get(`/matriculas/${matricula.id}/formulario/archivo`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(res.data);
+      window.open(url, '_blank');
+      setTimeout(() => window.URL.revokeObjectURL(url), 10000);
+    } catch { setToast({ msg: 'Error al abrir el comprobante', tipo: 'error' }); }
+  };
   type PadreDetalle = { perfil?: { telefono?: string; telefonoAlt?: string; direccion?: string; ocupacion?: string; emailContacto?: string } };
 
   const perfil = (datosPadre as PadreDetalle)?.perfil;
@@ -749,6 +774,35 @@ function DetalleMatricula({ matricula, obsVerif, setObsVerif, onClose, verificar
                     )}
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* Pago del formulario de matrícula */}
+          <div>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Pago del formulario de matrícula</p>
+            {matricula.formularioPagado ? (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+                <p className="text-sm text-emerald-800">Pago verificado</p>
+                {matricula.formularioFechaPago && <p className="text-xs text-emerald-600 mt-0.5">{new Date(matricula.formularioFechaPago).toLocaleString('es-CO')}</p>}
+              </div>
+            ) : matricula.formularioComprobanteUrl ? (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+                <p className="text-xs text-amber-700">El padre reportó el pago{matricula.formularioReferencia ? ` (ref. ${matricula.formularioReferencia})` : ''}. Verifica el comprobante antes de aprobar.</p>
+                <div className="flex gap-2">
+                  <button onClick={verComprobanteFormulario}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition">
+                    <Eye className="w-3.5 h-3.5" /> Ver comprobante
+                  </button>
+                  <button onClick={() => verificarFormularioMutation.mutate()} disabled={verificarFormularioMutation.isPending}
+                    className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded-lg hover:bg-emerald-700 transition disabled:opacity-50">
+                    {verificarFormularioMutation.isPending ? 'Verificando...' : 'Verificar pago'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-slate-50 rounded-xl p-3">
+                <p className="text-xs text-slate-500">El padre aún no ha reportado el pago del formulario.</p>
               </div>
             )}
           </div>

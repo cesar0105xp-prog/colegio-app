@@ -3,6 +3,8 @@ import { PrismaClient } from '@prisma/client';
 import { body, validationResult } from 'express-validator';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
 import { generarAccessToken, generarRefreshToken } from './auth.controller';
@@ -10,6 +12,7 @@ import { enviarCorreo, plantillaAccesoMatricula } from '../services/correo.servi
 
 const prisma = new PrismaClient();
 const MAGIC_LINK_HORAS = 72;
+const MONTO_FORMULARIO = 60000;
 
 // ─── GENERAR PIN ALEATORIO (8 caracteres alfanuméricos) ───────────────────────
 function generarPin(): string {
@@ -353,7 +356,9 @@ export async function miMatriculaEstudiante(req: Request, res: Response): Promis
         firmaDigitalFecha: matricula.firmaDigitalFecha,
         formularioPagado: matricula.formularioPagado,
         formularioComprobanteUrl: matricula.formularioComprobanteUrl ? true : false,
+        formularioReferencia: matricula.formularioReferencia,
         formularioFechaPago: matricula.formularioFechaPago,
+        montoFormulario: MONTO_FORMULARIO,
         observaciones: matricula.observaciones,
       },
     });
@@ -499,6 +504,93 @@ export async function accederConMagicLink(req: Request, res: Response): Promise<
     });
   } catch (err) {
     logger.error('Error al acceder con magic link', { err });
+    res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
+  }
+}
+
+/** Borra un archivo de comprobante huérfano sin interrumpir el flujo si falla. */
+function eliminarArchivoComprobante(ruta: string): void {
+  fs.unlink(ruta, err => { if (err && err.code !== 'ENOENT') logger.error('No se pudo eliminar comprobante de formulario', { err, ruta }); });
+}
+
+// ─── REPORTAR PAGO DEL FORMULARIO DE MATRÍCULA ($60.000) — PADRE ──────────────
+export async function reportarPagoFormulario(req: Request, res: Response): Promise<void> {
+  const { estudianteId } = req.params;
+  if (!req.file) { res.status(400).json({ ok: false, mensaje: 'Debes adjuntar el comprobante de pago' }); return; }
+
+  const { referencia } = req.body;
+  if (referencia && String(referencia).length > 50) {
+    eliminarArchivoComprobante(req.file.path);
+    res.status(400).json({ ok: false, mensaje: 'Referencia máximo 50 caracteres' });
+    return;
+  }
+
+  try {
+    const matricula = await prisma.matricula.findUnique({ where: { estudianteId } });
+    if (!matricula) { eliminarArchivoComprobante(req.file.path); res.status(404).json({ ok: false, mensaje: 'No se encontró la matrícula de este estudiante' }); return; }
+    if (matricula.formularioPagado) { eliminarArchivoComprobante(req.file.path); res.status(400).json({ ok: false, mensaje: 'El pago del formulario ya fue verificado' }); return; }
+
+    if (matricula.formularioComprobanteUrl) {
+      eliminarArchivoComprobante(matricula.formularioComprobanteUrl);
+    }
+
+    await prisma.matricula.update({
+      where: { id: matricula.id },
+      data: {
+        formularioComprobanteUrl: req.file.path,
+        formularioReferencia: referencia?.trim() || null,
+        formularioFechaPago: new Date(),
+      },
+    });
+
+    await audit({ usuarioId: req.usuario!.sub, accion: 'CREAR', entidad: 'matriculas', entidadId: matricula.id, datosDespues: { formularioComprobante: true }, ip: req.ip });
+    res.status(201).json({ ok: true, mensaje: 'Comprobante enviado. Secretaría verificará el pago pronto.' });
+  } catch (err) {
+    if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    logger.error('Error al reportar pago de formulario', { err });
+    res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
+  }
+}
+
+// ─── VER COMPROBANTE DEL FORMULARIO (ADMIN/SECRETARIO/PADRE dueño) ────────────
+export async function verComprobanteFormulario(req: Request, res: Response): Promise<void> {
+  const { id } = req.params;
+  try {
+    const matricula = await prisma.matricula.findUnique({ where: { id } });
+    if (!matricula || !matricula.formularioComprobanteUrl) { res.status(404).json({ ok: false, mensaje: 'Comprobante no encontrado' }); return; }
+
+    if (req.usuario!.rol === 'PADRE') {
+      const padre = await prisma.padre.findUnique({ where: { usuarioId: req.usuario!.sub } });
+      if (!padre || padre.id !== matricula.padreId) { res.status(403).json({ ok: false, mensaje: 'No tienes acceso a este comprobante' }); return; }
+    }
+
+    const rutaAbsoluta = path.resolve(matricula.formularioComprobanteUrl);
+    if (!fs.existsSync(rutaAbsoluta)) { res.status(404).json({ ok: false, mensaje: 'Archivo no disponible en el servidor' }); return; }
+    res.sendFile(rutaAbsoluta);
+  } catch (err) {
+    logger.error('Error al ver comprobante de formulario', { err });
+    res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
+  }
+}
+
+// ─── VERIFICAR PAGO DEL FORMULARIO (ADMIN/SECRETARIO) ─────────────────────────
+export async function verificarPagoFormulario(req: Request, res: Response): Promise<void> {
+  const { id } = req.params;
+  try {
+    const matricula = await prisma.matricula.findUnique({ where: { id } });
+    if (!matricula) { res.status(404).json({ ok: false, mensaje: 'Matrícula no encontrada' }); return; }
+    if (!matricula.formularioComprobanteUrl) { res.status(400).json({ ok: false, mensaje: 'El padre aún no ha reportado el pago del formulario' }); return; }
+    if (matricula.formularioPagado) { res.status(400).json({ ok: false, mensaje: 'El pago del formulario ya fue verificado' }); return; }
+
+    await prisma.matricula.update({
+      where: { id },
+      data: { formularioPagado: true, formularioVerificadoPor: req.usuario!.sub },
+    });
+
+    await audit({ usuarioId: req.usuario!.sub, accion: 'EDITAR', entidad: 'matriculas', entidadId: id, datosDespues: { formularioPagado: true }, ip: req.ip });
+    res.json({ ok: true, mensaje: 'Pago del formulario verificado. El padre ya tiene acceso completo al formulario.' });
+  } catch (err) {
+    logger.error('Error al verificar pago de formulario', { err });
     res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
   }
 }

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240">
+  <rect width="240" height="240" fill="#ffffff" rx="12"/>
+  <rect x="12" y="12" width="216" height="216" fill="none" stroke="#E2E8F0" stroke-width="2" rx="8"/>
+  <g fill="#1E293B">
+    <rect x="28" y="28" width="48" height="48"/>
+    <rect x="40" y="40" width="24" height="24" fill="#ffffff"/>
+    <rect x="164" y="28" width="48" height="48"/>
+    <rect x="176" y="40" width="24" height="24" fill="#ffffff"/>
+    <rect x="28" y="164" width="48" height="48"/>
+    <rect x="40" y="176" width="24" height="24" fill="#ffffff"/>
+    <rect x="96" y="28" width="16" height="16"/>
+    <rect x="128" y="44" width="16" height="16"/>
+    <rect x="96" y="60" width="16" height="16"/>
+    <rect x="112" y="96" width="16" height="16"/>
+    <rect x="144" y="96" width="16" height="16"/>
+    <rect x="176" y="96" width="16" height="16"/>
+    <rect x="96" y="112" width="16" height="16"/>
+    <rect x="128" y="128" width="16" height="16"/>
+    <rect x="160" y="128" width="16" height="16"/>
+    <rect x="96" y="144" width="16" height="16"/>
+    <rect x="112" y="176" width="16" height="16"/>
+    <rect x="144" y="160" width="16" height="16"/>
+    <rect x="176" y="176" width="16" height="16"/>
+    <rect x="192" y="144" width="16" height="16"/>
+  </g>
+  <text x="120" y="228" font-family="Arial, sans-serif" font-size="11" fill="#94A3B8" text-anchor="middle">QR de ejemplo — reemplazar</text>
+</svg>

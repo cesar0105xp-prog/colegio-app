@@ -58,6 +58,12 @@ export default function FormularioMatricula({ estudianteId, hijoNombre }: { estu
   const qc = useQueryClient();
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'error' } | null>(null);
 
+  const { data: progreso, isLoading: cargandoProgreso } = useQuery<{ formularioPagado: boolean; formularioComprobanteUrl: boolean; formularioReferencia: string | null; montoFormulario: number }>({
+    queryKey: ['mi-matricula', estudianteId],
+    queryFn: async () => (await api.get(`/matriculas/estudiante/${estudianteId}`)).data.datos,
+    enabled: !!estudianteId,
+  });
+
   // Datos del padre
   const { data: datosPadre } = useQuery({
     queryKey: ['mis-hijos-perfil'],
@@ -97,6 +103,10 @@ export default function FormularioMatricula({ estudianteId, hijoNombre }: { estu
 
       <ProgresoMatricula estudianteId={estudianteId} />
 
+      {!cargandoProgreso && progreso && !progreso.formularioPagado ? (
+        <PagoFormularioMatricula estudianteId={estudianteId} progreso={progreso} />
+      ) : (
+      <>
       <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
         <p className="text-sm font-semibold text-blue-800 mb-1">Formulario de matrícula — {hijoNombre}</p>
         <p className="text-xs text-blue-600">Complete todos los datos y suba los documentos requeridos. La secretaría los verificará para activar la matrícula.</p>
@@ -236,6 +246,96 @@ export default function FormularioMatricula({ estudianteId, hijoNombre }: { estu
       <Seccion titulo="Firma y envío" icono={<Save className="w-5 h-5 text-violet-600" />}>
         <FirmaDigital estudianteId={estudianteId} hijoNombre={hijoNombre} />
       </Seccion>
+      </>
+      )}
+    </div>
+  );
+}
+
+// ─── PAGO DEL FORMULARIO DE MATRÍCULA (compuerta de acceso) ───────────────────
+type PagoFormularioForm = { referencia?: string };
+
+function PagoFormularioMatricula({ estudianteId, progreso }: {
+  estudianteId: string;
+  progreso: { formularioComprobanteUrl: boolean; formularioReferencia: string | null; montoFormulario: number };
+}) {
+  const qc = useQueryClient();
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'error' } | null>(null);
+  const { register, handleSubmit } = useForm<PagoFormularioForm>();
+
+  const monto = progreso.montoFormulario.toLocaleString('es-CO');
+
+  const enviarMutation = useMutation({
+    mutationFn: (d: PagoFormularioForm) => {
+      if (!archivo) throw new Error('SIN_ARCHIVO');
+      const fd = new FormData();
+      fd.append('archivo', archivo);
+      if (d.referencia) fd.append('referencia', d.referencia);
+      return api.post(`/matriculas/estudiante/${estudianteId}/formulario/comprobante`, fd);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['mi-matricula', estudianteId] });
+      setToast({ msg: 'Comprobante enviado. Secretaría lo verificará pronto.', tipo: 'ok' });
+    },
+    onError: (e: unknown) => {
+      if ((e as Error)?.message === 'SIN_ARCHIVO') { setToast({ msg: 'Adjunta el comprobante de pago', tipo: 'error' }); return; }
+      const d = (e as { response?: { data?: { mensaje?: string; errores?: string[] } } })?.response?.data;
+      setToast({ msg: d?.errores?.[0] ?? d?.mensaje ?? 'Error al enviar el comprobante', tipo: 'error' });
+    },
+  });
+
+  if (progreso.formularioComprobanteUrl) {
+    return (
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 text-center">
+        <div className="w-14 h-14 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <AlertCircle className="w-7 h-7 text-amber-600" />
+        </div>
+        <h3 className="font-bold text-slate-800">Comprobante en verificación</h3>
+        <p className="text-sm text-slate-500 mt-2 max-w-sm mx-auto">
+          Recibimos tu comprobante del pago de matrícula (${monto}). Secretaría lo revisará pronto y te dará acceso
+          completo al formulario. {progreso.formularioReferencia && <>Referencia: <strong>{progreso.formularioReferencia}</strong></>}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-5">
+      {toast && <Toast mensaje={toast.msg} tipo={toast.tipo} onClose={() => setToast(null)} />}
+      <div className="text-center">
+        <h3 className="font-bold text-slate-800">Pago del formulario de matrícula</h3>
+        <p className="text-sm text-slate-500 mt-1">Antes de continuar, realiza el pago de <strong>${monto}</strong> por concepto de formulario de matrícula.</p>
+      </div>
+
+      <div className="flex flex-col items-center gap-2">
+        <img src="/qr-nequi.svg" alt="Código QR para pago con Nequi" className="w-40 h-40 rounded-xl border border-slate-200" />
+        <p className="text-xs text-slate-400">Escanea con Nequi para pagar</p>
+      </div>
+
+      <div className="bg-slate-50 rounded-xl p-4 text-sm text-slate-600 space-y-1 text-center">
+        <p><strong>Nequi</strong> · 300 123 4567</p>
+        <p><strong>Banco de Bogotá</strong> · Cuenta 606173664</p>
+        <p>Titular: Marcela Rodríguez · CC 52841783</p>
+      </div>
+
+      <form onSubmit={handleSubmit(d => enviarMutation.mutate(d))} className="space-y-3">
+        <div>
+          <label className="block text-xs font-medium text-slate-500 mb-1.5">Comprobante de pago * <span className="text-slate-300">(JPG, PNG o PDF · máx. 5MB)</span></label>
+          <input type="file" accept="image/jpeg,image/png,application/pdf"
+            onChange={e => setArchivo(e.target.files?.[0] ?? null)}
+            className="w-full text-sm file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-blue-600 file:text-white file:text-xs file:font-medium hover:file:bg-blue-700" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-500 mb-1.5">Referencia de la transacción <span className="text-slate-300">(opcional)</span></label>
+          <input className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Número de referencia" maxLength={50}
+            {...register('referencia')} />
+        </div>
+        <button type="submit" disabled={enviarMutation.isPending || !archivo}
+          className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition disabled:opacity-50">
+          <Save className="w-4 h-4" /> {enviarMutation.isPending ? 'Enviando...' : 'Ya pagué — enviar comprobante'}
+        </button>
+      </form>
     </div>
   );
 }
