@@ -27,6 +27,26 @@ type MatriculaRow = {
   verificador?: { email: string };
 };
 
+type SolicitudCupoRow = {
+  id: string;
+  nombreEstudiante: string;
+  gradoInteres: string;
+  nombreAcudiente: string;
+  telefonoAcudiente: string;
+  emailAcudiente: string;
+  estado: 'PENDIENTE' | 'CONTACTADO' | 'MATRICULADO' | 'DESCARTADO';
+  observaciones?: string;
+  createdAt: string;
+  matricula?: { id: string } | null;
+};
+
+const COLOR_ESTADO_SOLICITUD: Record<string, string> = {
+  PENDIENTE: 'bg-amber-100 text-amber-700',
+  CONTACTADO: 'bg-blue-100 text-blue-700',
+  MATRICULADO: 'bg-emerald-100 text-emerald-700',
+  DESCARTADO: 'bg-slate-200 text-slate-500',
+};
+
 type FormMatricula = {
   estudiante: {
     nombres: string; apellidos: string; tipoDocumento: string;
@@ -53,6 +73,7 @@ const ICONO_ESTADO: Record<string, React.ReactNode> = {
 
 export default function Matriculas() {
   const qc = useQueryClient();
+  const [tab, setTab] = useState<'matriculas' | 'solicitudes'>('matriculas');
   const [modal, setModal] = useState(false);
   const [modalDetalle, setModalDetalle] = useState<MatriculaRow | null>(null);
   const [pinGenerado, setPinGenerado] = useState<{ pin: string; emailAcceso: string; emailContacto?: string; codigo: string; nombre: string; magicLinkEnviado?: boolean } | null>(null);
@@ -60,6 +81,7 @@ export default function Matriculas() {
   const [filtro, setFiltro] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('');
   const [obsVerif, setObsVerif] = useState('');
+  const [solicitudCupoIdActual, setSolicitudCupoIdActual] = useState<string | null>(null);
 
   const { data: grados = [] } = useQuery({ queryKey: ['grados'], queryFn: async () => (await api.get('/grados')).data.datos ?? [] });
   const { data: matriculas = [], isLoading } = useQuery({
@@ -71,10 +93,12 @@ export default function Matriculas() {
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormMatricula>();
 
   const crearMutation = useMutation({
-    mutationFn: (d: FormMatricula) => api.post('/matriculas', d),
+    mutationFn: (d: FormMatricula) => api.post('/matriculas', { ...d, solicitudCupoId: solicitudCupoIdActual || undefined }),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['matriculas'] });
+      qc.invalidateQueries({ queryKey: ['solicitudes-cupo'] });
       setModal(false);
+      setSolicitudCupoIdActual(null);
       reset();
       setPinGenerado({
         pin: res.data.datos.pin,
@@ -120,10 +144,46 @@ export default function Matriculas() {
       .toLowerCase().includes(filtro.toLowerCase())
   );
 
+  const iniciarMatriculaDesdeSolicitud = (s: SolicitudCupoRow) => {
+    const [nombreEst, ...restoEst] = s.nombreEstudiante.trim().split(' ');
+    const [nombreAcu, ...restoAcu] = s.nombreAcudiente.trim().split(' ');
+    reset({
+      estudiante: { nombres: nombreEst ?? '', apellidos: restoEst.join(' ') } as FormMatricula['estudiante'],
+      padre: {
+        nombres: nombreAcu ?? '',
+        apellidos: restoAcu.join(' '),
+        telefono: s.telefonoAcudiente,
+        email: s.emailAcudiente,
+      } as FormMatricula['padre'],
+    });
+    setSolicitudCupoIdActual(s.id);
+    setTab('matriculas');
+    setModal(true);
+  };
+
   return (
     <div className="space-y-4">
       {toast && <Toast mensaje={toast.msg} tipo={toast.tipo} onClose={() => setToast(null)} />}
 
+      {/* Tabs */}
+      <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 w-fit">
+        {[
+          { id: 'matriculas' as const, label: 'Matrículas' },
+          { id: 'solicitudes' as const, label: 'Solicitudes de cupo' },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${tab === t.id ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'solicitudes' && (
+        <TabSolicitudesCupo onIniciarMatricula={iniciarMatriculaDesdeSolicitud} setToast={setToast} />
+      )}
+
+      {tab === 'matriculas' && (
+      <>
       {/* Header */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-48">
@@ -138,7 +198,7 @@ export default function Matriculas() {
           <option value="VERIFICADO">Verificado</option>
           <option value="RECHAZADO">Rechazado</option>
         </select>
-        <button onClick={() => setModal(true)}
+        <button onClick={() => { setSolicitudCupoIdActual(null); reset({}); setModal(true); }}
           className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors">
           <UserPlus className="w-4 h-4" /> Nueva matrícula
         </button>
@@ -196,6 +256,8 @@ export default function Matriculas() {
           </table>
         )}
       </div>
+      </>
+      )}
 
       {/* Modal PIN generado */}
       {pinGenerado && (
@@ -281,9 +343,14 @@ export default function Matriculas() {
           <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
               <h2 className="font-bold text-slate-800">Nueva matrícula</h2>
-              <button onClick={() => { setModal(false); reset(); }} className="p-1 rounded-lg text-slate-400 hover:bg-slate-100"><X className="w-5 h-5" /></button>
+              <button onClick={() => { setModal(false); setSolicitudCupoIdActual(null); reset(); }} className="p-1 rounded-lg text-slate-400 hover:bg-slate-100"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleSubmit(d => crearMutation.mutate(d))} className="px-6 py-5 space-y-6">
+              {solicitudCupoIdActual && (
+                <div className="bg-violet-50 border border-violet-200 rounded-xl p-3">
+                  <p className="text-xs text-violet-700">Datos precargados desde una solicitud de cupo. Verifica y completa los campos faltantes (documentos, fecha de nacimiento, grado exacto, etc.) antes de crear la matrícula.</p>
+                </div>
+              )}
 
               {/* Datos del estudiante */}
               <div>
@@ -416,7 +483,7 @@ export default function Matriculas() {
               </div>
 
               <div className="flex gap-2 justify-end pt-2 border-t border-slate-100">
-                <button type="button" onClick={() => { setModal(false); reset(); }} className="px-4 py-2 text-sm text-slate-600">Cancelar</button>
+                <button type="button" onClick={() => { setModal(false); setSolicitudCupoIdActual(null); reset(); }} className="px-4 py-2 text-sm text-slate-600">Cancelar</button>
                 <button type="submit" disabled={crearMutation.isPending}
                   className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition disabled:opacity-50">
                   <UserPlus className="w-4 h-4" />
@@ -664,6 +731,133 @@ function DetalleMatricula({ matricula, obsVerif, setObsVerif, onClose, verificar
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── SOLICITUDES DE CUPO (público → secretario) ──────────────────────────────
+function TabSolicitudesCupo({ onIniciarMatricula, setToast }: {
+  onIniciarMatricula: (s: SolicitudCupoRow) => void;
+  setToast: (t: { msg: string; tipo: 'ok' | 'error' } | null) => void;
+}) {
+  const qc = useQueryClient();
+  const [filtroEstado, setFiltroEstado] = useState('');
+  const [modalDescartar, setModalDescartar] = useState<SolicitudCupoRow | null>(null);
+  const [motivoDescarte, setMotivoDescarte] = useState('');
+
+  const { data: solicitudes = [], isLoading } = useQuery({
+    queryKey: ['solicitudes-cupo', filtroEstado],
+    queryFn: async () => (await api.get('/solicitudes-cupo', { params: filtroEstado ? { estado: filtroEstado } : {} })).data.datos ?? [],
+    staleTime: 0,
+  });
+
+  const estadoMutation = useMutation({
+    mutationFn: ({ id, estado, observaciones }: { id: string; estado: string; observaciones?: string }) =>
+      api.patch(`/solicitudes-cupo/${id}/estado`, { estado, observaciones }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['solicitudes-cupo'] });
+      setModalDescartar(null);
+      setMotivoDescarte('');
+      setToast({ msg: 'Solicitud actualizada', tipo: 'ok' });
+    },
+    onError: (e: unknown) => {
+      const d = (e as { response?: { data?: { mensaje?: string } } })?.response?.data;
+      setToast({ msg: d?.mensaje ?? 'Error al actualizar la solicitud', tipo: 'error' });
+    },
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <select value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}
+          className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-white">
+          <option value="">Todos los estados</option>
+          <option value="PENDIENTE">Pendiente</option>
+          <option value="CONTACTADO">Contactado</option>
+          <option value="MATRICULADO">Matriculado</option>
+          <option value="DESCARTADO">Descartado</option>
+        </select>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        {isLoading ? (
+          <div className="flex items-center justify-center h-32"><div className="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>
+        ) : (solicitudes as SolicitudCupoRow[]).length === 0 ? (
+          <div className="text-center py-12 text-slate-400">
+            <FileText className="w-10 h-10 mx-auto mb-2 opacity-30" />
+            <p className="text-sm">No hay solicitudes de cupo</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-slate-50 border-b border-slate-100">
+                <tr>{['Estudiante','Grado interés','Acudiente','Contacto','Estado','Fecha',''].map(h =>
+                  <th key={h} className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">{h}</th>)}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {(solicitudes as SolicitudCupoRow[]).map(s => (
+                  <tr key={s.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3 text-sm font-medium text-slate-800 whitespace-nowrap">{s.nombreEstudiante}</td>
+                    <td className="px-4 py-3"><span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-lg">{s.gradoInteres}</span></td>
+                    <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">{s.nombreAcudiente}</td>
+                    <td className="px-4 py-3 text-xs text-slate-400">
+                      <p>{s.telefonoAcudiente}</p>
+                      <p className="truncate max-w-[180px]">{s.emailAcudiente}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full w-fit ${COLOR_ESTADO_SOLICITUD[s.estado]}`}>{s.estado}</span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">{new Date(s.createdAt).toLocaleDateString('es-CO')}</td>
+                    <td className="px-4 py-3">
+                      {s.estado === 'PENDIENTE' || s.estado === 'CONTACTADO' ? (
+                        <div className="flex items-center gap-1.5">
+                          <button onClick={() => onIniciarMatricula(s)}
+                            className="px-2.5 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition whitespace-nowrap">
+                            Iniciar matrícula
+                          </button>
+                          {s.estado === 'PENDIENTE' && (
+                            <button onClick={() => estadoMutation.mutate({ id: s.id, estado: 'CONTACTADO' })} disabled={estadoMutation.isPending}
+                              className="px-2.5 py-1.5 bg-slate-100 text-slate-600 text-xs font-medium rounded-lg hover:bg-slate-200 transition disabled:opacity-50 whitespace-nowrap">
+                              Contactado
+                            </button>
+                          )}
+                          <button onClick={() => { setModalDescartar(s); setMotivoDescarte(''); }}
+                            className="px-2.5 py-1.5 bg-red-50 text-red-600 text-xs font-medium rounded-lg hover:bg-red-100 transition whitespace-nowrap">
+                            Descartar
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-300">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {modalDescartar && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6">
+            <h2 className="font-bold text-slate-800 mb-1">Descartar solicitud</h2>
+            <p className="text-sm text-slate-500 mb-4">{modalDescartar.nombreEstudiante} — {modalDescartar.nombreAcudiente}</p>
+            <textarea value={motivoDescarte} onChange={e => setMotivoDescarte(e.target.value)}
+              placeholder="Motivo (opcional)..." rows={3} maxLength={300}
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setModalDescartar(null)} className="flex-1 py-2.5 text-sm text-slate-600">Cancelar</button>
+              <button onClick={() => estadoMutation.mutate({ id: modalDescartar.id, estado: 'DESCARTADO', observaciones: motivoDescarte })}
+                disabled={estadoMutation.isPending}
+                className="flex-1 py-2.5 bg-red-600 text-white text-sm font-medium rounded-xl hover:bg-red-700 transition disabled:opacity-50">
+                {estadoMutation.isPending ? 'Descartando...' : 'Descartar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -127,6 +127,12 @@ router.patch('/matriculas/:id/rechazar',     autenticar, autorizar(ADMIN, SEC), 
 router.get('/matriculas/acceso/:token',      accederConMagicLink);
 router.patch('/matriculas/:id/reenviar-link', autenticar, autorizar(ADMIN, SEC), reenviarLink);
 
+// SOLICITUDES DE CUPO (público + secretaría)
+import { crearSolicitudCupo, listarSolicitudesCupo, actualizarEstadoSolicitud, validarSolicitudCupo, validarEstadoSolicitud } from '../controllers/solicitudes_cupo.controller';
+router.post('/solicitudes-cupo',            validarSolicitudCupo, crearSolicitudCupo);
+router.get('/solicitudes-cupo',             autenticar, autorizar(ADMIN, SEC), listarSolicitudesCupo);
+router.patch('/solicitudes-cupo/:id/estado', autenticar, autorizar(ADMIN, SEC), validarEstadoSolicitud, actualizarEstadoSolicitud);
+
 // DATOS ADICIONALES Y TIPOS DE DOCUMENTO
 import { obtenerDatosAdicionales, guardarDatosAdicionales, validarDatosAdicionales, actualizarDatosPadre, validarDatosPadre, listarTiposDocumento, crearTipoDocumento, editarTipoDocumento, validarTipoDocumento } from '../controllers/datos_adicionales.controller';
 router.get('/estudiantes/:estudianteId/datos-adicionales',  autenticar, autorizar(ADMIN, SEC, PROF, PADRE), obtenerDatosAdicionales);

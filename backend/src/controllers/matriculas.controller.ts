@@ -82,6 +82,7 @@ export const validarMatricula = [
   body('padre.email').trim().notEmpty().withMessage('El correo del padre/acudiente es requerido para enviar el acceso a matrícula').isEmail().withMessage('Email inválido').isLength({ max: 100 }).withMessage('Máximo 100 caracteres'),
   body('padre.telefono').optional().trim().isLength({ max: 15 }).withMessage('Máximo 15 caracteres'),
   body('padre.parentesco').isIn(['padre','madre','acudiente','abuelo','abuela','tio','tia','otro']).withMessage('Parentesco inválido'),
+  body('solicitudCupoId').optional({ checkFalsy: true }).isUUID().withMessage('Solicitud de cupo inválida'),
 ];
 
 // ─── CREAR MATRÍCULA ──────────────────────────────────────────────────────────
@@ -92,7 +93,7 @@ export async function crearMatricula(req: Request, res: Response): Promise<void>
     return;
   }
 
-  const { estudiante: datosEst, padre: datosPadre } = req.body;
+  const { estudiante: datosEst, padre: datosPadre, solicitudCupoId } = req.body;
 
   try {
     // Verificar que el documento del estudiante no exista
@@ -102,6 +103,18 @@ export async function crearMatricula(req: Request, res: Response): Promise<void>
     if (docEstExiste) {
       res.status(400).json({ ok: false, mensaje: 'Ya existe un estudiante con ese número de documento' });
       return;
+    }
+
+    if (solicitudCupoId) {
+      const solicitud = await prisma.solicitudCupo.findUnique({ where: { id: solicitudCupoId } });
+      if (!solicitud) {
+        res.status(404).json({ ok: false, mensaje: 'Solicitud de cupo no encontrada' });
+        return;
+      }
+      if (solicitud.estado === 'MATRICULADO') {
+        res.status(400).json({ ok: false, mensaje: 'Esta solicitud ya fue matriculada' });
+        return;
+      }
     }
 
     const pin = generarPin();
@@ -175,8 +188,17 @@ export async function crearMatricula(req: Request, res: Response): Promise<void>
           padreId: perfilPadre.id,
           pin: passwordHash,
           estadoDocumentos: 'PENDIENTE',
+          solicitudCupoId: solicitudCupoId || null,
         },
       });
+
+      // 6. Si viene de una solicitud de cupo, marcarla como matriculada
+      if (solicitudCupoId) {
+        await tx.solicitudCupo.update({
+          where: { id: solicitudCupoId },
+          data: { estado: 'MATRICULADO' },
+        });
+      }
 
       return { usuarioPadre, perfilPadre, nuevoEst, matricula };
     });
