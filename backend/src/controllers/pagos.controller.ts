@@ -538,10 +538,15 @@ export async function reportarComprobante(req: Request, res: Response): Promise<
   const { id } = req.params;
   if (!req.file) { res.status(400).json({ ok: false, mensaje: 'Debes adjuntar el comprobante de pago' }); return; }
 
-  const { observaciones } = req.body;
+  const { observaciones, referencia } = req.body;
   if (observaciones && String(observaciones).length > 200) {
     eliminarComprobanteArchivo(req.file.path);
     res.status(400).json({ ok: false, mensaje: 'Observaciones máximo 200 caracteres' });
+    return;
+  }
+  if (referencia && String(referencia).length > 50) {
+    eliminarComprobanteArchivo(req.file.path);
+    res.status(400).json({ ok: false, mensaje: 'Referencia máximo 50 caracteres' });
     return;
   }
 
@@ -568,6 +573,7 @@ export async function reportarComprobante(req: Request, res: Response): Promise<
           padreId: req.usuario!.sub,
           archivoUrl: req.file.path,
           nombreOriginal: req.file.originalname,
+          referenciaTransaccion: referencia?.trim() || null,
           observaciones: observaciones?.trim() || null,
         },
       }),
@@ -620,6 +626,18 @@ export async function listarComprobantes(req: Request, res: Response): Promise<v
     res.json({ ok: true, datos: comprobantes, meta: { pagina: paginaNum, limite: limiteNum, total, totalPaginas: Math.ceil(total / limiteNum) } });
   } catch (err) {
     logger.error('Error al listar comprobantes de pago', { err });
+    res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
+  }
+}
+
+// ─── CONTAR COMPROBANTES PENDIENTES (badge del menú) ───────────────────────────
+
+export async function contarComprobantesPendientes(_req: Request, res: Response): Promise<void> {
+  try {
+    const count = await prisma.comprobantePago.count({ where: { estado: 'PENDIENTE_VERIFICACION' } });
+    res.json({ ok: true, datos: { count } });
+  } catch (err) {
+    logger.error('Error al contar comprobantes pendientes', { err });
     res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
   }
 }

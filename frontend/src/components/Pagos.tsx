@@ -511,7 +511,7 @@ function TabCartera({ esAdmin }: { esAdmin: boolean }) {
 // ─── TAB: COMPROBANTES POR VERIFICAR ────────────────────────────────────────────
 
 type Comprobante = {
-  id: string; nombreOriginal: string; observaciones: string | null; estado: 'PENDIENTE_VERIFICACION' | 'APROBADO' | 'RECHAZADO';
+  id: string; nombreOriginal: string; observaciones: string | null; referenciaTransaccion: string | null; estado: 'PENDIENTE_VERIFICACION' | 'APROBADO' | 'RECHAZADO';
   motivoRechazo: string | null; createdAt: string;
   cobro: { id: string; montoCobrado: string; mes: number; anio: number; estudiante: { nombres: string; apellidos: string; grado: { nombre: string; grupo: string } }; concepto: { nombre: string } };
   padre: { email: string; perfilPadre: { nombres: string; apellidos: string } | null };
@@ -602,7 +602,10 @@ function TabComprobantes() {
                   <tr key={c.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3 text-sm font-medium text-slate-800 whitespace-nowrap">{c.cobro.estudiante.nombres} {c.cobro.estudiante.apellidos}</td>
                     <td className="px-4 py-3"><Badge texto={`${c.cobro.estudiante.grado.nombre}${c.cobro.estudiante.grado.grupo}`} color="bg-blue-50 text-blue-700" /></td>
-                    <td className="px-4 py-3 text-sm text-slate-600">{c.cobro.concepto.nombre} · {MESES[c.cobro.mes - 1]} {c.cobro.anio}</td>
+                    <td className="px-4 py-3 text-sm text-slate-600">
+                      {c.cobro.concepto.nombre} · {MESES[c.cobro.mes - 1]} {c.cobro.anio}
+                      {c.referenciaTransaccion && <p className="text-xs text-slate-400 mt-0.5">Ref: {c.referenciaTransaccion}</p>}
+                    </td>
                     <td className="px-4 py-3 text-sm font-semibold text-slate-700">{formatoCOP(Number(c.cobro.montoCobrado))}</td>
                     <td className="px-4 py-3 text-sm text-slate-500">
                       <p>{c.padre.perfilPadre ? `${c.padre.perfilPadre.nombres} ${c.padre.perfilPadre.apellidos}` : '—'}</p>

@@ -36,6 +36,7 @@ function ModalReportarPago({ cobro, onClose, onExito }: { cobro: CobroPadre; onC
   const qc = useQueryClient();
   const [archivo, setArchivo] = useState<File | null>(null);
   const [observaciones, setObservaciones] = useState('');
+  const [referencia, setReferencia] = useState('');
   const [error, setError] = useState('');
 
   const enviarMutation = useMutation({
@@ -43,6 +44,7 @@ function ModalReportarPago({ cobro, onClose, onExito }: { cobro: CobroPadre; onC
       const fd = new FormData();
       fd.append('archivo', archivo!);
       if (observaciones.trim()) fd.append('observaciones', observaciones.trim());
+      if (referencia.trim()) fd.append('referencia', referencia.trim());
       return api.post(`/cobros/${cobro.id}/comprobante`, fd);
     },
     onSuccess: () => {
@@ -78,12 +80,18 @@ function ModalReportarPago({ cobro, onClose, onExito }: { cobro: CobroPadre; onC
             <p className="text-lg font-bold text-slate-800 mt-0.5">{formatoCOP(Number(cobro.montoCobrado))}</p>
           </div>
 
+          <div className="flex flex-col items-center gap-1.5">
+            <img src="/qr-nequi.svg" alt="Código QR para pago con Nequi" className="w-32 h-32 rounded-xl border border-slate-200" />
+            <p className="text-xs text-slate-400">Escanea con Nequi para pagar</p>
+          </div>
+
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
               <Landmark className="w-4 h-4 text-blue-600" />
               <p className="text-sm font-semibold text-blue-800">Datos bancarios del colegio</p>
             </div>
             <div className="text-sm text-blue-800 space-y-0.5">
+              <p><strong>Nequi</strong> · 300 123 4567</p>
               <p><strong>Banco de Bogotá</strong> · Cuenta 606173664</p>
               <p>Titular: Marcela Rodríguez · CC 52841783</p>
               <p className="mt-1.5 text-xs text-blue-700">Concepto: {cobro.concepto.nombre} — nombre del estudiante</p>
@@ -99,6 +107,13 @@ function ModalReportarPago({ cobro, onClose, onExito }: { cobro: CobroPadre; onC
               <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden"
                 onChange={e => manejarArchivo(e.target.files?.[0] ?? null)} />
             </label>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-1.5">Referencia de la transacción (opcional)</label>
+            <input value={referencia} onChange={e => setReferencia(e.target.value)} maxLength={50}
+              placeholder="Número de referencia o comprobante"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
 
           <div>

@@ -176,7 +176,7 @@ import {
   validarCobro, validarCobroMasivo, validarMarcarPagado, validarExonerar,
   reporteCartera, exportarCarteraCSV, miEstadoCuenta,
   reportarComprobante, listarComprobantes, verComprobanteArchivo, aprobarComprobante, rechazarComprobante,
-  validarIdCobroPago, validarRechazarComprobante,
+  validarIdCobroPago, validarRechazarComprobante, contarComprobantesPendientes,
 } from '../controllers/pagos.controller';
 router.get('/conceptos',           autenticar, autorizar(ADMIN, SEC), listarConceptos);
 router.post('/conceptos',          autenticar, autorizar(ADMIN), validarConceptoPago, crearConcepto);
@@ -187,6 +187,7 @@ router.get('/cobros/reporte',      autenticar, autorizar(ADMIN, SEC), reporteCar
 router.get('/cobros/mi-estado',    autenticar, autorizar(PADRE), miEstadoCuenta);
 router.get('/cobros/exportar',     autenticar, autorizar(ADMIN), exportarCarteraCSV);
 router.get('/cobros/comprobantes', autenticar, autorizar(ADMIN, SEC), listarComprobantes);
+router.get('/cobros/comprobantes/pendientes-count', autenticar, autorizar(ADMIN, SEC), contarComprobantesPendientes);
 router.get('/cobros',              autenticar, autorizar(ADMIN, SEC), listarCobros);
 router.post('/cobros/masivo',      autenticar, autorizar(ADMIN, SEC), validarCobroMasivo, generarCobrosMasivo);
 router.post('/cobros',             autenticar, autorizar(ADMIN, SEC), validarCobro, crearCobro);
