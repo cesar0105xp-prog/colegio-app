@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { CheckCircle, XCircle, GraduationCap } from 'lucide-react';
 import api from '../services/api';
@@ -10,24 +10,33 @@ export default function AccesoMatricula() {
   const setAuth = useAuthStore((s) => s.setAuth);
   const [estado, setEstado] = useState<'cargando' | 'error'>('cargando');
   const [mensaje, setMensaje] = useState('');
+  const tokenSolicitado = useRef<string | null>(null);
 
   useEffect(() => {
-    let activo = true;
+    // El enlace es de un solo uso: evita que el doble-efecto de
+    // React.StrictMode lo consuma dos veces para el mismo token, sin
+    // bloquear una ejecución legítima si el token cambia. Se usa el propio
+    // ref (en vez de una bandera de closure) para descartar resultados
+    // obsoletos, porque el cleanup síncrono de StrictMode se dispara antes
+    // de que la petición en curso resuelva.
+    if (tokenSolicitado.current === token) return;
+    tokenSolicitado.current = token ?? null;
+    setEstado('cargando');
+
     (async () => {
       try {
         const res = await api.get(`/matriculas/acceso/${token}`);
-        if (!activo) return;
+        if (tokenSolicitado.current !== token) return;
         const { accessToken, usuario } = res.data.datos;
         setAuth(usuario, accessToken);
         navigate('/padre?seccion=matricula', { replace: true });
       } catch (e: unknown) {
-        if (!activo) return;
+        if (tokenSolicitado.current !== token) return;
         const err = e as { response?: { data?: { mensaje?: string } } };
         setMensaje(err.response?.data?.mensaje ?? 'No se pudo validar el enlace de acceso');
         setEstado('error');
       }
     })();
-    return () => { activo = false; };
   }, [token, navigate, setAuth]);
 
   return (
