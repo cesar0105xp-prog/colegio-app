@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import {
   ChevronLeft, ChevronRight, Calendar, List, Plus, X, CheckCircle, AlertCircle,
-  Edit2, Trash2, BookOpen, GraduationCap,
+  Edit2, Trash2, BookOpen, GraduationCap, Grid3x3,
 } from 'lucide-react';
 import api from '../services/api';
 import { useAuthStore } from '../store/auth.store';
@@ -75,6 +75,18 @@ const COLOR_TIPO: Record<string, string> = {
 const DOT_TIPO: Record<string, string> = {
   EXAMEN: 'bg-red-500', TAREA: 'bg-blue-500', EVENTO_COLEGIO: 'bg-violet-500', FESTIVO: 'bg-emerald-500', REUNION: 'bg-amber-500', OTRO: 'bg-slate-400',
 };
+// Paleta simplificada de 4 colores para los puntos de la vista Año (los puntos son
+// demasiado pequeños para distinguir 6 categorías); el resto de vistas conserva la
+// paleta completa de arriba.
+const DOT_ANIO: Record<string, string> = {
+  EXAMEN: 'bg-emerald-500', TAREA: 'bg-emerald-500', EVENTO_COLEGIO: 'bg-amber-400', FESTIVO: 'bg-red-500', REUNION: 'bg-blue-500', OTRO: 'bg-blue-500',
+};
+const LEYENDA_ANIO = [
+  { label: 'Académico', color: 'bg-blue-500' },
+  { label: 'Evento especial', color: 'bg-amber-400' },
+  { label: 'Festivo', color: 'bg-red-500' },
+  { label: 'Tarea/evaluación', color: 'bg-emerald-500' },
+];
 
 const fmtFecha = (iso: string) => new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 
@@ -94,6 +106,54 @@ type ItemAgenda = { tipo: 'evento' | 'tarea'; fecha: string; data: Evento | Tare
 type FormEvento = { titulo: string; descripcion?: string; fechaInicio: string; fechaFin?: string; tipoEvento: string; gradoId?: string };
 type FormTarea = { titulo: string; descripcion?: string; fechaEntrega: string; materiaId: string };
 
+// ─── MINI-CALENDARIO DE UN MES (usado en la vista Año) ────────────────────────
+function MesMiniGrid({ anio, mesIndex, hoy, itemsPorDia, diaSeleccionado, onSelectDia, onAbrirMes }: {
+  anio: number; mesIndex: number; hoy: Date;
+  itemsPorDia: Map<string, ItemAgenda[]>;
+  diaSeleccionado: string | null;
+  onSelectDia: (clave: string) => void;
+  onAbrirMes: (mesIndex: number) => void;
+}) {
+  const diasEnMes = new Date(Date.UTC(anio, mesIndex + 1, 0)).getUTCDate();
+  const primerDiaSemana = (new Date(Date.UTC(anio, mesIndex, 1)).getUTCDay() + 6) % 7;
+  const celdas: (number | null)[] = [...Array(primerDiaSemana).fill(null), ...Array.from({ length: diasEnMes }, (_, i) => i + 1)];
+  const esMesActual = mesIndex === hoy.getMonth() && anio === hoy.getFullYear();
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3">
+      <button onClick={() => onAbrirMes(mesIndex)} className="mb-2 text-sm font-bold text-slate-800 hover:text-blue-600 transition-colors">
+        {MESES[mesIndex]}
+      </button>
+      <div className="grid grid-cols-7 gap-px mb-0.5">
+        {DIAS_SEMANA.map(d => <div key={d} className="text-center text-[9px] font-semibold text-slate-300">{d}</div>)}
+      </div>
+      <div className="grid grid-cols-7 gap-px">
+        {celdas.map((dia, i) => {
+          if (dia === null) return <div key={`vacio-${i}`} />;
+          const clave = `${anio}-${String(mesIndex + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+          const items = itemsPorDia.get(clave) ?? [];
+          const esHoy = esMesActual && dia === hoy.getDate();
+          const seleccionado = clave === diaSeleccionado;
+          const coloresDia = Array.from(new Set(items.map(it => DOT_ANIO[it.tipo === 'evento' ? (it.data as Evento).tipoEvento : 'TAREA']))).slice(0, 3);
+          return (
+            <button key={dia} onClick={() => onSelectDia(clave)}
+              className={`aspect-square flex flex-col items-center justify-center rounded text-[10px] leading-none transition-colors ${
+                seleccionado ? 'bg-blue-600 text-white font-bold' : esHoy ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-600 hover:bg-slate-100'
+              }`}>
+              <span>{dia}</span>
+              {coloresDia.length > 0 && (
+                <span className="flex gap-0.5 mt-0.5">
+                  {coloresDia.map((c, j) => <span key={j} className={`w-1 h-1 rounded-full ${seleccionado ? 'bg-white' : c}`} />)}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function AgendaCalendario({ gradoIdInicial }: { gradoIdInicial?: string } = {}) {
   const qc = useQueryClient();
   const { usuario } = useAuthStore();
@@ -103,7 +163,7 @@ export default function AgendaCalendario({ gradoIdInicial }: { gradoIdInicial?: 
   const hoy = new Date();
   const [mes, setMes] = useState(hoy.getMonth());
   const [anio, setAnio] = useState(hoy.getFullYear());
-  const [vista, setVista] = useState<'calendario' | 'lista'>('calendario');
+  const [vista, setVista] = useState<'año' | 'calendario' | 'lista'>('año');
   const [gradoId, setGradoId] = useState(gradoIdInicial ?? '');
   const [diaSeleccionado, setDiaSeleccionado] = useState<string | null>(null);
   const [modalEvento, setModalEvento] = useState<Evento | 'nuevo' | null>(null);
@@ -111,8 +171,11 @@ export default function AgendaCalendario({ gradoIdInicial }: { gradoIdInicial?: 
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'error' } | null>(null);
 
   const diasEnMes = new Date(Date.UTC(anio, mes + 1, 0)).getUTCDate();
-  const desde = `${anio}-${String(mes + 1).padStart(2, '0')}-01`;
-  const hasta = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(diasEnMes).padStart(2, '0')}`;
+  const desde = vista === 'año' ? `${anio}-01-01` : `${anio}-${String(mes + 1).padStart(2, '0')}-01`;
+  const hasta = vista === 'año' ? `${anio}-12-31` : `${anio}-${String(mes + 1).padStart(2, '0')}-${String(diasEnMes).padStart(2, '0')}`;
+
+  const irAMes = (m: number) => { setMes(m); setVista('calendario'); setDiaSeleccionado(null); };
+  const cambiarAnio = (delta: number) => { setAnio(a => a + delta); setDiaSeleccionado(null); };
 
   const { data: grados = [] } = useQuery({ queryKey: ['grados'], queryFn: async () => (await api.get('/grados')).data.datos ?? [] });
 
@@ -220,8 +283,11 @@ export default function AgendaCalendario({ gradoIdInicial }: { gradoIdInicial?: 
       {/* Filtros y controles */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+          <button onClick={() => { setVista('año'); setDiaSeleccionado(null); }} className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg transition-colors min-h-[40px] ${vista === 'año' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}>
+            <Grid3x3 className="w-3.5 h-3.5" /> Año
+          </button>
           <button onClick={() => setVista('calendario')} className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg transition-colors min-h-[40px] ${vista === 'calendario' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}>
-            <Calendar className="w-3.5 h-3.5" /> Calendario
+            <Calendar className="w-3.5 h-3.5" /> Mes
           </button>
           <button onClick={() => setVista('lista')} className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg transition-colors min-h-[40px] ${vista === 'lista' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}>
             <List className="w-3.5 h-3.5" /> Lista
@@ -238,7 +304,40 @@ export default function AgendaCalendario({ gradoIdInicial }: { gradoIdInicial?: 
         )}
       </div>
 
+      {/* Vista Año: grilla de 12 meses estilo Google Calendar */}
+      {vista === 'año' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-center gap-3">
+            <button onClick={() => cambiarAnio(-1)} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors min-h-[36px] min-w-[36px]"><ChevronLeft className="w-4 h-4 text-slate-500" /></button>
+            <h2 className="text-lg font-bold text-slate-800 w-20 text-center">{anio}</h2>
+            <button onClick={() => cambiarAnio(1)} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors min-h-[36px] min-w-[36px]"><ChevronRight className="w-4 h-4 text-slate-500" /></button>
+          </div>
+
+          {isLoading ? (
+            <div className="flex items-center justify-center h-40"><div className="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {MESES.map((_, mIdx) => (
+                <MesMiniGrid key={mIdx} anio={anio} mesIndex={mIdx} hoy={hoy}
+                  itemsPorDia={itemsPorDia} diaSeleccionado={diaSeleccionado}
+                  onSelectDia={clave => setDiaSeleccionado(clave === diaSeleccionado ? null : clave)}
+                  onAbrirMes={irAMes} />
+              ))}
+            </div>
+          )}
+
+          <div className="flex flex-wrap justify-center gap-3 pt-1">
+            {LEYENDA_ANIO.map(l => (
+              <div key={l.label} className="flex items-center gap-1.5 text-xs text-slate-500">
+                <span className={`w-2 h-2 rounded-full ${l.color}`} /> {l.label}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Navegación de mes */}
+      {vista !== 'año' && (
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 max-w-md">
         <div className="flex items-center justify-between mb-2">
           <button onClick={() => cambiarMes(-1)} className="p-1 rounded-lg hover:bg-slate-100 transition-colors min-h-[32px] min-w-[32px]"><ChevronLeft className="w-4 h-4 text-slate-500" /></button>
@@ -312,6 +411,7 @@ export default function AgendaCalendario({ gradoIdInicial }: { gradoIdInicial?: 
           </div>
         )}
       </div>
+      )}
 
       {/* Día seleccionado */}
       {diaSeleccionado && (
