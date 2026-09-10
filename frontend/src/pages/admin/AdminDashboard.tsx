@@ -488,7 +488,7 @@ function FichaEstudiante({ estudiante, onClose, onEditar }: { estudiante: EstRow
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <select value={periodoId} onChange={e => setPeriodoId(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white">
-                  {(periodos as { id: string; nombre: string; activo: boolean }[]).map(p => <option key={p.id} value={p.id}>{p.nombre}{p.activo ? ' (Activo)' : ''}</option>)}
+                  {(periodos as { id: string; nombre: string; anio: number; activo: boolean }[]).map(p => <option key={p.id} value={p.id}>{p.nombre} — {p.anio}{p.activo ? ' (Activo)' : ''}</option>)}
                 </select>
                 <div className="text-right">
                   <p className="text-xs text-slate-400">Promedio general</p>

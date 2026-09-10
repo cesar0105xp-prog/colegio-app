@@ -159,6 +159,9 @@ export default function AgendaCalendario({ gradoIdInicial }: { gradoIdInicial?: 
   const { usuario } = useAuthStore();
   const esAdmin = usuario?.rol === 'ADMINISTRADOR';
   const esProfesor = usuario?.rol === 'PROFESOR';
+  // El padre no puede listar grados (403) y no lo necesita: el selector de hijo
+  // del dashboard ya fija el grado (gradoIdInicial).
+  const esPadre = usuario?.rol === 'PADRE';
 
   const hoy = new Date();
   const [mes, setMes] = useState(hoy.getMonth());
@@ -177,7 +180,7 @@ export default function AgendaCalendario({ gradoIdInicial }: { gradoIdInicial?: 
   const irAMes = (m: number) => { setMes(m); setVista('calendario'); setDiaSeleccionado(null); };
   const cambiarAnio = (delta: number) => { setAnio(a => a + delta); setDiaSeleccionado(null); };
 
-  const { data: grados = [] } = useQuery({ queryKey: ['grados'], queryFn: async () => (await api.get('/grados')).data.datos ?? [] });
+  const { data: grados = [] } = useQuery({ queryKey: ['grados'], queryFn: async () => (await api.get('/grados')).data.datos ?? [], enabled: !esPadre });
 
   const { data: perfilProfesor } = useQuery({
     queryKey: ['mi-perfil-agenda'],
@@ -293,10 +296,12 @@ export default function AgendaCalendario({ gradoIdInicial }: { gradoIdInicial?: 
             <List className="w-3.5 h-3.5" /> Lista
           </button>
         </div>
-        <select value={gradoId} onChange={e => setGradoId(e.target.value)} className="py-2.5 px-3 border border-slate-200 rounded-xl text-sm bg-white min-h-[44px]">
-          <option value="">Todos los grados</option>
-          {(grados as Grado[]).map(g => <option key={g.id} value={g.id}>{g.nombre}{g.grupo}</option>)}
-        </select>
+        {!esPadre && (
+          <select value={gradoId} onChange={e => setGradoId(e.target.value)} className="py-2.5 px-3 border border-slate-200 rounded-xl text-sm bg-white min-h-[44px]">
+            <option value="">Todos los grados</option>
+            {(grados as Grado[]).map(g => <option key={g.id} value={g.id}>{g.nombre}{g.grupo}</option>)}
+          </select>
+        )}
         {(esAdmin || esProfesor) && (
           <button onClick={() => setModalEvento('nuevo')} className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors min-h-[44px] ml-auto">
             <Plus className="w-4 h-4" /> Nuevo evento
