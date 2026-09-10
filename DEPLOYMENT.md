@@ -98,12 +98,15 @@ cd ../frontend && cp .env.production.example .env.production && nano .env.produc
 cd .. && bash deploy/deploy.sh
 ```
 
-### 4. HTTPS (como root, cuando el DNS ya resuelva)
+### 4. Dominio y HTTPS (como root, cuando el DNS ya resuelva)
 ```bash
-certbot --nginx -d portal.tudominio.com
+CERTBOT_EMAIL=correo@colegio.edu.co bash /home/portal/colegio-app/deploy/set-domain.sh portal.tudominio.com
 ```
-Obligatorio: en producción la cookie de sesión se marca `secure` y no viaja
-por HTTP, así que sin HTTPS el login "no se mantiene" al recargar.
+`set-domain.sh` ajusta Nginx y las variables de entorno al dominio, emite el
+certificado de Let's Encrypt (acepta sus términos de servicio en tu nombre y
+redirige HTTP→HTTPS) y redespliega. Mientras no haya dominio, el portal
+funciona por la IP en HTTP, pero **la sesión no se mantiene al recargar**: en
+producción la cookie de sesión se marca `secure` y no viaja por HTTP.
 
 ### 5. Datos iniciales
 Opción A — **traer la base de datos de desarrollo** (usuarios, matrículas y
@@ -141,7 +144,11 @@ su - portal && bash ~/colegio-app/deploy/deploy.sh
   real del cliente desde Nginx; sin esto todos los usuarios compartirían la IP
   127.0.0.1 y el límite de peticiones bloquearía al colegio entero.
 - Los archivos subidos (documentos, comprobantes) quedan en
-  `/home/portal/colegio-app/backend/uploads`; inclúyelos en los backups junto
-  con `pg_dump` de la base de datos.
+  `/home/portal/colegio-app/backend/uploads`.
+- **Respaldos:** `deploy/backup.sh` (instalado como `/home/portal/backup.sh`)
+  hace `pg_dump` de la base de datos + copia de `uploads` en
+  `/home/portal/backups`, todos los días a las 03:00 (crontab del usuario
+  `portal`), conservando 14 días. Descárgalos periódicamente fuera del VPS:
+  `scp portal@IP:/home/portal/backups/colegio-*.dump .`
 - El QR de Nequi es un placeholder: reemplaza `frontend/public/qr-nequi.svg`
   por el real antes de salir a producción.
