@@ -1,0 +1,4 @@
+# Los scripts y configuraciones del servidor deben tener fin de línea LF aunque
+# se editen en Windows: bash y Nginx en Linux fallan con CRLF.
+*.sh        text eol=lf
+deploy/**   text eol=lf
