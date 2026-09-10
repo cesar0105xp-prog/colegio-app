@@ -95,7 +95,7 @@ const MAX_DESCRIPCION = 1000;
 // ─── TIPOS ────────────────────────────────────────────────────────────────────
 type Grado = { id: string; nombre: string; grupo: string; nivel: string };
 type Materia = { id: string; nombre: string };
-type Periodo = { id: string; nombre: string; numero: number; activo: boolean };
+type Periodo = { id: string; nombre: string; numero: number; anio: number; activo: boolean };
 type Actividad = { id: string; nombre: string; tipo: string; porcentaje: number; descripcion?: string; fechaEntrega?: string };
 type Estudiante = { id: string; nombres: string; apellidos: string; numeroDocumento: string };
 
@@ -214,7 +214,7 @@ function ModuloNotas() {
             <label className="block text-xs font-medium text-slate-500 mb-1.5">Período</label>
             <select value={periodoId} onChange={e => { setPeriodoId(e.target.value); setVistaNotas(false); }} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
               <option value="">Seleccionar</option>
-              {(periodos as Periodo[]).map(p => <option key={p.id} value={p.id}>{p.nombre}{p.activo ? ' ✓' : ''}</option>)}
+              {(periodos as Periodo[]).map(p => <option key={p.id} value={p.id}>{p.nombre} — {p.anio}{p.activo ? ' ✓' : ''}</option>)}
             </select>
           </div>
         </div>

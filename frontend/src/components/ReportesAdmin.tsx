@@ -117,7 +117,7 @@ export default function Reportes() {
             <label className="block text-xs font-medium text-slate-500 mb-1.5">Período *</label>
             <select value={periodoId} onChange={e => setPeriodoId(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-white">
               <option value="">Seleccionar período</option>
-              {(periodos as { id: string; nombre: string; activo: boolean }[]).map(p => <option key={p.id} value={p.id}>{p.nombre}{p.activo ? ' ✓' : ''}</option>)}
+              {(periodos as { id: string; nombre: string; anio: number; activo: boolean }[]).map(p => <option key={p.id} value={p.id}>{p.nombre} — {p.anio}{p.activo ? ' ✓' : ''}</option>)}
             </select>
           </div>
           <div className="flex-1 min-w-40">

@@ -27,13 +27,13 @@ export const validarLogin = [
 
 // ─── GENERAR TOKENS ──────────────────────────────────────────────────────────
 
-function generarAccessToken(payload: Omit<JwtPayload, 'iat' | 'exp'>): string {
+export function generarAccessToken(payload: Omit<JwtPayload, 'iat' | 'exp'>): string {
   return jwt.sign(payload, process.env.JWT_SECRET!, {
     expiresIn: process.env.JWT_EXPIRES_IN ?? '15m',
   } as jwt.SignOptions);
 }
 
-function generarRefreshToken(usuarioId: string): string {
+export function generarRefreshToken(usuarioId: string): string {
   return jwt.sign({ sub: usuarioId }, process.env.JWT_REFRESH_SECRET!, {
     expiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
   } as jwt.SignOptions);

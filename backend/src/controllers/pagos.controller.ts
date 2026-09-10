@@ -5,8 +5,27 @@ import fs from 'fs';
 import path from 'path';
 import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
+import { enviarWhatsApp, PlantillasWhatsApp } from '../services/whatsapp.service';
 
 const prisma = new PrismaClient();
+
+const formatearMonto = (monto: number | string) => `$${Number(monto).toLocaleString('es-CO')}`;
+
+/** Notifica por WhatsApp a los padres/acudientes de un estudiante que tiene un cobro pendiente. */
+async function notificarCobroPendiente(estudianteId: string, nombreEst: string, concepto: string, monto: number | string): Promise<void> {
+  const vinculos = await prisma.padreEstudiante.findMany({
+    where: { estudianteId },
+    include: { padre: { select: { telefono: true } } },
+  });
+  const mensaje = PlantillasWhatsApp.cobroPendiente(nombreEst, concepto, formatearMonto(monto));
+  await Promise.all(vinculos.map(v => enviarWhatsApp(v.padre.telefono, mensaje)));
+}
+
+/** Notifica por WhatsApp al padre dueño de un comprobante (padreId = Usuario.id). */
+async function notificarPadreComprobante(usuarioId: string, mensaje: string): Promise<void> {
+  const padre = await prisma.padre.findUnique({ where: { usuarioId }, select: { telefono: true } });
+  await enviarWhatsApp(padre?.telefono, mensaje);
+}
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ESTADOS_PAGO = ['PENDIENTE', 'PAGADO', 'EXONERADO', 'EN_VERIFICACION'];
@@ -218,6 +237,11 @@ export async function crearCobro(req: Request, res: Response): Promise<void> {
     });
 
     await audit({ usuarioId: req.usuario!.sub, accion: 'CREAR', entidad: 'cobros', entidadId: cobro.id, datosDespues: { estudianteId, conceptoId, mes, anio }, ip: req.ip });
+
+    const nombreEst = `${estudiante.nombres} ${estudiante.apellidos}`;
+    notificarCobroPendiente(estudianteId, nombreEst, concepto.nombre, cobro.montoCobrado.toString())
+      .catch(err => logger.error('Error al notificar cobro pendiente', { err }));
+
     res.status(201).json({ ok: true, mensaje: 'Cobro registrado correctamente', datos: cobro });
   } catch (err) {
     logger.error('Error al crear cobro', { err });
@@ -269,6 +293,16 @@ export async function generarCobrosMasivo(req: Request, res: Response): Promise<
       usuarioId: req.usuario!.sub, accion: 'CREAR', entidad: 'cobros',
       datosDespues: { gradoId, conceptoId, mes, anio, cantidad: pendientes.length }, ip: req.ip,
     });
+
+    (async () => {
+      const estudiantesPendientes = await prisma.estudiante.findMany({
+        where: { id: { in: pendientes.map(e => e.id) } },
+        select: { id: true, nombres: true, apellidos: true },
+      });
+      for (const est of estudiantesPendientes) {
+        await notificarCobroPendiente(est.id, `${est.nombres} ${est.apellidos}`, concepto.nombre, monto.toString());
+      }
+    })().catch(err => logger.error('Error al notificar cobros masivos pendientes', { err }));
 
     res.status(201).json({
       ok: true,
@@ -504,10 +538,15 @@ export async function reportarComprobante(req: Request, res: Response): Promise<
   const { id } = req.params;
   if (!req.file) { res.status(400).json({ ok: false, mensaje: 'Debes adjuntar el comprobante de pago' }); return; }
 
-  const { observaciones } = req.body;
+  const { observaciones, referencia } = req.body;
   if (observaciones && String(observaciones).length > 200) {
     eliminarComprobanteArchivo(req.file.path);
     res.status(400).json({ ok: false, mensaje: 'Observaciones máximo 200 caracteres' });
+    return;
+  }
+  if (referencia && String(referencia).length > 50) {
+    eliminarComprobanteArchivo(req.file.path);
+    res.status(400).json({ ok: false, mensaje: 'Referencia máximo 50 caracteres' });
     return;
   }
 
@@ -534,6 +573,7 @@ export async function reportarComprobante(req: Request, res: Response): Promise<
           padreId: req.usuario!.sub,
           archivoUrl: req.file.path,
           nombreOriginal: req.file.originalname,
+          referenciaTransaccion: referencia?.trim() || null,
           observaciones: observaciones?.trim() || null,
         },
       }),
@@ -590,6 +630,18 @@ export async function listarComprobantes(req: Request, res: Response): Promise<v
   }
 }
 
+// ─── CONTAR COMPROBANTES PENDIENTES (badge del menú) ───────────────────────────
+
+export async function contarComprobantesPendientes(_req: Request, res: Response): Promise<void> {
+  try {
+    const count = await prisma.comprobantePago.count({ where: { estado: 'PENDIENTE_VERIFICACION' } });
+    res.json({ ok: true, datos: { count } });
+  } catch (err) {
+    logger.error('Error al contar comprobantes pendientes', { err });
+    res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
+  }
+}
+
 // ─── VER ARCHIVO DE UN COMPROBANTE (ADMIN/SECRETARIO/PADRE dueño) ──────────────
 
 export async function verComprobanteArchivo(req: Request, res: Response): Promise<void> {
@@ -623,7 +675,10 @@ export async function aprobarComprobante(req: Request, res: Response): Promise<v
 
   const { id } = req.params;
   try {
-    const comprobante = await prisma.comprobantePago.findUnique({ where: { id } });
+    const comprobante = await prisma.comprobantePago.findUnique({
+      where: { id },
+      include: { cobro: { include: { estudiante: { select: { id: true, nombres: true, apellidos: true } }, concepto: { select: { nombre: true } } } } },
+    });
     if (!comprobante) { res.status(404).json({ ok: false, mensaje: 'Comprobante no encontrado' }); return; }
     if (comprobante.estado !== 'PENDIENTE_VERIFICACION') { res.status(400).json({ ok: false, mensaje: 'Este comprobante ya fue verificado' }); return; }
 
@@ -639,6 +694,11 @@ export async function aprobarComprobante(req: Request, res: Response): Promise<v
     ]);
 
     await audit({ usuarioId: req.usuario!.sub, accion: 'EDITAR', entidad: 'comprobantes_pago', entidadId: id, datosDespues: { estado: 'APROBADO' }, ip: req.ip });
+
+    const nombreEst = `${comprobante.cobro.estudiante.nombres} ${comprobante.cobro.estudiante.apellidos}`;
+    notificarPadreComprobante(comprobante.padreId, PlantillasWhatsApp.comprobanteAprobado(nombreEst, comprobante.cobro.concepto.nombre))
+      .catch(err => logger.error('Error al notificar comprobante aprobado', { err }));
+
     res.json({ ok: true, mensaje: 'Pago aprobado correctamente' });
   } catch (err) {
     logger.error('Error al aprobar comprobante de pago', { err });

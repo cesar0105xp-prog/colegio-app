@@ -313,6 +313,10 @@ model Archivo {
   visibleParaPadre Boolean                 @default(false) @map("visible_para_padre")
   createdAt        DateTime                @default(now()) @map("created_at")
   tipoDocumentoId  String?                 @map("tipo_documento_id")
+  estadoRevision   EstadoDocumentoArchivo  @default(PENDIENTE) @map("estado_revision")
+  motivoRechazo    String?                 @db.VarChar(300) @map("motivo_rechazo")
+  revisadoPor      String?                 @map("revisado_por")
+  fechaRevision    DateTime?               @map("fecha_revision")
   estudiante       Estudiante?             @relation(fields: [estudianteId], references: [id])
   subidoPorPadre   Padre?                  @relation(fields: [subidoPorPadreId], references: [id])
   tipoDocumento    TipoDocumentoRequerido? @relation(fields: [tipoDocumentoId], references: [id])
@@ -356,20 +360,35 @@ model Comunicado {
 }
 
 model Matricula {
-  id                String     @id @default(uuid())
-  estudianteId      String     @unique @map("estudiante_id")
-  padreId           String     @map("padre_id")
-  pin               String     @map("pin")
-  pinUsado          Boolean    @default(false) @map("pin_usado")
-  estadoDocumentos  String     @default("PENDIENTE") @map("estado_documentos")
-  fechaMatricula    DateTime   @default(now()) @map("fecha_matricula")
-  verificadoPor     String?    @map("verificado_por")
-  fechaVerificacion DateTime?  @map("fecha_verificacion")
-  observaciones     String?
-  createdAt         DateTime   @default(now()) @map("created_at")
-  estudiante        Estudiante @relation(fields: [estudianteId], references: [id])
-  padre             Padre      @relation(fields: [padreId], references: [id])
-  verificador       Usuario?   @relation("MatriculasVerificadas", fields: [verificadoPor], references: [id])
+  id                         String         @id @default(uuid())
+  estudianteId               String         @unique @map("estudiante_id")
+  padreId                    String         @map("padre_id")
+  pin                        String         @map("pin")
+  pinUsado                   Boolean        @default(false) @map("pin_usado")
+  estadoDocumentos           String         @default("PENDIENTE") @map("estado_documentos")
+  fechaMatricula              DateTime       @default(now()) @map("fecha_matricula")
+  verificadoPor              String?        @map("verificado_por")
+  fechaVerificacion          DateTime?      @map("fecha_verificacion")
+  observaciones              String?
+  createdAt                  DateTime       @default(now()) @map("created_at")
+  solicitudCupoId             String?        @unique @map("solicitud_cupo_id")
+  magicLinkToken              String?        @unique @map("magic_link_token")
+  magicLinkExpiry              DateTime?      @map("magic_link_expiry")
+  magicLinkUsedAt              DateTime?      @map("magic_link_used_at")
+  fechaFormularioCompletado    DateTime?      @map("fecha_formulario_completado")
+  fechaDocumentosSubidos       DateTime?      @map("fecha_documentos_subidos")
+  firmaDigitalNombre           String?        @map("firma_digital_nombre")
+  firmaDigitalFecha            DateTime?      @map("firma_digital_fecha")
+  firmaDigitalIp               String?        @map("firma_digital_ip")
+  formularioPagado             Boolean        @default(false) @map("formulario_pagado")
+  formularioComprobanteUrl     String?        @map("formulario_comprobante_url")
+  formularioReferencia         String?        @map("formulario_referencia")
+  formularioFechaPago          DateTime?      @map("formulario_fecha_pago")
+  formularioVerificadoPor      String?        @map("formulario_verificado_por")
+  estudiante        Estudiante     @relation(fields: [estudianteId], references: [id])
+  padre             Padre          @relation(fields: [padreId], references: [id])
+  verificador       Usuario?       @relation("MatriculasVerificadas", fields: [verificadoPor], references: [id])
+  solicitudCupo     SolicitudCupo? @relation(fields: [solicitudCupoId], references: [id])
 
   @@map("matriculas")
 }
@@ -447,6 +466,7 @@ model ComprobantePago {
   padreId           String            @map("padre_id")
   archivoUrl        String            @map("archivo_url")
   nombreOriginal    String            @map("nombre_original")
+  referenciaTransaccion String?      @db.VarChar(50) @map("referencia_transaccion")
   observaciones     String?           @db.VarChar(200)
   estado            EstadoComprobante @default(PENDIENTE_VERIFICACION)
   motivoRechazo     String?           @db.VarChar(300) @map("motivo_rechazo")
@@ -562,6 +582,25 @@ model SolicitudCertificado {
   @@index([estudianteId])
   @@index([estado])
   @@map("solicitudes_certificado")
+}
+
+model SolicitudCupo {
+  id                String              @id @default(uuid())
+  nombreEstudiante  String              @map("nombre_estudiante")
+  gradoInteres      String              @map("grado_interes")
+  nombreAcudiente   String              @map("nombre_acudiente")
+  telefonoAcudiente String              @map("telefono_acudiente")
+  emailAcudiente    String              @map("email_acudiente")
+  estado            EstadoSolicitudCupo @default(PENDIENTE)
+  observaciones     String?             @db.VarChar(300)
+  contactadoPor     String?             @map("contactado_por")
+  fechaContacto     DateTime?           @map("fecha_contacto")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+  matricula         Matricula?
+
+  @@index([estado])
+  @@map("solicitudes_cupo")
 }
 
 model TipoDocumentoRequerido {
@@ -702,6 +741,19 @@ enum EstadoCertificado {
   EN_PROCESO
   LISTO
   ENTREGADO
+}
+
+enum EstadoDocumentoArchivo {
+  PENDIENTE
+  APROBADO
+  RECHAZADO
+}
+
+enum EstadoSolicitudCupo {
+  PENDIENTE
+  CONTACTADO
+  MATRICULADO
+  DESCARTADO
 }
 
 enum AccionAuditoria {

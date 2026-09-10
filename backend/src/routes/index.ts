@@ -6,7 +6,7 @@ import { listarUsuarios, obtenerUsuario, crearUsuario, editarUsuario, eliminarUs
 import { listarGrados, crearGrado, editarGrado, validarGrado, listarMaterias, crearMateria, editarMateria, eliminarMateria, validarMateria, asignarMateriaGrado, listarPeriodos, crearPeriodo, editarPeriodo, validarPeriodo, activarPeriodo, obtenerStats } from '../controllers/academico.controller';
 import { crearActividad, listarActividades, registrarCalificacion, obtenerBoletin, validarActividad, validarCalificacion, editarActividad, eliminarActividad, validarEditarActividad } from '../controllers/calificaciones.controller';
 import { crearObservacion, listarObservaciones, marcarObservacionVista, validarObservacion, eliminarObservacion, editarObservacion, validarEditarObservacion } from '../controllers/observaciones.controller';
-import { subirArchivo, descargarArchivo, listarArchivos } from '../controllers/archivos.controller';
+import { subirArchivo, descargarArchivo, listarArchivos, aprobarDocumento, rechazarDocumento, validarRechazoDocumento } from '../controllers/archivos.controller';
 import { misHijos, miPerfilEstudiante } from '../controllers/padre.controller';
 import { listarVinculos, crearVinculo, eliminarVinculo, validarVinculo } from '../controllers/vinculos.controller';
 import { reporteBoletinesPorGrado, reporteRendimientoMateria, reporteEstudiantesDestacados, reporteObservacionesPendientes } from '../controllers/reportes.controller';
@@ -97,6 +97,8 @@ router.delete('/observaciones/:id',                 autenticar, autorizar(ADMIN,
 router.post('/archivos',                         autenticar, autorizar(ADMIN, SEC, PADRE), uploadPDF.single('archivo'), validarPDFReal, subirArchivo);
 router.get('/archivos/estudiante/:estudianteId', autenticar, autorizar(ADMIN, SEC, PROF, PADRE, EST), validarAccesoPadreEstudiante, validarAccesoEstudiante, listarArchivos);
 router.get('/archivos/:archivoId/descargar',     autenticar, descargarArchivo);
+router.patch('/archivos/:id/aprobar',            autenticar, autorizar(ADMIN, SEC), aprobarDocumento);
+router.patch('/archivos/:id/rechazar',           autenticar, autorizar(ADMIN, SEC), validarRechazoDocumento, rechazarDocumento);
 
 // REPORTES
 router.get('/reportes/boletines-grado',          autenticar, autorizar(ADMIN, SEC), reporteBoletinesPorGrado);
@@ -119,11 +121,25 @@ router.get('/comunicados/padre',        autenticar, autorizar(PADRE), comunicado
 router.patch('/comunicados/:id/archivar', autenticar, autorizar(ADMIN, SEC), archivarComunicado);
 
 // MATRÍCULAS
-import { crearMatricula, listarMatriculas, verificarMatricula, rechazarMatricula, validarMatricula } from '../controllers/matriculas.controller';
+import { crearMatricula, listarMatriculas, verificarMatricula, rechazarMatricula, validarMatricula, accederConMagicLink, reenviarLink, miMatriculaEstudiante, firmarMatricula, validarFirmaDigital, reportarPagoFormulario, verComprobanteFormulario, verificarPagoFormulario } from '../controllers/matriculas.controller';
+import { uploadComprobante, validarComprobanteReal } from '../middlewares/upload.middleware';
 router.get('/matriculas',                    autenticar, autorizar(ADMIN, SEC), listarMatriculas);
 router.post('/matriculas',                   autenticar, autorizar(ADMIN, SEC), validarMatricula, crearMatricula);
 router.patch('/matriculas/:id/verificar',    autenticar, autorizar(ADMIN, SEC), verificarMatricula);
 router.patch('/matriculas/:id/rechazar',     autenticar, autorizar(ADMIN, SEC), rechazarMatricula);
+router.get('/matriculas/acceso/:token',      accederConMagicLink);
+router.patch('/matriculas/:id/reenviar-link', autenticar, autorizar(ADMIN, SEC), reenviarLink);
+router.get('/matriculas/estudiante/:estudianteId',        autenticar, autorizar(PADRE), validarAccesoPadreEstudiante, miMatriculaEstudiante);
+router.patch('/matriculas/estudiante/:estudianteId/firmar', autenticar, autorizar(PADRE), validarAccesoPadreEstudiante, validarFirmaDigital, firmarMatricula);
+router.post('/matriculas/estudiante/:estudianteId/formulario/comprobante', autenticar, autorizar(PADRE), validarAccesoPadreEstudiante, uploadComprobante.single('archivo'), validarComprobanteReal, reportarPagoFormulario);
+router.get('/matriculas/:id/formulario/archivo',    autenticar, autorizar(ADMIN, SEC, PADRE), verComprobanteFormulario);
+router.patch('/matriculas/:id/formulario/verificar', autenticar, autorizar(ADMIN, SEC), verificarPagoFormulario);
+
+// SOLICITUDES DE CUPO (público + secretaría)
+import { crearSolicitudCupo, listarSolicitudesCupo, actualizarEstadoSolicitud, validarSolicitudCupo, validarEstadoSolicitud } from '../controllers/solicitudes_cupo.controller';
+router.post('/solicitudes-cupo',            validarSolicitudCupo, crearSolicitudCupo);
+router.get('/solicitudes-cupo',             autenticar, autorizar(ADMIN, SEC), listarSolicitudesCupo);
+router.patch('/solicitudes-cupo/:id/estado', autenticar, autorizar(ADMIN, SEC), validarEstadoSolicitud, actualizarEstadoSolicitud);
 
 // DATOS ADICIONALES Y TIPOS DE DOCUMENTO
 import { obtenerDatosAdicionales, guardarDatosAdicionales, validarDatosAdicionales, actualizarDatosPadre, validarDatosPadre, listarTiposDocumento, crearTipoDocumento, editarTipoDocumento, validarTipoDocumento } from '../controllers/datos_adicionales.controller';
@@ -160,10 +176,8 @@ import {
   validarCobro, validarCobroMasivo, validarMarcarPagado, validarExonerar,
   reporteCartera, exportarCarteraCSV, miEstadoCuenta,
   reportarComprobante, listarComprobantes, verComprobanteArchivo, aprobarComprobante, rechazarComprobante,
-  validarIdCobroPago, validarRechazarComprobante,
+  validarIdCobroPago, validarRechazarComprobante, contarComprobantesPendientes,
 } from '../controllers/pagos.controller';
-import { uploadComprobante, validarComprobanteReal } from '../middlewares/upload.middleware';
-
 router.get('/conceptos',           autenticar, autorizar(ADMIN, SEC), listarConceptos);
 router.post('/conceptos',          autenticar, autorizar(ADMIN), validarConceptoPago, crearConcepto);
 router.put('/conceptos/:id',       autenticar, autorizar(ADMIN), validarConceptoPagoEditar, editarConcepto);
@@ -173,6 +187,7 @@ router.get('/cobros/reporte',      autenticar, autorizar(ADMIN, SEC), reporteCar
 router.get('/cobros/mi-estado',    autenticar, autorizar(PADRE), miEstadoCuenta);
 router.get('/cobros/exportar',     autenticar, autorizar(ADMIN), exportarCarteraCSV);
 router.get('/cobros/comprobantes', autenticar, autorizar(ADMIN, SEC), listarComprobantes);
+router.get('/cobros/comprobantes/pendientes-count', autenticar, autorizar(ADMIN, SEC), contarComprobantesPendientes);
 router.get('/cobros',              autenticar, autorizar(ADMIN, SEC), listarCobros);
 router.post('/cobros/masivo',      autenticar, autorizar(ADMIN, SEC), validarCobroMasivo, generarCobrosMasivo);
 router.post('/cobros',             autenticar, autorizar(ADMIN, SEC), validarCobro, crearCobro);

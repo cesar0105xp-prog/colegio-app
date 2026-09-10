@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import ContactosEmergencia from './ContactosEmergencia';
+import ProgresoMatricula from './ProgresoMatricula';
 
 const soloNumerosKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
   if (['Backspace','Delete','Tab','ArrowLeft','ArrowRight'].includes(e.key)) return;
@@ -57,6 +58,12 @@ export default function FormularioMatricula({ estudianteId, hijoNombre }: { estu
   const qc = useQueryClient();
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'error' } | null>(null);
 
+  const { data: progreso, isLoading: cargandoProgreso } = useQuery<{ formularioPagado: boolean; formularioComprobanteUrl: boolean; formularioReferencia: string | null; montoFormulario: number }>({
+    queryKey: ['mi-matricula', estudianteId],
+    queryFn: async () => (await api.get(`/matriculas/estudiante/${estudianteId}`)).data.datos,
+    enabled: !!estudianteId,
+  });
+
   // Datos del padre
   const { data: datosPadre } = useQuery({
     queryKey: ['mis-hijos-perfil'],
@@ -94,6 +101,12 @@ export default function FormularioMatricula({ estudianteId, hijoNombre }: { estu
     <div className="space-y-4">
       {toast && <Toast mensaje={toast.msg} tipo={toast.tipo} onClose={() => setToast(null)} />}
 
+      <ProgresoMatricula estudianteId={estudianteId} />
+
+      {!cargandoProgreso && progreso && !progreso.formularioPagado ? (
+        <PagoFormularioMatricula estudianteId={estudianteId} progreso={progreso} />
+      ) : (
+      <>
       <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
         <p className="text-sm font-semibold text-blue-800 mb-1">Formulario de matrícula — {hijoNombre}</p>
         <p className="text-xs text-blue-600">Complete todos los datos y suba los documentos requeridos. La secretaría los verificará para activar la matrícula.</p>
@@ -132,7 +145,7 @@ export default function FormularioMatricula({ estudianteId, hijoNombre }: { estu
               {eP.ocupacion && <p className="mt-1 text-xs text-red-500">{eP.ocupacion.message}</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1.5">Correo personal <span className="text-slate-300">(opcional)</span></label>
+              <label className="block text-xs font-medium text-slate-500 mb-1.5">Correo personal <span className="text-slate-300">(para notificaciones y enlaces de acceso — no lo dejes vacío)</span></label>
               <input type="email" className={inputCls(eP.emailContacto?.message)} placeholder="correo@personal.com" maxLength={100}
                 defaultValue={datosPadre?.emailContacto ?? ''}
                 {...regP('emailContacto', { pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Email inválido' } })} />
@@ -228,6 +241,168 @@ export default function FormularioMatricula({ estudianteId, hijoNombre }: { estu
       <Seccion titulo="Documentos requeridos" icono={<FileText className="w-5 h-5 text-emerald-600" />}>
         <DocumentosMatricula estudianteId={estudianteId} />
       </Seccion>
+
+      {/* Firma digital */}
+      <Seccion titulo="Firma y envío" icono={<Save className="w-5 h-5 text-violet-600" />}>
+        <FirmaDigital estudianteId={estudianteId} hijoNombre={hijoNombre} />
+      </Seccion>
+      </>
+      )}
+    </div>
+  );
+}
+
+// ─── PAGO DEL FORMULARIO DE MATRÍCULA (compuerta de acceso) ───────────────────
+type PagoFormularioForm = { referencia?: string };
+
+function PagoFormularioMatricula({ estudianteId, progreso }: {
+  estudianteId: string;
+  progreso: { formularioComprobanteUrl: boolean; formularioReferencia: string | null; montoFormulario: number };
+}) {
+  const qc = useQueryClient();
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'error' } | null>(null);
+  const { register, handleSubmit } = useForm<PagoFormularioForm>();
+
+  const monto = progreso.montoFormulario.toLocaleString('es-CO');
+
+  const enviarMutation = useMutation({
+    mutationFn: (d: PagoFormularioForm) => {
+      if (!archivo) throw new Error('SIN_ARCHIVO');
+      const fd = new FormData();
+      fd.append('archivo', archivo);
+      if (d.referencia) fd.append('referencia', d.referencia);
+      return api.post(`/matriculas/estudiante/${estudianteId}/formulario/comprobante`, fd);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['mi-matricula', estudianteId] });
+      setToast({ msg: 'Comprobante enviado. Secretaría lo verificará pronto.', tipo: 'ok' });
+    },
+    onError: (e: unknown) => {
+      if ((e as Error)?.message === 'SIN_ARCHIVO') { setToast({ msg: 'Adjunta el comprobante de pago', tipo: 'error' }); return; }
+      const d = (e as { response?: { data?: { mensaje?: string; errores?: string[] } } })?.response?.data;
+      setToast({ msg: d?.errores?.[0] ?? d?.mensaje ?? 'Error al enviar el comprobante', tipo: 'error' });
+    },
+  });
+
+  if (progreso.formularioComprobanteUrl) {
+    return (
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 text-center">
+        <div className="w-14 h-14 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <AlertCircle className="w-7 h-7 text-amber-600" />
+        </div>
+        <h3 className="font-bold text-slate-800">Comprobante en verificación</h3>
+        <p className="text-sm text-slate-500 mt-2 max-w-sm mx-auto">
+          Recibimos tu comprobante del pago de matrícula (${monto}). Secretaría lo revisará pronto y te dará acceso
+          completo al formulario. {progreso.formularioReferencia && <>Referencia: <strong>{progreso.formularioReferencia}</strong></>}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-5">
+      {toast && <Toast mensaje={toast.msg} tipo={toast.tipo} onClose={() => setToast(null)} />}
+      <div className="text-center">
+        <h3 className="font-bold text-slate-800">Pago del formulario de matrícula</h3>
+        <p className="text-sm text-slate-500 mt-1">Antes de continuar, realiza el pago de <strong>${monto}</strong> por concepto de formulario de matrícula.</p>
+      </div>
+
+      <div className="flex flex-col items-center gap-2">
+        <img src="/qr-nequi.svg" alt="Código QR para pago con Nequi" className="w-40 h-40 rounded-xl border border-slate-200" />
+        <p className="text-xs text-slate-400">Escanea con Nequi para pagar</p>
+      </div>
+
+      <div className="bg-slate-50 rounded-xl p-4 text-sm text-slate-600 space-y-1 text-center">
+        <p><strong>Nequi</strong> · 300 123 4567</p>
+        <p><strong>Banco de Bogotá</strong> · Cuenta 606173664</p>
+        <p>Titular: Marcela Rodríguez · CC 52841783</p>
+      </div>
+
+      <form onSubmit={handleSubmit(d => enviarMutation.mutate(d))} className="space-y-3">
+        <div>
+          <label className="block text-xs font-medium text-slate-500 mb-1.5">Comprobante de pago * <span className="text-slate-300">(JPG, PNG o PDF · máx. 5MB)</span></label>
+          <input type="file" accept="image/jpeg,image/png,application/pdf"
+            onChange={e => setArchivo(e.target.files?.[0] ?? null)}
+            className="w-full text-sm file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-blue-600 file:text-white file:text-xs file:font-medium hover:file:bg-blue-700" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-500 mb-1.5">Referencia de la transacción <span className="text-slate-300">(opcional)</span></label>
+          <input className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Número de referencia" maxLength={50}
+            {...register('referencia')} />
+        </div>
+        <button type="submit" disabled={enviarMutation.isPending || !archivo}
+          className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition disabled:opacity-50">
+          <Save className="w-4 h-4" /> {enviarMutation.isPending ? 'Enviando...' : 'Ya pagué — enviar comprobante'}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+// ─── FIRMA DIGITAL ────────────────────────────────────────────────────────────
+type FirmaForm = { nombreCompleto: string };
+
+function FirmaDigital({ estudianteId, hijoNombre }: { estudianteId: string; hijoNombre: string }) {
+  const qc = useQueryClient();
+  const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'error' } | null>(null);
+  const { register, handleSubmit, formState: { errors } } = useForm<FirmaForm>();
+
+  const { data: progreso } = useQuery<{ firmaDigitalNombre: string | null; firmaDigitalFecha: string | null }>({
+    queryKey: ['mi-matricula', estudianteId],
+    queryFn: async () => (await api.get(`/matriculas/estudiante/${estudianteId}`)).data.datos,
+    enabled: !!estudianteId,
+  });
+
+  const firmarMutation = useMutation({
+    mutationFn: (d: FirmaForm) => api.patch(`/matriculas/estudiante/${estudianteId}/firmar`, d),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['mi-matricula', estudianteId] });
+      setToast({ msg: 'Formulario firmado correctamente', tipo: 'ok' });
+    },
+    onError: (e: unknown) => {
+      const d = (e as { response?: { data?: { mensaje?: string; errores?: string[] } } })?.response?.data;
+      setToast({ msg: d?.errores?.[0] ?? d?.mensaje ?? 'Error al firmar', tipo: 'error' });
+    },
+  });
+
+  if (progreso?.firmaDigitalNombre) {
+    return (
+      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-3">
+        <CheckCircle className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+        <div>
+          <p className="text-sm font-medium text-emerald-800">Formulario firmado por {progreso.firmaDigitalNombre}</p>
+          {progreso.firmaDigitalFecha && (
+            <p className="text-xs text-emerald-600">{new Date(progreso.firmaDigitalFecha).toLocaleString('es-CO')}</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {toast && <Toast mensaje={toast.msg} tipo={toast.tipo} onClose={() => setToast(null)} />}
+      <div className="bg-slate-50 rounded-xl p-4 max-h-40 overflow-y-auto text-xs text-slate-500 leading-relaxed">
+        Al firmar declaro que la información y los documentos suministrados en este formulario de matrícula
+        de {hijoNombre} son veraces y completos. Autorizo al colegio a verificarlos y entiendo que cualquier
+        inconsistencia puede retrasar o afectar el proceso de matrícula. Esta firma electrónica tiene la misma
+        validez que una firma manuscrita para efectos del proceso de matrícula.
+      </div>
+      <form onSubmit={handleSubmit(d => firmarMutation.mutate(d))} className="space-y-3">
+        <div>
+          <label className="block text-xs font-medium text-slate-500 mb-1.5">Escribe tu nombre completo como firma *</label>
+          <input className={inputCls(errors.nombreCompleto?.message)} placeholder="Nombre y apellidos completos"
+            {...register('nombreCompleto', { required: 'Requerido', minLength: { value: 5, message: 'Mínimo 5 caracteres' }, maxLength: { value: 100, message: 'Máximo 100 caracteres' } })} />
+          {errors.nombreCompleto && <p className="mt-1 text-xs text-red-500">{errors.nombreCompleto.message}</p>}
+        </div>
+        <div className="flex justify-end">
+          <button type="submit" disabled={firmarMutation.isPending}
+            className="flex items-center gap-2 px-5 py-2 bg-violet-600 text-white text-sm font-medium rounded-xl hover:bg-violet-700 transition disabled:opacity-50">
+            <Save className="w-4 h-4" /> {firmarMutation.isPending ? 'Firmando...' : 'Firmar y completar formulario'}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
@@ -251,7 +426,13 @@ function DocumentosMatricula({ estudianteId }: { estudianteId: string }) {
   });
 
   type TipoDoc = { id: string; nombre: string; descripcion?: string; obligatorio: boolean };
-  type ArchivoRow = { id: string; nombreOriginal: string; tamanoBytes: number; tipoDocumentoId?: string; tipoDocumento?: { nombre: string } };
+  type ArchivoRow = { id: string; nombreOriginal: string; tamanoBytes: number; tipoDocumentoId?: string; tipoDocumento?: { nombre: string }; estadoRevision: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO'; motivoRechazo?: string | null };
+
+  const BADGE_ESTADO: Record<string, { label: string; cls: string }> = {
+    PENDIENTE: { label: '🟡 En revisión', cls: 'bg-amber-100 text-amber-700' },
+    APROBADO: { label: '🟢 Aprobado', cls: 'bg-emerald-100 text-emerald-700' },
+    RECHAZADO: { label: '🔴 Rechazado', cls: 'bg-red-100 text-red-700' },
+  };
 
   const archivosPorTipo = (tipo: TipoDoc) =>
     (archivos as ArchivoRow[]).filter(a => a.tipoDocumentoId === tipo.id);
@@ -273,6 +454,7 @@ function DocumentosMatricula({ estudianteId }: { estudianteId: string }) {
       fd.append('tipoDocumentoId', tipoId);
       await api.post('/archivos', fd);
       await qc.invalidateQueries({ queryKey: ['archivos-matricula', estudianteId] });
+      await qc.invalidateQueries({ queryKey: ['mi-matricula', estudianteId] });
       await refetch();
       setToast({ msg: 'Documento subido correctamente', tipo: 'ok' });
     } catch (err: unknown) {
@@ -305,11 +487,12 @@ function DocumentosMatricula({ estudianteId }: { estudianteId: string }) {
       {(tiposDoc as TipoDoc[]).map(tipo => {
         const docs = archivosPorTipo(tipo);
         const subido = docs.length > 0;
+        const ultimo = docs[0] as ArchivoRow | undefined;
         return (
           <div key={tipo.id} className={`rounded-xl border p-4 ${subido ? 'border-emerald-200 bg-emerald-50' : tipo.obligatorio ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-slate-50'}`}>
             <div className="flex items-center justify-between gap-3">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   {subido
                     ? <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
                     : <AlertCircle className={`w-4 h-4 flex-shrink-0 ${tipo.obligatorio ? 'text-red-500' : 'text-slate-400'}`} />
@@ -317,8 +500,16 @@ function DocumentosMatricula({ estudianteId }: { estudianteId: string }) {
                   <p className="text-sm font-medium text-slate-800">
                     {tipo.nombre} {tipo.obligatorio && <span className="text-red-500">*</span>}
                   </p>
+                  {ultimo && (
+                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${BADGE_ESTADO[ultimo.estadoRevision].cls}`}>
+                      {BADGE_ESTADO[ultimo.estadoRevision].label}
+                    </span>
+                  )}
                 </div>
                 {tipo.descripcion && <p className="text-xs text-slate-400 mt-0.5 ml-6">{tipo.descripcion}</p>}
+                {ultimo?.estadoRevision === 'RECHAZADO' && ultimo.motivoRechazo && (
+                  <p className="text-xs text-red-600 mt-1 ml-6">Motivo: {ultimo.motivoRechazo}</p>
+                )}
                 {subido && (
                   <div className="ml-6 mt-2 space-y-1">
                     {docs.map(doc => (

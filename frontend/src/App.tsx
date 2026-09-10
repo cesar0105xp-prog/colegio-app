@@ -7,6 +7,7 @@ import LoginPage from './pages/LoginPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ProfesorDashboard from './pages/profesor/ProfesorDashboard';
 import PadreDashboard from './pages/padre/PadreDashboard';
+import AccesoMatricula from './pages/AccesoMatricula';
 
 
 const queryClient = new QueryClient({
@@ -45,6 +46,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/sin-acceso" element={<SinAcceso />} />
+          <Route path="/acceso-matricula/:token" element={<AccesoMatricula />} />
 
           <Route path="/admin" element={
             <RutaProtegida rolesPermitidos={['ADMINISTRADOR']}>

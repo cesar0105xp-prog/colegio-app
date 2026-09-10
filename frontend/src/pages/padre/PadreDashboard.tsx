@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   GraduationCap, MessageSquare, FileText, LogOut, Menu,
@@ -44,7 +44,7 @@ function Toast({ mensaje, tipo, onClose }: { mensaje: string; tipo: 'ok' | 'erro
 type Hijo = { id: string; nombres: string; apellidos: string; grado: { id: string; nombre: string; grupo: string }; estado: string };
 type MateriaBoletin = { materia: { id: string; nombre: string }; profesor: string; actividades: { id: string; nombre: string; tipo: string; porcentaje: number; nota: number | null; observacion?: string }[]; notaPeriodo: number | null; porcentajeTotal: number };
 type Observacion = { id: string; tipo: string; descripcion: string; fecha: string; yaVista: boolean; profesor: { nombres: string; apellidos: string }; materia?: { nombre: string } };
-type Periodo = { id: string; nombre: string; numero: number; activo: boolean };
+type Periodo = { id: string; nombre: string; numero: number; anio: number; activo: boolean };
 type ComunicadoRow = { id: string; titulo: string; mensaje: string; destinatario: string; createdAt: string; grado?: { nombre: string; grupo: string } };
 
 function TarjetaMateria({ m }: { m: MateriaBoletin }) {
@@ -114,6 +114,16 @@ export default function PadreDashboard() {
   const navigate = useNavigate();
 
   const handleLogout = async () => { try { await api.post('/auth/logout'); } catch {} clearAuth(); navigate('/login'); };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const seccionParam = params.get('seccion') as Seccion | null;
+    const SECCIONES_VALIDAS: Seccion[] = ['boletin', 'observaciones', 'asistencia', 'permisos', 'agenda', 'certificados', 'comunicados', 'directorio', 'cuenta', 'matricula', 'pagos'];
+    if (seccionParam && SECCIONES_VALIDAS.includes(seccionParam)) {
+      setSeccion(seccionParam);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   const { data: hijos = [] } = useQuery({
     queryKey: ['mis-hijos'],
@@ -263,7 +273,7 @@ export default function PadreDashboard() {
                     <label className="text-sm font-medium text-slate-600">Período:</label>
                     <select value={periodoId} onChange={e => setPeriodoId(e.target.value)}
                       className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                      {(periodos as Periodo[]).map(p => <option key={p.id} value={p.id}>{p.nombre} {p.activo ? '(Activo)' : ''}</option>)}
+                      {(periodos as Periodo[]).map(p => <option key={p.id} value={p.id}>{p.nombre} — {p.anio}{p.activo ? ' (Activo)' : ''}</option>)}
                     </select>
                   </div>
 
