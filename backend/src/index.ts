@@ -11,6 +11,15 @@ import routes from './routes';
 const app = express();
 const PORT = process.env.PORT ?? 3001;
 
+// Detrás de un proxy inverso (Nginx en el VPS) hay que confiar en X-Forwarded-For
+// para que req.ip sea la IP real del cliente; de eso dependen el rate limiting por
+// IP y la IP que queda en auditoría. Sin esto, todos los usuarios comparten la IP
+// 127.0.0.1 y el límite de peticiones bloquearía al colegio entero.
+// Activo en producción por defecto; TRUST_PROXY=1 lo fuerza y TRUST_PROXY=0 lo apaga.
+if (process.env.TRUST_PROXY === '1' || (process.env.NODE_ENV === 'production' && process.env.TRUST_PROXY !== '0')) {
+  app.set('trust proxy', 1);
+}
+
 // ─── SEGURIDAD: HEADERS HTTP ─────────────────────────────────────────────────
 app.use(helmet({
   contentSecurityPolicy: {
