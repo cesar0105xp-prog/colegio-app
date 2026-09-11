@@ -26,7 +26,14 @@ api.interceptors.response.use(
   async (error) => {
     const original = error.config;
 
-    if (error.response?.status === 401 && !original._retry) {
+    // Un 401 en login o en cambio de contraseña significa "credenciales
+    // incorrectas", no "sesión vencida": no se intenta renovar la sesión ni se
+    // recarga la página, para que el formulario muestre el error. Antes, una
+    // contraseña errada disparaba un refresh fallido y recargaba /login, así que
+    // el mensaje nunca se veía. En /auth/refresh además evita un bucle.
+    const esRutaDeAuth = /\/auth\/(login|refresh|password)$/.test(original?.url ?? '');
+
+    if (error.response?.status === 401 && !original._retry && !esRutaDeAuth) {
       if (refrescando) {
         return new Promise((resolve) => {
           colaEspera.push((token) => {
