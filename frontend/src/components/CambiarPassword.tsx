@@ -7,6 +7,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { KeyRound, X, CheckCircle, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import api from '../services/api';
+import { useAuthStore } from '../store/auth.store';
 
 type FormPass = { passwordActual: string; passwordNuevo: string; confirmar: string };
 
@@ -24,20 +25,27 @@ export function CambiarPassword({ onClose }: { onClose: () => void }) {
   const [mostrarActual, setMostrarActual] = useState(false);
   const [mostrarNuevo, setMostrarNuevo] = useState(false);
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'error' } | null>(null);
+  const clearAuth = useAuthStore((s) => s.clearAuth);
 
   const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<FormPass>();
   const passwordNuevo = watch('passwordNuevo');
 
   const mutation = useMutation({
-    mutationFn: (d: { passwordActual: string; passwordNuevo: string }) => api.put('/auth/password', d),
+    // El backend espera el campo `passwordNueva`. Antes se enviaba `passwordNuevo`,
+    // el servidor lo recibía vacío y toda solicitud fallaba con 400.
+    mutationFn: (d: { passwordActual: string; passwordNueva: string }) => api.put('/auth/password', d),
     onSuccess: () => {
-      setToast({ msg: 'Contraseña actualizada correctamente', tipo: 'ok' });
+      // Al cambiar la contraseña el backend revoca la sesión (borra el refresh
+      // token). Se cierra también aquí, en vez de dejar que el usuario sea
+      // expulsado de golpe cuando venza el token de acceso.
+      setToast({ msg: 'Contraseña actualizada. Inicia sesión con tu nueva contraseña', tipo: 'ok' });
       reset();
-      setTimeout(onClose, 1500);
+      setTimeout(() => { clearAuth(); window.location.href = '/login'; }, 1800);
     },
     onError: (e: unknown) => {
-      const msg = (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error al cambiar la contraseña';
-      setToast({ msg, tipo: 'error' });
+      // Las validaciones del backend llegan en `errores`; los demás errores en `mensaje`.
+      const d = (e as { response?: { data?: { mensaje?: string; errores?: string[] } } })?.response?.data;
+      setToast({ msg: d?.errores?.[0] ?? d?.mensaje ?? 'Error al cambiar la contraseña', tipo: 'error' });
     },
   });
 
@@ -56,7 +64,7 @@ export function CambiarPassword({ onClose }: { onClose: () => void }) {
             </div>
             <button onClick={onClose} className="p-1 rounded-lg text-slate-400 hover:bg-slate-100"><X className="w-5 h-5" /></button>
           </div>
-          <form onSubmit={handleSubmit(d => mutation.mutate({ passwordActual: d.passwordActual, passwordNuevo: d.passwordNuevo }))} className="px-6 py-5 space-y-4">
+          <form onSubmit={handleSubmit(d => mutation.mutate({ passwordActual: d.passwordActual, passwordNueva: d.passwordNuevo }))} className="px-6 py-5 space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-600 mb-1.5">Contraseña actual *</label>
               <div className="relative">
@@ -83,7 +91,7 @@ export function CambiarPassword({ onClose }: { onClose: () => void }) {
                 </button>
               </div>
               {errors.passwordNuevo && <p className="mt-1 text-xs text-red-500">{errors.passwordNuevo.message}</p>}
-              <p className="mt-1 text-xs text-slate-400">Debe tener mayúscula, número y símbolo (!@#$%...)</p>
+              <p className="mt-1 text-xs text-slate-400">Debe tener mayúscula, número y uno de estos símbolos: ! @ # $ % ^ &amp; * - _</p>
             </div>
 
             <div>
