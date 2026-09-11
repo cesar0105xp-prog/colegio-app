@@ -131,7 +131,10 @@ export async function login(req: Request, res: Response): Promise<void> {
     // Refresh token en cookie httpOnly
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      // Secure solo si la conexión real es HTTPS (Nginx + trust proxy). Si se
+      // atara a NODE_ENV, por HTTP el navegador descartaría la cookie y la
+      // sesión se perdería al recargar; por HTTPS sigue quedando Secure.
+      secure: req.secure,
       sameSite: 'strict',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
     });
@@ -189,7 +192,10 @@ export async function refreshToken(req: Request, res: Response): Promise<void> {
 
     res.cookie('refreshToken', nuevoRefresh, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      // Secure solo si la conexión real es HTTPS (Nginx + trust proxy). Si se
+      // atara a NODE_ENV, por HTTP el navegador descartaría la cookie y la
+      // sesión se perdería al recargar; por HTTPS sigue quedando Secure.
+      secure: req.secure,
       sameSite: 'strict',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });

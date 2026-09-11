@@ -494,7 +494,7 @@ export async function accederConMagicLink(req: Request, res: Response): Promise<
 
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: req.secure, // ver auth.controller: Secure solo sobre HTTPS real
       sameSite: 'strict',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });

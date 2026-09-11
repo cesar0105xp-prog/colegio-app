@@ -16,11 +16,17 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -y && apt-get upgrade -y
 apt-get install -y curl git ufw nginx rsync certbot python3-certbot-nginx ca-certificates gnupg lsb-release
 
-echo "==> PostgreSQL 18 (repositorio oficial PGDG, misma versión que en desarrollo)"
-install -d /usr/share/postgresql-common/pgdg
-curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
-echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list
-apt-get update -y && apt-get install -y postgresql-18
+echo "==> PostgreSQL 18 (misma versión mayor que en desarrollo, para restaurar el dump sin problemas)"
+if apt-cache policy postgresql-18 2>/dev/null | grep -qE 'Candidate: [0-9]'; then
+  # Ubuntu 26.04 en adelante lo trae en sus propios repositorios
+  apt-get install -y postgresql-18
+else
+  # Ubuntu 24.04 y anteriores: repositorio oficial PGDG
+  install -d /usr/share/postgresql-common/pgdg
+  curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+  echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list
+  apt-get update -y && apt-get install -y postgresql-18
+fi
 systemctl enable --now postgresql
 
 echo "==> Node 22 LTS + PM2"

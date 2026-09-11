@@ -54,22 +54,37 @@ const limiterGlobal = rateLimit({
   legacyHeaders: false,
 });
 
-// Rate limiting estricto para login (evitar fuerza bruta)
-const limiterLogin = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: parseInt(process.env.LOGIN_RATE_LIMIT_MAX ?? '20'),
-  skipSuccessfulRequests: true, // NO cuenta los logins exitosos
-  message: { ok: false, mensaje: 'Demasiados intentos de inicio de sesión. Intenta en 15 minutos' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+// Limitadores estrictos por ruta sensible. Cada ruta tiene su PROPIO contador
+// por IP: antes compartían una sola instancia, así que las renovaciones de
+// sesión fallidas (normales cuando la cookie no existe o venció) y los errores
+// del formulario público de cupo gastaban los intentos de login de esa IP y
+// bloqueaban el ingreso con "Demasiados intentos".
+const VENTANA_15_MIN = 15 * 60 * 1000;
+function limitador(opts: { max: number; mensaje: string; soloFallidos?: boolean; soloMetodo?: string }) {
+  return rateLimit({
+    windowMs: VENTANA_15_MIN,
+    max: opts.max,
+    skipSuccessfulRequests: opts.soloFallidos ?? true,
+    ...(opts.soloMetodo ? { skip: (req: express.Request) => req.method !== opts.soloMetodo } : {}),
+    message: { ok: false, mensaje: opts.mensaje },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+}
+const LOGIN_MAX = parseInt(process.env.LOGIN_RATE_LIMIT_MAX ?? '20');
 
 app.use(limiterGlobal);
-app.use('/api/auth/login', limiterLogin);
-app.use('/api/auth/refresh', limiterLogin);
-app.use('/api/auth/password', limiterLogin);
-app.use('/api/matriculas/acceso', limiterLogin);
-app.use('/api/solicitudes-cupo', limiterLogin);
+// Fuerza bruta de contraseñas: solo cuentan los intentos fallidos.
+app.use('/api/auth/login', limitador({ max: LOGIN_MAX, mensaje: 'Demasiados intentos de inicio de sesión. Intenta en 15 minutos' }));
+app.use('/api/auth/password', limitador({ max: LOGIN_MAX, mensaje: 'Demasiados intentos de cambio de contraseña. Intenta en 15 minutos' }));
+// Renovar la sesión falla de forma normal (cookie ausente o vencida) y el token
+// es un JWT firmado imposible de adivinar, así que el límite es holgado.
+app.use('/api/auth/refresh', limitador({ max: 60, mensaje: 'Demasiadas renovaciones de sesión. Intenta en unos minutos' }));
+// Magic link: token aleatorio de 256 bits, inviable de adivinar.
+app.use('/api/matriculas/acceso', limitador({ max: 20, mensaje: 'Demasiados intentos con enlaces de acceso. Intenta en 15 minutos' }));
+// Formulario público de cupo: cuenta TODOS los envíos (anti-spam), pero solo los
+// POST, para no limitar a secretaría cuando lista o actualiza solicitudes.
+app.use('/api/solicitudes-cupo', limitador({ max: 30, soloFallidos: false, soloMetodo: 'POST', mensaje: 'Demasiadas solicitudes de cupo desde esta conexión. Intenta en 15 minutos' }));
 
 // ─── PARSERS ──────────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '1mb' }));
