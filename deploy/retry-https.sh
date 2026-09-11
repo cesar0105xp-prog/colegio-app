@@ -26,15 +26,14 @@ fi
 
 if certbot --nginx -d "$D" --non-interactive --agree-tos --redirect -m "$EMAIL"; then
   echo "$(date '+%F %T') ✔ CERTIFICADO EMITIDO"
-  # El frontend lleva la URL del API incrustada en el build: hay que recompilar.
+  # Solo cambia la URL que el backend usa para armar enlaces (magic link). El
+  # frontend usa la ruta relativa /api, así que no hace falta recompilarlo.
   sed -i -E "s|^FRONTEND_URL=.*|FRONTEND_URL=\"https://${D}\"|" "${APP}/backend/.env"
-  echo "VITE_API_URL=https://${D}/api" > "${APP}/frontend/.env.production"
-  chown portal:portal "${APP}/frontend/.env.production"
-  if sudo -u portal -H bash -c "bash ${APP}/deploy/deploy.sh"; then
-    echo "$(date '+%F %T') ✔ REDESPLIEGUE OK — https://${D} operativo"
+  if sudo -u portal -H bash -c "cd ${APP}/backend && pm2 restart colegio-backend --update-env && pm2 save"; then
+    echo "$(date '+%F %T') ✔ BACKEND REINICIADO — https://${D} operativo"
     touch /root/https-listo
   else
-    echo "$(date '+%F %T') ✖ el certificado quedó puesto pero el redespliegue falló"
+    echo "$(date '+%F %T') ✖ el certificado quedó puesto pero el backend no reinició"
   fi
   (crontab -l 2>/dev/null | grep -v retry-https.sh) | crontab -
 else

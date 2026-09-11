@@ -17,15 +17,19 @@ echo "==> Nginx: server_name ${DOMINIO}"
 sed -i -E "s/^(\s*server_name\s+).*;/\1${DOMINIO};/" /etc/nginx/sites-available/portal
 nginx -t && systemctl reload nginx
 
-echo "==> Variables de entorno"
-sed -i -E "s|^FRONTEND_URL=.*|FRONTEND_URL=\"https://${DOMINIO}\"|" "${APP}/backend/.env"
-echo "VITE_API_URL=https://${DOMINIO}/api" > "${APP}/frontend/.env.production"
-chown portal:portal "${APP}/frontend/.env.production"
-
+# El certificado va ANTES de tocar las variables: si Let's Encrypt falla, el
+# portal queda exactamente como estaba (antes quedaba FRONTEND_URL en https con
+# el backend sin reiniciar, un estado inconsistente).
 echo "==> Certificado HTTPS (Let's Encrypt)"
 certbot --nginx -d "${DOMINIO}" --non-interactive --agree-tos --redirect -m "${CERTBOT_EMAIL}"
 
-echo "==> Redespliegue (recompila el frontend con la nueva URL del API)"
+echo "==> Variables de entorno"
+sed -i -E "s|^FRONTEND_URL=.*|FRONTEND_URL=\"https://${DOMINIO}\"|" "${APP}/backend/.env"
+# Ruta relativa: sirve para cualquier dominio, con o sin HTTPS (ver .env.production.example).
+echo "VITE_API_URL=/api" > "${APP}/frontend/.env.production"
+chown portal:portal "${APP}/frontend/.env.production"
+
+echo "==> Redespliegue"
 sudo -u portal -H bash -c "bash ${APP}/deploy/deploy.sh"
 
 echo

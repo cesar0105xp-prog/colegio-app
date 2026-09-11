@@ -93,8 +93,9 @@ En `backend/.env`:
 - `TWILIO_*`: vacías hasta tener cuenta de Twilio (queda en modo desarrollo: solo log).
 
 ```bash
-cd ../frontend && cp .env.production.example .env.production && nano .env.production
-# VITE_API_URL=https://portal.tudominio.com/api
+cd ../frontend && cp .env.production.example .env.production
+# Deja VITE_API_URL=/api (ruta relativa). NO pongas la IP ni el dominio: si el
+# navegador entra por una dirección distinta a la compilada, bloquea el login por CORS.
 cd .. && bash deploy/deploy.sh
 ```
 
