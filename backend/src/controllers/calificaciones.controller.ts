@@ -219,6 +219,27 @@ export async function registrarCalificacion(req: Request, res: Response): Promis
       return;
     }
 
+    // Un profesor solo califica actividades suyas o de una materia que tiene
+    // asignada en ese grado (cubre el caso de un profesor que reemplaza a otro).
+    if (req.usuario!.rol === 'PROFESOR') {
+      const profesor = await prisma.profesor.findUnique({ where: { usuarioId: req.usuario!.sub } });
+      const esDueno = !!profesor && actividad.profesorId === profesor.id;
+      const asignado = !!profesor && !!(await prisma.materiaGradoProfesor.findFirst({
+        where: { profesorId: profesor.id, materiaId: actividad.materiaId, gradoId: actividad.gradoId },
+      }));
+      if (!esDueno && !asignado) {
+        res.status(403).json({ ok: false, mensaje: 'Solo puedes calificar actividades de tus materias asignadas' });
+        return;
+      }
+    }
+
+    // La nota debe ser de un estudiante del grado de la actividad
+    const estudiante = await prisma.estudiante.findUnique({ where: { id: estudianteId }, select: { gradoId: true } });
+    if (!estudiante || estudiante.gradoId !== actividad.gradoId) {
+      res.status(400).json({ ok: false, mensaje: 'El estudiante no pertenece al grado de esta actividad' });
+      return;
+    }
+
     // Upsert: si ya existe la calificación, la actualiza
     const anterior = await prisma.calificacion.findUnique({
       where: { actividadId_estudianteId: { actividadId, estudianteId } },

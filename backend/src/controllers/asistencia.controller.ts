@@ -82,6 +82,15 @@ export async function registrarAsistenciaGrado(req: Request, res: Response): Pro
   if (errorRango) { res.status(400).json({ ok: false, mensaje: errorRango }); return; }
 
   try {
+    // Solo profesores con alguna materia asignada en ese grado pueden tomar asistencia
+    const asignado = await prisma.materiaGradoProfesor.findFirst({
+      where: { gradoId, profesor: { usuarioId: req.usuario!.sub } },
+    });
+    if (!asignado) {
+      res.status(403).json({ ok: false, mensaje: 'No tienes materias asignadas en este grado' });
+      return;
+    }
+
     const estudianteIds = registros.map(r => r.estudianteId);
     const estudiantesValidos = await prisma.estudiante.count({ where: { id: { in: estudianteIds }, gradoId } });
     if (estudiantesValidos !== new Set(estudianteIds).size) {
