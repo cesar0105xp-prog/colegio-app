@@ -1,10 +1,10 @@
 import { Request, Response } from 'express';
-import { PrismaClient, TipoDocumento, Genero, EstadoEstudiante } from '@prisma/client';
+import { TipoDocumento, Genero, EstadoEstudiante } from '@prisma/client';
 import { body, validationResult } from 'express-validator';
 import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
 
-const prisma = new PrismaClient();
+import { prisma } from '../utils/prisma';
 
 // ─── LÍMITES POR TIPO DE DOCUMENTO (estándar colombiano) ─────────────────────
 const DOC_LIMITES: Record<string, { min: number; max: number; soloNumeros: boolean }> = {

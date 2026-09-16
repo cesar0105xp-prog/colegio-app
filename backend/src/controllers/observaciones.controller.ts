@@ -1,10 +1,9 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { body, validationResult } from 'express-validator';
 import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
 
-const prisma = new PrismaClient();
+import { prisma } from '../utils/prisma';
 
 export const validarObservacion = [
   body('estudianteId').isUUID().withMessage('Estudiante inválido'),

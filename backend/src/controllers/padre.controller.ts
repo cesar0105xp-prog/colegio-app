@@ -1,8 +1,7 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { logger } from '../utils/logger';
 
-const prisma = new PrismaClient();
+import { prisma } from '../utils/prisma';
 
 // Obtener los hijos vinculados al padre autenticado
 export async function misHijos(req: Request, res: Response): Promise<void> {

@@ -1,5 +1,4 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { body, validationResult } from 'express-validator';
@@ -8,7 +7,7 @@ import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
 import { SALT_ROUNDS } from '../utils/config';
 
-const prisma = new PrismaClient();
+import { prisma } from '../utils/prisma';
 const MAX_INTENTOS = 5;
 const BLOQUEO_MINUTOS = 15;
 

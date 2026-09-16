@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { PrismaClient, MetodoPago, EstadoComprobante, Prisma } from '@prisma/client';
+import { MetodoPago, EstadoComprobante, Prisma } from '@prisma/client';
 import { body, param, validationResult } from 'express-validator';
 import fs from 'fs';
 import path from 'path';
@@ -7,7 +7,7 @@ import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
 import { enviarWhatsApp, PlantillasWhatsApp } from '../services/whatsapp.service';
 
-const prisma = new PrismaClient();
+import { prisma } from '../utils/prisma';
 
 const formatearMonto = (monto: number | string) => `$${Number(monto).toLocaleString('es-CO')}`;
 

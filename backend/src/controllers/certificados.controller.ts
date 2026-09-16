@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { PrismaClient, Prisma, TipoCertificado, EstadoCertificado } from '@prisma/client';
+import { Prisma, TipoCertificado, EstadoCertificado } from '@prisma/client';
 import { body, param, validationResult } from 'express-validator';
 import path from 'path';
 import fs from 'fs';
@@ -12,7 +12,7 @@ import {
   DatosEstudianteCert, MateriaNotaCert,
 } from '../utils/pdf.util';
 
-const prisma = new PrismaClient();
+import { prisma } from '../utils/prisma';
 const UPLOAD_DIR = process.env.UPLOAD_DIR ?? './uploads';
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const FECHA_REGEX = /^\d{4}-\d{2}-\d{2}$/;

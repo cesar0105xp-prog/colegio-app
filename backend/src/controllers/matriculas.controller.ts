@@ -1,5 +1,4 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { body, validationResult } from 'express-validator';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
@@ -11,7 +10,7 @@ import { generarAccessToken, generarRefreshToken } from './auth.controller';
 import { enviarCorreo, plantillaAccesoMatricula } from '../services/correo.service';
 import { enviarWhatsApp, PlantillasWhatsApp } from '../services/whatsapp.service';
 
-const prisma = new PrismaClient();
+import { prisma } from '../utils/prisma';
 const MAGIC_LINK_HORAS = 72;
 const MONTO_FORMULARIO = 60000;
 

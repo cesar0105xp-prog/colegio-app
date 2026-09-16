@@ -1,10 +1,10 @@
 import { Request, Response } from 'express';
-import { PrismaClient, MotivoPermiso } from '@prisma/client';
+import { MotivoPermiso } from '@prisma/client';
 import { body, param, validationResult } from 'express-validator';
 import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
 
-const prisma = new PrismaClient();
+import { prisma } from '../utils/prisma';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const FECHA_REGEX = /^\d{4}-\d{2}-\d{2}$/;
