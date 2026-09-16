@@ -1,11 +1,10 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { body, validationResult } from 'express-validator';
 import { enviarCorreo, plantillaComunicado } from '../services/correo.service';
 import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
 
-const prisma = new PrismaClient();
+import { prisma } from '../utils/prisma';
 
 export const validarComunicado = [
   body('titulo').trim().notEmpty().withMessage('El título es requerido').isLength({ max: 150 }).withMessage('Máximo 150 caracteres'),

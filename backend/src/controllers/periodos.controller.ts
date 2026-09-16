@@ -1,11 +1,10 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { body, query, validationResult } from 'express-validator';
 import { calcularPeriodos } from '../utils/periodos.util';
 import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
 
-const prisma = new PrismaClient();
+import { prisma } from '../utils/prisma';
 
 const FECHA_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 

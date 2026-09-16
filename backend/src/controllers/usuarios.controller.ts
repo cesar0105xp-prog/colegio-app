@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { PrismaClient, Rol } from '@prisma/client';
+import { Rol } from '@prisma/client';
 import { body, validationResult } from 'express-validator';
 import bcrypt from 'bcryptjs';
 import { audit } from '../utils/audit';
@@ -7,7 +7,7 @@ import { logger } from '../utils/logger';
 import { REGEX } from '../types';
 import { SALT_ROUNDS } from '../utils/config';
 
-const prisma = new PrismaClient();
+import { prisma } from '../utils/prisma';
 
 // ─── VALIDACIONES ────────────────────────────────────────────────────────────
 export const validarCrearUsuario = [

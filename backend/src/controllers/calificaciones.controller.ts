@@ -1,10 +1,10 @@
 import { Request, Response } from 'express';
-import { PrismaClient, TipoActividad } from '@prisma/client';
+import { TipoActividad } from '@prisma/client';
 import { body, validationResult } from 'express-validator';
 import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
 
-const prisma = new PrismaClient();
+import { prisma } from '../utils/prisma';
 
 // ─── VALIDACIONES ────────────────────────────────────────────────────────────
 

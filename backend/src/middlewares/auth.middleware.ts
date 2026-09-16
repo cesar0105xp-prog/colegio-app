@@ -57,8 +57,7 @@ export function autorizar(...rolesPermitidos: Rol[]) {
 // ─── VALIDAR QUE EL PADRE SOLO VEA A SUS HIJOS ──────────────────────────────
 // Este middleware se usa en rutas donde el param :estudianteId debe pertenecer al padre
 
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
+import { prisma } from '../utils/prisma';
 
 export async function validarAccesoPadreEstudiante(
   req: Request,

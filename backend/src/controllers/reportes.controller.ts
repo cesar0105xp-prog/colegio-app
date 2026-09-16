@@ -1,8 +1,7 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { logger } from '../utils/logger';
 
-const prisma = new PrismaClient();
+import { prisma } from '../utils/prisma';
 
 // ─── REPORTE: BOLETINES POR GRADO ────────────────────────────────────────────
 export async function reporteBoletinesPorGrado(req: Request, res: Response): Promise<void> {

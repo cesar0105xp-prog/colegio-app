@@ -1,9 +1,8 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import ExcelJS from 'exceljs';
 import { logger } from '../utils/logger';
 
-const prisma = new PrismaClient();
+import { prisma } from '../utils/prisma';
 
 // Colores institucionales
 const COLOR_HEADER = 'FF1E40AF';      // azul oscuro

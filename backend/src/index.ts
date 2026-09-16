@@ -6,6 +6,7 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import { logger } from './utils/logger';
+import { prisma } from './utils/prisma';
 import routes from './routes';
 
 const app = express();
@@ -127,8 +128,30 @@ app.use((_req, res) => {
 });
 
 // ─── INICIAR SERVIDOR ─────────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  logger.info(`Servidor corriendo en puerto ${PORT} [${process.env.NODE_ENV ?? 'development'}]`);
-});
+// HOST=127.0.0.1 en producción: el backend solo es alcanzable a través de Nginx,
+// sin depender únicamente del firewall. Sin HOST escucha en todas las interfaces
+// (comportamiento de desarrollo).
+const HOST = process.env.HOST;
+const alIniciar = () => {
+  logger.info(`Servidor corriendo en ${HOST ?? '*'}:${PORT} [${process.env.NODE_ENV ?? 'development'}]`);
+};
+const server = HOST ? app.listen(Number(PORT), HOST, alIniciar) : app.listen(PORT, alIniciar);
+
+// Cierre ordenado: PM2 envía SIGINT al recargar (deploy) y SIGTERM al detener.
+// Se dejan de aceptar conexiones nuevas, se terminan las peticiones en curso y se
+// liberan las conexiones a PostgreSQL. Así una recarga en modo cluster no corta
+// peticiones a medias. Si algo se cuelga, se sale igual antes del kill_timeout.
+let cerrando = false;
+function cerrar(senal: string): void {
+  if (cerrando) return;
+  cerrando = true;
+  logger.info(`Recibida ${senal}: cerrando servidor`);
+  setTimeout(() => process.exit(0), 8000).unref();
+  server.close(() => {
+    prisma.$disconnect().finally(() => process.exit(0));
+  });
+}
+process.on('SIGINT', () => cerrar('SIGINT'));
+process.on('SIGTERM', () => cerrar('SIGTERM'));
 
 export default app;

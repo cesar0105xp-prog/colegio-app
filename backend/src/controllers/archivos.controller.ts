@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { PrismaClient, TipoDocumentoArchivo } from '@prisma/client';
+import { TipoDocumentoArchivo } from '@prisma/client';
 import { body, validationResult } from 'express-validator';
 import path from 'path';
 import fs from 'fs';
@@ -8,7 +8,7 @@ import { logger } from '../utils/logger';
 import { recomputarProgresoDocumentos } from './matriculas.controller';
 import { enviarWhatsApp, PlantillasWhatsApp } from '../services/whatsapp.service';
 
-const prisma = new PrismaClient();
+import { prisma } from '../utils/prisma';
 
 /** Notifica por WhatsApp a los padres/acudientes vinculados a un estudiante. */
 async function notificarPadresEstudiante(estudianteId: string, mensaje: string): Promise<void> {

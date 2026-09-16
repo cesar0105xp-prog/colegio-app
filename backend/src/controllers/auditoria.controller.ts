@@ -1,8 +1,7 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { logger } from '../utils/logger';
 
-const prisma = new PrismaClient();
+import { prisma } from '../utils/prisma';
 
 export async function listarAuditoria(req: Request, res: Response): Promise<void> {
   const { accion, entidad, usuarioId, pagina = '1', limite = '30' } = req.query;
