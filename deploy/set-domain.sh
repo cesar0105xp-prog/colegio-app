@@ -23,6 +23,14 @@ nginx -t && systemctl reload nginx
 echo "==> Certificado HTTPS (Let's Encrypt)"
 certbot --nginx -d "${DOMINIO}" --non-interactive --agree-tos --redirect -m "${CERTBOT_EMAIL}"
 
+echo "==> HTTP/2 en el bloque HTTPS"
+# Solo en el bloque que Certbot convirtió a HTTPS: en un listen sin TLS, "http2 on"
+# rompería a los clientes HTTP/1.1.
+if ! grep -q '^\s*http2 on;' /etc/nginx/sites-available/portal; then
+  sed -i '0,/^\s*listen 443 ssl;/s//    http2 on;\n&/' /etc/nginx/sites-available/portal
+fi
+nginx -t && systemctl reload nginx
+
 echo "==> Variables de entorno"
 sed -i -E "s|^FRONTEND_URL=.*|FRONTEND_URL=\"https://${DOMINIO}\"|" "${APP}/backend/.env"
 # Ruta relativa: sirve para cualquier dominio, con o sin HTTPS (ver .env.production.example).

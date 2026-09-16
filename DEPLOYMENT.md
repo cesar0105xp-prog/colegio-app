@@ -146,10 +146,51 @@ su - portal && bash ~/colegio-app/deploy/deploy.sh
   127.0.0.1 y el límite de peticiones bloquearía al colegio entero.
 - Los archivos subidos (documentos, comprobantes) quedan en
   `/home/portal/colegio-app/backend/uploads`.
-- **Respaldos:** `deploy/backup.sh` (instalado como `/home/portal/backup.sh`)
-  hace `pg_dump` de la base de datos + copia de `uploads` en
-  `/home/portal/backups`, todos los días a las 03:00 (crontab del usuario
-  `portal`), conservando 14 días. Descárgalos periódicamente fuera del VPS:
-  `scp portal@IP:/home/portal/backups/colegio-*.dump .`
 - El QR de Nequi es un placeholder: reemplaza `frontend/public/qr-nequi.svg`
   por el real antes de salir a producción.
+
+---
+
+## Seguridad y rendimiento del servidor
+
+`setup-vps.sh` aplica todo esto desde `deploy/servidor/`. Los valores están
+pensados para un VPS de **8 GB RAM / 2 CPU** (Hostinger KVM 2).
+
+| Área | Configuración | Archivo en el servidor |
+|---|---|---|
+| Firewall | UFW: entrada denegada salvo 22, 80 y 443; backend (3001) y PostgreSQL (5432) solo locales | — |
+| Fuerza bruta | fail2ban en SSH: 3 intentos fallidos en 10 min = ban de 1 h | `/etc/fail2ban/jail.local` |
+| PostgreSQL | Solo `localhost`; `shared_buffers` 2GB, `effective_cache_size` 6GB, `maintenance_work_mem` 512MB, `work_mem` 16MB, `max_connections` 100 | `/etc/postgresql/18/main/conf.d/` |
+| Nginx | 2048 conexiones por worker, gzip, HTTP/2, caché de 30 días en `/assets/`, subida máx. 11 MB, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, HSTS, versión oculta | `/etc/nginx/nginx.conf`, `snippets/cabeceras-seguridad.conf` |
+| Backend | PM2 en cluster, 2 instancias, reinicio si supera 1 GB, escucha solo en `127.0.0.1` (`HOST`) | `backend/ecosystem.config.js` |
+| Arranque | Override de la unidad de PM2 para que levante de forma fiable tras reiniciar el servidor | `/etc/systemd/system/pm2-portal.service.d/override.conf` |
+
+### Respaldos
+`/usr/local/sbin/backup-portal-escolar.sh` guarda en `/var/backups/portal-escolar/`
+el `pg_dump` de la base (comprobado con `pg_restore` antes de darlo por bueno) y
+la carpeta `uploads`, todos los días a las **2:00 a. m. hora de Colombia**
+(`/etc/cron.d/portal-escolar`, 07:00 UTC), conservando los **últimos 7 días**.
+Registro: `/var/log/portal-escolar/backup.log`.
+
+Los respaldos viven en el mismo VPS: si el servidor se pierde, se pierden con
+él. Descárgalos periódicamente a otro lugar:
+```bash
+scp root@IP:/var/backups/portal-escolar/colegio-*.dump .
+```
+Restaurar una base: `sudo -u postgres pg_restore --clean --if-exists -d colegio_db colegio-AAAAMMDD-HHMM.dump`
+
+### Monitoreo
+- **Disco:** `/usr/local/sbin/alerta-disco.sh` corre cada hora; si el disco pasa
+  del 80 % lo registra (`journalctl -t alerta-disco`) y envía un correo con la
+  cuenta SMTP del portal a `ALERTA_EMAIL` (o `MAIL_USER`), como máximo uno cada
+  24 h. Probar sin enviar: `UMBRAL=1 SOLO_PROBAR=1 alerta-disco.sh`.
+- **Logs:** `/etc/logrotate.d/portal-escolar` rota a diario los logs de PM2 y
+  del backend (o antes si pasan de 50 MB), conservando 14 días.
+- **Manual:** `htop`, `pm2 monit` (como `portal`), `fail2ban-client status sshd`.
+
+### Notas del modo cluster
+- Los límites de peticiones del backend se cuentan en memoria **por instancia**:
+  un mismo cliente puede hacer hasta el doble antes del 429. El bloqueo de cuenta
+  por contraseñas erradas está en la base y lo comparten ambas instancias.
+- `deploy.sh` usa `pm2 startOrReload`, que recarga las instancias de a una sin
+  cortar el servicio.
