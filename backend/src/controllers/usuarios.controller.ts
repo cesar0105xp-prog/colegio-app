@@ -2,12 +2,24 @@ import { Request, Response } from 'express';
 import { Rol } from '@prisma/client';
 import { body, validationResult } from 'express-validator';
 import bcrypt from 'bcryptjs';
+import { randomInt } from 'crypto';
 import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
 import { REGEX } from '../types';
 import { SALT_ROUNDS } from '../utils/config';
 
 import { prisma } from '../utils/prisma';
+
+// Contraseña temporal aleatoria de 10 caracteres que cumple REGEX.PASSWORD
+// (mayúscula, número, carácter especial, mínimo 8). Sin caracteres confusos (O/0, l/1/I).
+function generarPasswordTemporal(): string {
+  const MAYUS = 'ABCDEFGHJKLMNPQRSTUVWXYZ', MINUS = 'abcdefghijkmnpqrstuvwxyz', NUMS = '23456789', ESPECIALES = '!@#$*-_';
+  const elegir = (s: string) => s[randomInt(s.length)];
+  const chars = [elegir(MAYUS), elegir(MAYUS), elegir(NUMS), elegir(NUMS), elegir(ESPECIALES)];
+  while (chars.length < 10) chars.push(elegir(MINUS + NUMS));
+  for (let i = chars.length - 1; i > 0; i--) { const j = randomInt(i + 1); [chars[i], chars[j]] = [chars[j], chars[i]]; }
+  return chars.join('');
+}
 
 // ─── VALIDACIONES ────────────────────────────────────────────────────────────
 export const validarCrearUsuario = [
@@ -100,7 +112,7 @@ export async function crearUsuario(req: Request, res: Response): Promise<void> {
     const existe = await prisma.usuario.findUnique({ where: { email } });
     if (existe) { res.status(409).json({ ok: false, mensaje: 'Ya existe un usuario con ese email' }); return; }
 
-    const passwordTemporal = `${nombres.split(' ')[0]}2026!`;
+    const passwordTemporal = generarPasswordTemporal();
     const hash = await bcrypt.hash(passwordTemporal, SALT_ROUNDS);
 
     const data: Record<string, unknown> = { email: email.trim(), passwordHash: hash, rol, estado: 'ACTIVO' };
@@ -234,15 +246,10 @@ export async function cambiarEstadoUsuario(req: Request, res: Response): Promise
 export async function resetearPassword(req: Request, res: Response): Promise<void> {
   const { id } = req.params;
   try {
-    const usuario = await prisma.usuario.findUnique({
-      where: { id },
-      include: { perfilProfesor: true, perfilPadre: true, perfilSecretario: true, perfilAdmin: true },
-    });
+    const usuario = await prisma.usuario.findUnique({ where: { id }, select: { id: true } });
     if (!usuario) { res.status(404).json({ ok: false, mensaje: 'Usuario no encontrado' }); return; }
 
-    const perfil = usuario.perfilProfesor ?? usuario.perfilPadre ?? usuario.perfilSecretario ?? usuario.perfilAdmin;
-    const nombre = perfil?.nombres?.split(' ')[0] ?? 'Usuario';
-    const passwordTemporal = `${nombre}2026!`;
+    const passwordTemporal = generarPasswordTemporal();
     const hash = await bcrypt.hash(passwordTemporal, SALT_ROUNDS);
 
     await prisma.usuario.update({ where: { id }, data: { passwordHash: hash, refreshToken: null, intentosFallidos: 0, bloqueadoHasta: null } });
