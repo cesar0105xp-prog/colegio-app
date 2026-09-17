@@ -696,7 +696,7 @@ export async function aprobarComprobante(req: Request, res: Response): Promise<v
     await audit({ usuarioId: req.usuario!.sub, accion: 'EDITAR', entidad: 'comprobantes_pago', entidadId: id, datosDespues: { estado: 'APROBADO' }, ip: req.ip });
 
     const nombreEst = `${comprobante.cobro.estudiante.nombres} ${comprobante.cobro.estudiante.apellidos}`;
-    notificarPadreComprobante(comprobante.padreId, PlantillasWhatsApp.comprobanteAprobado(nombreEst, comprobante.cobro.concepto.nombre))
+    if (comprobante.padreId) notificarPadreComprobante(comprobante.padreId, PlantillasWhatsApp.comprobanteAprobado(nombreEst, comprobante.cobro.concepto.nombre))
       .catch(err => logger.error('Error al notificar comprobante aprobado', { err }));
 
     res.json({ ok: true, mensaje: 'Pago aprobado correctamente' });

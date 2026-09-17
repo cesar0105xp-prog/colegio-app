@@ -580,7 +580,7 @@ function ModuloObservaciones() {
                     </div>
                     <p className="text-sm text-slate-700 leading-relaxed break-words whitespace-pre-wrap">{obs.descripcion}</p>
                     <p className="text-xs text-slate-400 mt-2 flex items-center gap-1">
-                      Prof. {obs.profesor.nombres} {obs.profesor.apellidos} · {new Date(obs.fecha).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      Prof. {obs.profesor ? `${obs.profesor.nombres} ${obs.profesor.apellidos}` : "retirado"} · {new Date(obs.fecha).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}
                     </p>
                   </div>
                   <div className="flex gap-1 flex-shrink-0">

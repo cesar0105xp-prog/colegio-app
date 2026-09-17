@@ -146,7 +146,7 @@ function TarjetaObservacion({
           </div>
           <p className="text-sm text-slate-700 leading-relaxed">{obs.descripcion}</p>
           <div className="flex items-center gap-3 mt-3 text-xs text-slate-400">
-            <span>Prof. {obs.profesor.nombres} {obs.profesor.apellidos}</span>
+            <span>Prof. {obs.profesor ? `${obs.profesor.nombres} ${obs.profesor.apellidos}` : "retirado"}</span>
             <span>•</span>
             <span className="flex items-center gap-1">
               <Clock className="w-3 h-3" />

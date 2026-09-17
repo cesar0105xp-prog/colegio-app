@@ -354,7 +354,7 @@ export default function PadreDashboard() {
                         </div>
                         <p className="text-sm text-slate-700 leading-relaxed break-words whitespace-pre-wrap overflow-hidden">{obs.descripcion}</p>
                         <div className="flex items-center gap-3 mt-2 text-xs text-slate-400">
-                          <span>Prof. {obs.profesor.nombres} {obs.profesor.apellidos}</span>
+                          <span>Prof. {obs.profesor ? `${obs.profesor.nombres} ${obs.profesor.apellidos}` : "retirado"}</span>
                           <span>·</span>
                           <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(obs.fecha).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
                         </div>
