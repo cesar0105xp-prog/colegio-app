@@ -201,14 +201,37 @@ export async function eliminarUsuario(req: Request, res: Response): Promise<void
       return;
     }
 
-    const usuario = await prisma.usuario.findUnique({ where: { id } });
+    const usuario = await prisma.usuario.findUnique({
+      where: { id },
+      include: { perfilProfesor: { select: { id: true } }, perfilPadre: { select: { id: true } } },
+    });
     if (!usuario) { res.status(404).json({ ok: false, mensaje: 'Usuario no encontrado' }); return; }
+
+    if (usuario.rol === 'ADMINISTRADOR') {
+      const admins = await prisma.usuario.count({ where: { rol: 'ADMINISTRADOR' } });
+      if (admins <= 1) {
+        res.status(400).json({ ok: false, mensaje: 'No puedes eliminar el único administrador del portal' });
+        return;
+      }
+    }
+
+    // Se borran los vínculos (materias asignadas, hijos); el historial académico
+    // (notas, observaciones, asistencia, matrículas) se conserva sin autor.
+    const [materiasAsignadas, hijos] = await Promise.all([
+      usuario.perfilProfesor ? prisma.materiaGradoProfesor.count({ where: { profesorId: usuario.perfilProfesor.id } }) : 0,
+      usuario.perfilPadre ? prisma.padreEstudiante.count({ where: { padreId: usuario.perfilPadre.id } }) : 0,
+    ]);
 
     await prisma.usuario.delete({ where: { id } });
 
-    await audit({ usuarioId: req.usuario!.sub, accion: 'ELIMINAR', entidad: 'usuarios', entidadId: id, datosAntes: { email: usuario.email, rol: usuario.rol }, ip: req.ip });
+    await audit({ usuarioId: req.usuario!.sub, accion: 'ELIMINAR', entidad: 'usuarios', entidadId: id, datosAntes: { email: usuario.email, rol: usuario.rol, materiasAsignadas, hijos }, ip: req.ip });
 
-    res.json({ ok: true, mensaje: 'Usuario eliminado correctamente' });
+    const detalle = [
+      materiasAsignadas > 0 ? `se liberaron ${materiasAsignadas} materia(s) asignada(s)` : null,
+      hijos > 0 ? `${hijos} estudiante(s) quedaron sin acudiente` : null,
+    ].filter(Boolean).join(' y ');
+
+    res.json({ ok: true, mensaje: detalle ? `Usuario eliminado: ${detalle}.` : 'Usuario eliminado correctamente' });
   } catch (err) {
     logger.error('Error al eliminar usuario', { err });
     res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });

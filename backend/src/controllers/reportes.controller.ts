@@ -142,7 +142,7 @@ export async function reporteObservacionesPendientes(_req: Request, res: Respons
         estudiante: `${o.estudiante.nombres} ${o.estudiante.apellidos}`,
         tipo: o.tipo,
         descripcion: o.descripcion.slice(0, 100),
-        profesor: `${o.profesor.nombres} ${o.profesor.apellidos}`,
+        profesor: o.profesor ? `${o.profesor.nombres} ${o.profesor.apellidos}` : 'Profesor retirado',
         fecha: o.fecha,
         diasSinVer: Math.floor((Date.now() - o.fecha.getTime()) / (1000 * 60 * 60 * 24)),
       }));
