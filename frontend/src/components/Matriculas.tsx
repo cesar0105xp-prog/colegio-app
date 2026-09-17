@@ -267,17 +267,19 @@ export default function Matriculas() {
 
       {/* Modal PIN generado */}
       {pinGenerado && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6">
-            <div className="text-center mb-5">
-              <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                <CheckCircle className="w-8 h-8 text-emerald-600" />
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-3 sm:p-4 bg-black/50">
+          {/* Altura limitada a la pantalla: el contenido hace scroll y el botón queda siempre visible */}
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl max-h-[calc(100dvh-1.5rem)] flex flex-col">
+            <div className="overflow-y-auto px-5 pt-5 sm:px-6 sm:pt-6">
+            <div className="text-center mb-4">
+              <div className="w-12 h-12 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-2">
+                <CheckCircle className="w-6 h-6 text-emerald-600" />
               </div>
               <h2 className="font-bold text-slate-800 text-lg">¡Matrícula creada!</h2>
               <p className="text-sm text-slate-500 mt-1">Entrega estos datos al padre/acudiente</p>
             </div>
 
-            <div className="space-y-3 mb-5">
+            <div className="space-y-3 pb-4">
               {pinGenerado.magicLinkEnviado ? (
                 <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center gap-2">
                   <Send className="w-4 h-4 text-emerald-600 flex-shrink-0" />
@@ -320,11 +322,14 @@ export default function Matriculas() {
               </div>
               <p className="text-xs text-red-500 text-center">⚠️ Anota el correo y PIN — no se pueden recuperar después</p>
             </div>
+            </div>
 
-            <button onClick={() => setPinGenerado(null)}
-              className="w-full py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition">
-              Entendido, ya lo anoté
-            </button>
+            <div className="px-5 py-4 sm:px-6 border-t border-slate-100">
+              <button onClick={() => setPinGenerado(null)}
+                className="w-full py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition">
+                Entendido, ya lo anoté
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -346,7 +351,7 @@ export default function Matriculas() {
       {/* Modal nueva matrícula */}
       {modal && (
         <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
               <h2 className="font-bold text-slate-800">Nueva matrícula</h2>
               <button onClick={() => { setModal(false); setSolicitudCupoIdActual(null); reset(); }} className="p-1 rounded-lg text-slate-400 hover:bg-slate-100"><X className="w-5 h-5" /></button>
@@ -364,7 +369,7 @@ export default function Matriculas() {
                   <div className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center"><GraduationCap className="w-4 h-4 text-blue-600" /></div>
                   <h3 className="font-semibold text-slate-700">Datos del estudiante</h3>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-slate-500 mb-1.5">Nombres *</label>
                     <input className={inputCls(errors.estudiante?.nombres?.message)} placeholder="Ej: María Fernanda"
@@ -406,7 +411,7 @@ export default function Matriculas() {
                       <option value="OTRO">Otro</option>
                     </select>
                   </div>
-                  <div className="col-span-2">
+                  <div className="sm:col-span-2">
                     <label className="block text-xs font-medium text-slate-500 mb-1.5">Grado *</label>
                     <select className={inputCls(errors.estudiante?.gradoId?.message)}
                       {...register('estudiante.gradoId', { required: 'Requerido' })}>
@@ -433,7 +438,7 @@ export default function Matriculas() {
                   <div className="w-7 h-7 bg-violet-100 rounded-lg flex items-center justify-center"><Users className="w-4 h-4 text-violet-600" /></div>
                   <h3 className="font-semibold text-slate-700">Datos del padre/acudiente</h3>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-slate-500 mb-1.5">Nombres *</label>
                     <input className={inputCls(errors.padre?.nombres?.message)} placeholder="Ej: Carlos"
@@ -463,7 +468,7 @@ export default function Matriculas() {
                     <label className="block text-xs font-medium text-slate-500 mb-1.5">Teléfono (opcional)</label>
                     <input className={inputCls()} placeholder="Teléfono" {...register('padre.telefono')} />
                   </div>
-                  <div className="col-span-2">
+                  <div className="sm:col-span-2">
                     <label className="block text-xs font-medium text-slate-500 mb-1.5">Correo personal del acudiente * <span className="text-slate-300">(para notificaciones y el enlace de acceso)</span></label>
                     <input type="email" className={inputCls(errors.padre?.email?.message)} placeholder="correo@ejemplo.com"
                       {...register('padre.email', { required: 'Requerido para enviar el acceso a matrícula', pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Email inválido' } })} />
