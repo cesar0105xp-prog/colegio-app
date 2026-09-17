@@ -49,6 +49,111 @@ function estadoDelDia(estadoManana: string, estadoTarde: string): string {
   return 'PRESENTE';
 }
 
+/** Lunes = 1 … viernes = 5; sábado y domingo devuelven 6 y 7. */
+function diaSemanaDe(fecha: Date): number {
+  const dia = fecha.getUTCDay(); // 0 = domingo
+  return dia === 0 ? 7 : dia;
+}
+
+type GradoResponsable = {
+  gradoId: string;
+  grado: string;
+  nivel: string;
+  motivo: 'DIRECTOR_FIJO' | 'PRIMERA_CLASE';
+  materia: string | null;
+  horaInicio: string | null;
+};
+
+/**
+ * Grados en los que un profesor debe llamar a lista en una fecha:
+ *  - los que dirige, si el grado es de director de curso fijo (preescolar a 4°);
+ *  - aquellos donde tiene la primera clase de ese día, si el grado es rotativo.
+ */
+export async function gradosParaTomarAsistencia(usuarioId: string, fecha: Date): Promise<GradoResponsable[]> {
+  const profesor = await prisma.profesor.findUnique({ where: { usuarioId }, select: { id: true } });
+  if (!profesor) return [];
+
+  const [dirigidos, franjas] = await Promise.all([
+    prisma.grado.findMany({
+      where: { tipoAsistencia: 'DIRECTOR_FIJO', directorCursoId: profesor.id },
+      select: { id: true, nombre: true, grupo: true, nivel: true },
+    }),
+    prisma.horarioClase.findMany({
+      where: {
+        profesorId: profesor.id,
+        esPrimeraClase: true,
+        diaSemana: diaSemanaDe(fecha),
+        grado: { tipoAsistencia: 'ROTATIVO_HORARIO' },
+      },
+      include: {
+        materia: { select: { nombre: true } },
+        grado: { select: { id: true, nombre: true, grupo: true, nivel: true } },
+      },
+    }),
+  ]);
+
+  return [
+    ...dirigidos.map(g => ({
+      gradoId: g.id, grado: `${g.nombre}${g.grupo}`, nivel: g.nivel,
+      motivo: 'DIRECTOR_FIJO' as const, materia: null, horaInicio: null,
+    })),
+    ...franjas.map(h => ({
+      gradoId: h.grado.id, grado: `${h.grado.nombre}${h.grado.grupo}`, nivel: h.grado.nivel,
+      motivo: 'PRIMERA_CLASE' as const, materia: h.materia.nombre, horaInicio: h.horaInicio,
+    })),
+  ].sort((a, b) => a.grado.localeCompare(b.grado, 'es', { numeric: true }));
+}
+
+/** Administración y secretaría pueden tomar o corregir asistencia de cualquier grado. */
+function esPersonalAdministrativo(rol: string): boolean {
+  return rol === 'ADMINISTRADOR' || rol === 'SECRETARIO';
+}
+
+// ─── GRADOS QUE ME TOCAN HOY ─────────────────────────────────────────────────
+
+export async function misGradosDeHoy(req: Request, res: Response): Promise<void> {
+  const { fecha: fechaStr } = req.query;
+  if (fechaStr && !esFechaValida(fechaStr as string)) {
+    res.status(400).json({ ok: false, mensaje: 'Fecha inválida (formato YYYY-MM-DD)' }); return;
+  }
+  const fecha = fechaStr ? parseFechaUTC(fechaStr as string) : hoyUTC();
+
+  try {
+    const grados = await gradosParaTomarAsistencia(req.usuario!.sub, fecha);
+    if (grados.length === 0) { res.json({ ok: true, datos: [] }); return; }
+
+    // Marca los grados donde la asistencia del día ya quedó registrada
+    const ids = grados.map(g => g.gradoId);
+    const [registros, totales] = await Promise.all([
+      prisma.registroAsistencia.findMany({
+        where: { fecha, estudiante: { gradoId: { in: ids } } },
+        select: { estudiante: { select: { gradoId: true } } },
+      }),
+      prisma.estudiante.groupBy({
+        by: ['gradoId'],
+        where: { gradoId: { in: ids }, estado: 'ACTIVO' },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const tomados = new Set(registros.map(r => r.estudiante.gradoId));
+    const porGrado = new Map(totales.map(t => [t.gradoId, t._count._all]));
+
+    res.json({
+      ok: true,
+      datos: grados.map(g => ({
+        ...g,
+        estudiantes: porGrado.get(g.gradoId) ?? 0,
+        yaTomada: tomados.has(g.gradoId),
+      })),
+      meta: { fecha: fecha.toISOString().slice(0, 10) },
+    });
+  } catch (err) {
+    logger.error('Error al listar los grados de hoy', { err });
+    res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
+  }
+}
+
 // ─── VALIDACIONES ─────────────────────────────────────────────────────────────
 
 export const validarAsistenciaGrado = [
@@ -82,13 +187,14 @@ export async function registrarAsistenciaGrado(req: Request, res: Response): Pro
   if (errorRango) { res.status(400).json({ ok: false, mensaje: errorRango }); return; }
 
   try {
-    // Solo profesores con alguna materia asignada en ese grado pueden tomar asistencia
-    const asignado = await prisma.materiaGradoProfesor.findFirst({
-      where: { gradoId, profesor: { usuarioId: req.usuario!.sub } },
-    });
-    if (!asignado) {
-      res.status(403).json({ ok: false, mensaje: 'No tienes materias asignadas en este grado' });
-      return;
+    // Administración y secretaría pueden registrar cualquier grado (docente ausente).
+    // Un profesor solo el grado que dirige o aquel donde tiene la primera clase del día.
+    if (!esPersonalAdministrativo(req.usuario!.rol)) {
+      const permitidos = await gradosParaTomarAsistencia(req.usuario!.sub, fecha);
+      if (!permitidos.some(g => g.gradoId === gradoId)) {
+        res.status(403).json({ ok: false, mensaje: 'No tienes asignada la toma de asistencia de este grado para hoy' });
+        return;
+      }
     }
 
     const estudianteIds = registros.map(r => r.estudianteId);
@@ -201,13 +307,16 @@ export async function editarAsistencia(req: Request, res: Response): Promise<voi
     const registro = await prisma.registroAsistencia.findUnique({ where: { id } });
     if (!registro) { res.status(404).json({ ok: false, mensaje: 'Registro de asistencia no encontrado' }); return; }
 
-    if (registro.profesorId !== req.usuario!.sub) {
-      res.status(403).json({ ok: false, mensaje: 'Solo puedes corregir registros que tú mismo hayas creado' });
-      return;
-    }
-    if (!mismaFecha(registro.fecha, hoyUTC())) {
-      res.status(400).json({ ok: false, mensaje: 'Solo puedes corregir registros del día de hoy' });
-      return;
+    // Administración y secretaría corrigen cualquier registro, sin límite de fecha
+    if (!esPersonalAdministrativo(req.usuario!.rol)) {
+      if (registro.profesorId !== req.usuario!.sub) {
+        res.status(403).json({ ok: false, mensaje: 'Solo puedes corregir registros que tú mismo hayas creado' });
+        return;
+      }
+      if (!mismaFecha(registro.fecha, hoyUTC())) {
+        res.status(400).json({ ok: false, mensaje: 'Solo puedes corregir registros del día de hoy' });
+        return;
+      }
     }
 
     const actualizado = await prisma.registroAsistencia.update({

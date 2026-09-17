@@ -19,6 +19,8 @@ import Pagos from '../../components/Pagos';
 import PeriodosAcademicos from '../../components/PeriodosAcademicos';
 import GestionPermisos from '../../components/GestionPermisos';
 import AgendaCalendario from '../../components/AgendaCalendario';
+import Asistencia from '../../components/Asistencia';
+import { ResponsablesAsistencia, ConfiguracionAsistenciaGrado } from '../../components/ConfiguracionAsistencia';
 
 type Seccion = 'resumen' | 'estudiantes' | 'usuarios' | 'vinculos' | 'grados' | 'materias' | 'periodos' | 'reportes' | 'auditoria' | 'directorio' | 'comunicados' | 'documentos' | 'pagos' | 'asistencia' | 'permisos' | 'agenda' | 'certificados';
 
@@ -922,13 +924,14 @@ function Vinculos() {
   );
 }
 
-type GradoRow = { id: string; nombre: string; grupo: string; nivel: string; anio: number; _count: { estudiantes: number }; materiaGrados: { id: string; materia: { nombre: string }; profesor: { nombres: string; apellidos: string } }[] };
+type GradoRow = { id: string; nombre: string; grupo: string; nivel: string; anio: number; tipoAsistencia: 'DIRECTOR_FIJO' | 'ROTATIVO_HORARIO'; directorCursoId?: string | null; directorCurso?: { id: string; nombres: string; apellidos: string } | null; _count: { estudiantes: number }; materiaGrados: { id: string; materia: { id: string; nombre: string }; profesor: { id: string; nombres: string; apellidos: string } }[] };
 
 function Grados() {
   const qc = useQueryClient();
   const [modalCrear, setModalCrear] = useState(false);
   const [modalEditar, setModalEditar] = useState<GradoRow | null>(null);
   const [modalMaterias, setModalMaterias] = useState<GradoRow | null>(null);
+  const [modalAsistencia, setModalAsistencia] = useState<GradoRow | null>(null);
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'error' } | null>(null);
 
   const { data, isLoading } = useQuery({ queryKey: ['grados'], queryFn: async () => (await api.get('/grados')).data.datos ?? [] });
@@ -1024,6 +1027,15 @@ function Grados() {
                   <BookMarked className="w-3 h-3" /> Materias
                 </button>
               </div>
+              <button onClick={() => setModalAsistencia(g)}
+                className="w-full mt-2 flex items-center justify-center gap-1 py-1.5 text-xs border border-violet-200 text-violet-600 rounded-lg hover:bg-violet-50 transition-colors">
+                <CalendarCheck className="w-3 h-3" />
+                {g.tipoAsistencia === 'ROTATIVO_HORARIO'
+                  ? 'Asistencia: rotativa por horario'
+                  : g.directorCurso
+                    ? `Asistencia: ${g.directorCurso.nombres} ${g.directorCurso.apellidos}`
+                    : 'Asistencia: sin director de curso'}
+              </button>
             </div>
           ))}
           {(data ?? []).length === 0 && <div className="col-span-3 text-center py-12 text-slate-400"><Layers className="w-10 h-10 mx-auto mb-2 opacity-30" /><p className="text-sm">No hay grados registrados</p></div>}
@@ -1039,6 +1051,12 @@ function Grados() {
       {modalEditar && (
         <Modal titulo={`Editar grado ${modalEditar.nombre}${modalEditar.grupo}`} onClose={() => setModalEditar(null)}>
           <FormGrado onSubmit={hEditar(d => editarMutation.mutate({ id: modalEditar.id, ...d }))} errors={eEditar} reg={regEditar} cargando={editarMutation.isPending} onCancel={() => setModalEditar(null)} inicial={modalEditar} />
+        </Modal>
+      )}
+
+      {modalAsistencia && (
+        <Modal titulo={`Asistencia — Grado ${modalAsistencia.nombre}${modalAsistencia.grupo}`} onClose={() => setModalAsistencia(null)} ancho="max-w-2xl">
+          <ConfiguracionAsistenciaGrado grado={modalAsistencia} onToast={(msg, tipo) => setToast({ msg, tipo })} />
         </Modal>
       )}
 
@@ -1398,7 +1416,33 @@ type ResumenAsistencia = { estudianteId: string; nombres: string; apellidos: str
 type AlertaAusencia = { estudianteId: string; nombres: string; apellidos: string; grado: string; ausenciasSinJustificar: number };
 const MESES_NOMBRE = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
+// Asistencia para administración: reporte del mes, toma por ausencia del
+// docente y resumen de quién llama a lista cada día.
 function AsistenciaAdmin() {
+  const [tab, setTab] = useState<'reporte' | 'tomar' | 'responsables'>('reporte');
+  const tabs = [
+    { id: 'reporte' as const, label: 'Reporte del mes' },
+    { id: 'tomar' as const, label: 'Tomar asistencia' },
+    { id: 'responsables' as const, label: 'Quién toma asistencia' },
+  ];
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        {tabs.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-colors min-h-[44px] ${tab === t.id ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {tab === 'reporte' ? <ReporteAusenciasAdmin />
+        : tab === 'tomar' ? <Asistencia modoLibre />
+        : <ResponsablesAsistencia />}
+    </div>
+  );
+}
+
+function ReporteAusenciasAdmin() {
   const hoy = new Date();
   const [mes, setMes] = useState(hoy.getMonth() + 1);
   const [anio, setAnio] = useState(hoy.getFullYear());

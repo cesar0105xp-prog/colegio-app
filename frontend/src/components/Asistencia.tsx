@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CalendarCheck, CheckCircle, AlertCircle, X, Save, AlertTriangle } from 'lucide-react';
+import { CalendarCheck, CheckCircle, AlertCircle, X, Save, AlertTriangle, ChevronLeft, Clock, UserCheck } from 'lucide-react';
 import api from '../services/api';
 
 function Toast({ mensaje, tipo, onClose }: { mensaje: string; tipo: 'ok' | 'error'; onClose: () => void }) {
@@ -28,6 +28,12 @@ const hoyISO = () => new Date().toISOString().split('T')[0];
 const haceNDias = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().split('T')[0]; };
 
 type Grado = { id: string; nombre: string; grupo: string };
+type GradoDeHoy = {
+  gradoId: string; grado: string; nivel: string;
+  motivo: 'DIRECTOR_FIJO' | 'PRIMERA_CLASE';
+  materia: string | null; horaInicio: string | null;
+  estudiantes: number; yaTomada: boolean;
+};
 type FilaAsistencia = {
   estudianteId: string; nombres: string; apellidos: string; registroId: string | null;
   estadoManana: string; estadoTarde: string; observacion: string | null; justificada: boolean; ausenciasMes: number;
@@ -49,14 +55,34 @@ function SelectorEstado({ estado, onChange }: { estado: string; onChange: (estad
   );
 }
 
-export default function Asistencia() {
+/**
+ * Toma de asistencia.
+ *  - Profesor: solo los grados que le corresponden hoy (director de curso, o la
+ *    primera clase del día en los grados con horario rotativo).
+ *  - Administración y secretaría (modoLibre): cualquier grado, para cubrir la
+ *    ausencia del docente.
+ */
+export default function Asistencia({ modoLibre = false }: { modoLibre?: boolean }) {
   const qc = useQueryClient();
   const [gradoId, setGradoId] = useState('');
   const [fecha, setFecha] = useState(hoyISO());
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'error' } | null>(null);
   const [local, setLocal] = useState<Record<string, EstadoLocal>>({});
 
-  const { data: grados = [] } = useQuery({ queryKey: ['grados'], queryFn: async () => (await api.get('/grados')).data.datos ?? [] });
+  // Modo libre: todos los grados del colegio (se leen de la base)
+  const { data: grados = [] } = useQuery({
+    queryKey: ['grados'],
+    queryFn: async () => (await api.get('/grados')).data.datos ?? [],
+    enabled: modoLibre,
+  });
+
+  // Profesor: los grados que le tocan en la fecha seleccionada
+  const { data: gradosHoy = [], isLoading: cargandoHoy } = useQuery({
+    queryKey: ['mis-grados-hoy', fecha],
+    queryFn: async () => (await api.get('/asistencia/mis-grados-hoy', { params: { fecha } })).data.datos ?? [],
+    enabled: !modoLibre,
+    staleTime: 0,
+  });
 
   const { data: filas = [], isLoading } = useQuery({
     queryKey: ['asistencia-grado', gradoId, fecha],
@@ -85,6 +111,7 @@ export default function Asistencia() {
     }),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['asistencia-grado', gradoId, fecha] });
+      qc.invalidateQueries({ queryKey: ['mis-grados-hoy'] });
       setToast({ msg: res.data.mensaje, tipo: 'ok' });
     },
     onError: (e: unknown) => {
@@ -107,35 +134,105 @@ export default function Asistencia() {
     });
   };
 
+  const gradoSeleccionado = (gradosHoy as GradoDeHoy[]).find(g => g.gradoId === gradoId);
+
   return (
     <div className="space-y-4">
       {toast && <Toast mensaje={toast.msg} tipo={toast.tipo} onClose={() => setToast(null)} />}
 
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-        <p className="text-sm font-semibold text-slate-600 mb-3">Selecciona el grado y la fecha</p>
-        <p className="text-xs text-slate-400 -mt-2 mb-3">Estados: P = Presente · A = Ausente · T = Tarde · E = Excusa</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">Grado</label>
-            <select value={gradoId} onChange={e => setGradoId(e.target.value)}
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-h-[44px]">
-              <option value="">Seleccionar grado</option>
-              {(grados as Grado[]).map(g => <option key={g.id} value={g.id}>{g.nombre}{g.grupo}</option>)}
-            </select>
+      {modoLibre ? (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+          <div className="flex items-start gap-2 mb-3">
+            <UserCheck className="w-4 h-4 text-violet-600 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-slate-600">Tomar asistencia por ausencia del docente</p>
+              <p className="text-xs text-slate-400">Puedes registrar o corregir la asistencia de cualquier grado.</p>
+            </div>
           </div>
-          <div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1.5">Grado</label>
+              <select value={gradoId} onChange={e => setGradoId(e.target.value)}
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-h-[44px]">
+                <option value="">Seleccionar grado</option>
+                {(grados as Grado[]).map(g => <option key={g.id} value={g.id}>{g.nombre}{g.grupo}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1.5">Fecha</label>
+              <input type="date" value={fecha} max={hoyISO()} onChange={e => setFecha(e.target.value)}
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-h-[44px]" />
+            </div>
+          </div>
+          <p className="text-xs text-slate-400 mt-3">Estados: P = Presente · A = Ausente · T = Tarde · E = Excusa</p>
+        </div>
+      ) : !gradoId ? (
+        // Profesor: tarjetas con los grados que le tocan hoy
+        <div className="space-y-4">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+            <p className="text-sm font-semibold text-slate-600 mb-1">Asistencia de hoy</p>
+            <p className="text-xs text-slate-400 mb-3">Aquí aparecen solo los grados donde te toca llamar a lista.</p>
             <label className="block text-xs font-medium text-slate-500 mb-1.5">Fecha</label>
             <input type="date" value={fecha} min={haceNDias(3)} max={hoyISO()} onChange={e => setFecha(e.target.value)}
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-h-[44px]" />
+              className="w-full sm:w-52 px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-h-[44px]" />
+          </div>
+
+          {cargandoHoy ? (
+            <div className="flex items-center justify-center h-32"><div className="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>
+          ) : (gradosHoy as GradoDeHoy[]).length === 0 ? (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm text-center py-12 px-5 text-slate-400">
+              <CalendarCheck className="w-10 h-10 mx-auto mb-2 opacity-30" />
+              <p className="text-sm font-medium text-slate-500">Hoy no tienes asistencia asignada</p>
+              <p className="text-xs mt-1">La toma el director de curso o el profesor de la primera clase del día.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {(gradosHoy as GradoDeHoy[]).map(g => (
+                <button key={g.gradoId} onClick={() => setGradoId(g.gradoId)}
+                  className="text-left bg-white rounded-2xl border border-slate-100 shadow-sm p-4 hover:border-blue-300 hover:shadow transition min-h-[44px]">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-lg font-bold text-slate-800">{g.grado}</p>
+                      <p className="text-xs text-slate-500">
+                        {g.motivo === 'DIRECTOR_FIJO'
+                          ? 'Eres el director de curso'
+                          : `Primera clase: ${g.materia}${g.horaInicio ? ` · ${g.horaInicio}` : ''}`}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-1">{g.estudiantes} estudiante(s)</p>
+                    </div>
+                    <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap ${g.yaTomada ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {g.yaTomada ? 'Tomada' : 'Pendiente'}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex items-center gap-3">
+          <button onClick={() => setGradoId('')} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 min-h-[36px]" aria-label="Volver">
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <div className="min-w-0">
+            <p className="font-semibold text-slate-800">{gradoSeleccionado?.grado ?? 'Asistencia'}</p>
+            <p className="text-xs text-slate-400 flex items-center gap-1">
+              {gradoSeleccionado?.motivo === 'PRIMERA_CLASE' && <Clock className="w-3 h-3" />}
+              {gradoSeleccionado?.motivo === 'PRIMERA_CLASE'
+                ? `Primera clase: ${gradoSeleccionado.materia}`
+                : 'Director de curso'} · {fecha.split('-').reverse().join('/')}
+            </p>
           </div>
         </div>
-      </div>
+      )}
 
       {!gradoId ? (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm text-center py-12 text-slate-400">
-          <CalendarCheck className="w-10 h-10 mx-auto mb-2 opacity-30" />
-          <p className="text-sm">Selecciona un grado para tomar asistencia</p>
-        </div>
+        modoLibre ? (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm text-center py-12 text-slate-400">
+            <CalendarCheck className="w-10 h-10 mx-auto mb-2 opacity-30" />
+            <p className="text-sm">Selecciona un grado para tomar asistencia</p>
+          </div>
+        ) : null
       ) : isLoading ? (
         <div className="flex items-center justify-center h-32"><div className="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>
       ) : (filas as FilaAsistencia[]).length === 0 ? (
