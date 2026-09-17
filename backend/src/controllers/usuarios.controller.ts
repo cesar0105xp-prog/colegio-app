@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { Rol } from '@prisma/client';
 import { body, validationResult } from 'express-validator';
 import bcrypt from 'bcryptjs';
+import { randomInt } from 'crypto';
 import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
 import { REGEX } from '../types';
@@ -9,14 +10,28 @@ import { SALT_ROUNDS } from '../utils/config';
 
 import { prisma } from '../utils/prisma';
 
+// Contraseña temporal aleatoria de 10 caracteres que cumple REGEX.PASSWORD
+// (mayúscula, número, carácter especial, mínimo 8). Sin caracteres confusos (O/0, l/1/I).
+function generarPasswordTemporal(): string {
+  const MAYUS = 'ABCDEFGHJKLMNPQRSTUVWXYZ', MINUS = 'abcdefghijkmnpqrstuvwxyz', NUMS = '23456789', ESPECIALES = '!@#$*-_';
+  const elegir = (s: string) => s[randomInt(s.length)];
+  const chars = [elegir(MAYUS), elegir(MAYUS), elegir(NUMS), elegir(NUMS), elegir(ESPECIALES)];
+  while (chars.length < 10) chars.push(elegir(MINUS + NUMS));
+  for (let i = chars.length - 1; i > 0; i--) { const j = randomInt(i + 1); [chars[i], chars[j]] = [chars[j], chars[i]]; }
+  return chars.join('');
+}
+
 // ─── VALIDACIONES ────────────────────────────────────────────────────────────
 export const validarCrearUsuario = [
   body('email').trim().isEmail().withMessage('Email inválido').isLength({ max: 100 }).withMessage('Máximo 100 caracteres').normalizeEmail(),
   body('rol').isIn(Object.values(Rol)).withMessage('Rol inválido'),
   body('nombres').trim().notEmpty().withMessage('Nombres requeridos').isLength({ min: 2, max: 50 }).withMessage('Entre 2 y 50 caracteres').matches(REGEX.SOLO_LETRAS).withMessage('Solo letras'),
   body('apellidos').trim().notEmpty().withMessage('Apellidos requeridos').isLength({ min: 2, max: 50 }).withMessage('Entre 2 y 50 caracteres').matches(REGEX.SOLO_LETRAS).withMessage('Solo letras'),
-  body('telefono').optional().trim().matches(REGEX.TELEFONO).withMessage('Teléfono inválido'),
-  body('numeroDocumento').optional().trim().matches(REGEX.SOLO_NUMEROS).withMessage('Documento solo dígitos'),
+  // checkFalsy: el formulario envía "" cuando el campo opcional queda vacío
+  body('telefono').optional({ checkFalsy: true }).trim().matches(REGEX.TELEFONO).withMessage('Teléfono inválido (7 a 10 dígitos)'),
+  body('numeroDocumento').optional({ checkFalsy: true }).trim()
+    .custom((valor: string, { req }) => (req.body.tipoDocumento === 'PASAPORTE' ? /^[A-Za-z0-9]+$/ : REGEX.SOLO_NUMEROS).test(valor))
+    .withMessage('Número de documento inválido'),
 ];
 
 export const validarEditarMiPerfil = [
@@ -35,7 +50,7 @@ export const validarActualizarCorreo = [
 export const validarEditarUsuario = [
   body('nombres').optional().trim().isLength({ min: 2, max: 50 }).withMessage('Entre 2 y 50 caracteres').matches(REGEX.SOLO_LETRAS).withMessage('Solo letras'),
   body('apellidos').optional().trim().isLength({ min: 2, max: 50 }).withMessage('Entre 2 y 50 caracteres').matches(REGEX.SOLO_LETRAS).withMessage('Solo letras'),
-  body('telefono').optional().trim().matches(REGEX.TELEFONO).withMessage('Teléfono inválido'),
+  body('telefono').optional({ checkFalsy: true }).trim().matches(REGEX.TELEFONO).withMessage('Teléfono inválido (7 a 10 dígitos)'),
   body('email').optional().trim().isEmail().withMessage('Email inválido').isLength({ max: 100 }).withMessage('Máximo 100 caracteres'),
 ];
 
@@ -97,7 +112,7 @@ export async function crearUsuario(req: Request, res: Response): Promise<void> {
     const existe = await prisma.usuario.findUnique({ where: { email } });
     if (existe) { res.status(409).json({ ok: false, mensaje: 'Ya existe un usuario con ese email' }); return; }
 
-    const passwordTemporal = `${nombres.split(' ')[0]}2026!`;
+    const passwordTemporal = generarPasswordTemporal();
     const hash = await bcrypt.hash(passwordTemporal, SALT_ROUNDS);
 
     const data: Record<string, unknown> = { email: email.trim(), passwordHash: hash, rol, estado: 'ACTIVO' };
@@ -231,15 +246,10 @@ export async function cambiarEstadoUsuario(req: Request, res: Response): Promise
 export async function resetearPassword(req: Request, res: Response): Promise<void> {
   const { id } = req.params;
   try {
-    const usuario = await prisma.usuario.findUnique({
-      where: { id },
-      include: { perfilProfesor: true, perfilPadre: true, perfilSecretario: true, perfilAdmin: true },
-    });
+    const usuario = await prisma.usuario.findUnique({ where: { id }, select: { id: true } });
     if (!usuario) { res.status(404).json({ ok: false, mensaje: 'Usuario no encontrado' }); return; }
 
-    const perfil = usuario.perfilProfesor ?? usuario.perfilPadre ?? usuario.perfilSecretario ?? usuario.perfilAdmin;
-    const nombre = perfil?.nombres?.split(' ')[0] ?? 'Usuario';
-    const passwordTemporal = `${nombre}2026!`;
+    const passwordTemporal = generarPasswordTemporal();
     const hash = await bcrypt.hash(passwordTemporal, SALT_ROUNDS);
 
     await prisma.usuario.update({ where: { id }, data: { passwordHash: hash, refreshToken: null, intentosFallidos: 0, bloqueadoHasta: null } });

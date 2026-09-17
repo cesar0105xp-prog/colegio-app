@@ -418,7 +418,7 @@ function FichaEstudiante({ estudiante, onClose, onEditar }: { estudiante: EstRow
       setModalVincular(false); reset();
       setToast({ msg: 'Padre/acudiente vinculado correctamente', tipo: 'ok' });
     },
-    onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
+    onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string; errores?: string[] } } })?.response?.data?.errores?.[0] ?? (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
   });
 
   const ESTADO_COLOR: Record<string, string> = { ACTIVO: 'bg-emerald-50 text-emerald-700', INACTIVO: 'bg-slate-100 text-slate-500', RETIRADO: 'bg-red-50 text-red-600', GRADUADO: 'bg-blue-50 text-blue-700' };
@@ -634,25 +634,25 @@ function Usuarios() {
   const crearMutation = useMutation({
     mutationFn: (d: unknown) => api.post('/usuarios', d),
     onSuccess: (res) => { qc.invalidateQueries({ queryKey: ['usuarios'] }); qc.invalidateQueries({ queryKey: ['stats'] }); setModal(false); reset(); setPasswordMsg(res.data.mensaje); },
-    onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
+    onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string; errores?: string[] } } })?.response?.data?.errores?.[0] ?? (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
   });
 
   const editarMutation = useMutation({
     mutationFn: ({ id, ...d }: { id: string; nombres: string; apellidos: string; telefono?: string; email: string }) => api.put(`/usuarios/${id}`, d),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['usuarios'] }); setModalEditar(null); setToast({ msg: 'Usuario actualizado', tipo: 'ok' }); },
-    onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
+    onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string; errores?: string[] } } })?.response?.data?.errores?.[0] ?? (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
   });
 
   const eliminarMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/usuarios/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['usuarios'] }); qc.invalidateQueries({ queryKey: ['stats'] }); setConfirmEliminar(null); setToast({ msg: 'Usuario eliminado', tipo: 'ok' }); },
-    onError: (e: unknown) => { setConfirmEliminar(null); setToast({ msg: (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }); },
+    onError: (e: unknown) => { setConfirmEliminar(null); setToast({ msg: (e as { response?: { data?: { mensaje?: string; errores?: string[] } } })?.response?.data?.errores?.[0] ?? (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }); },
   });
 
   const cambiarEstadoMutation = useMutation({
     mutationFn: ({ id, estado }: { id: string; estado: string }) => api.patch(`/usuarios/${id}/estado`, { estado }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['usuarios'] }); setToast({ msg: 'Estado actualizado', tipo: 'ok' }); },
-    onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
+    onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string; errores?: string[] } } })?.response?.data?.errores?.[0] ?? (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
   });
 
   const resetMutation = useMutation({
@@ -834,7 +834,7 @@ function Vinculos() {
   const crearMutation = useMutation({
     mutationFn: (d: unknown) => api.post('/vinculos', d),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['vinculos'] }); setModal(false); reset(); setToast({ msg: 'Vínculo creado correctamente', tipo: 'ok' }); },
-    onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
+    onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string; errores?: string[] } } })?.response?.data?.errores?.[0] ?? (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
   });
 
   const eliminarMutation = useMutation({
@@ -944,19 +944,19 @@ function Grados() {
   const crearMutation = useMutation({
     mutationFn: (d: unknown) => api.post('/grados', d),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['grados'] }); qc.invalidateQueries({ queryKey: ['stats'] }); setModalCrear(false); rCrear(); setToast({ msg: 'Grado creado', tipo: 'ok' }); },
-    onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
+    onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string; errores?: string[] } } })?.response?.data?.errores?.[0] ?? (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
   });
 
   const editarMutation = useMutation({
     mutationFn: ({ id, ...d }: { id: string; nombre: string; grupo: string; nivel: string; anio: number }) => api.put(`/grados/${id}`, d),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['grados'] }); setModalEditar(null); setToast({ msg: 'Grado actualizado', tipo: 'ok' }); },
-    onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
+    onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string; errores?: string[] } } })?.response?.data?.errores?.[0] ?? (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
   });
 
   const asignarMutation = useMutation({
     mutationFn: (d: unknown) => api.post('/grados/asignar-materia', d),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['grados'] }); rAsig(); setToast({ msg: 'Materia asignada', tipo: 'ok' }); },
-    onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
+    onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string; errores?: string[] } } })?.response?.data?.errores?.[0] ?? (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
   });
 
   const NIVEL_COLOR: Record<string, string> = { primaria: 'bg-sky-50 text-sky-700', secundaria: 'bg-indigo-50 text-indigo-700', media: 'bg-violet-50 text-violet-700' };
@@ -1106,13 +1106,13 @@ function Materias() {
   const crearMutation = useMutation({
     mutationFn: (d: unknown) => api.post('/materias', d),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['materias'] }); setModal(false); reset(); setToast({ msg: 'Materia creada', tipo: 'ok' }); },
-    onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
+    onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string; errores?: string[] } } })?.response?.data?.errores?.[0] ?? (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
   });
 
   const editarMutation = useMutation({
     mutationFn: ({ id, ...d }: { id: string; nombre: string; codigo?: string }) => api.put(`/materias/${id}`, d),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['materias'] }); setMateriaEditar(null); setToast({ msg: 'Materia actualizada', tipo: 'ok' }); },
-    onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
+    onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string; errores?: string[] } } })?.response?.data?.errores?.[0] ?? (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
   });
 
   const eliminarMutation = useMutation({
@@ -1244,13 +1244,13 @@ function Periodos() {
   const crearMutation = useMutation({
     mutationFn: (d: unknown) => api.post('/periodos', d),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['periodos'] }); setModalCrear(false); rC(); setToast({ msg: 'Período creado', tipo: 'ok' }); },
-    onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
+    onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string; errores?: string[] } } })?.response?.data?.errores?.[0] ?? (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
   });
 
   const editarMutation = useMutation({
     mutationFn: ({ id, ...d }: PeriodoRow) => api.put(`/periodos/${id}`, d),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['periodos'] }); setModalEditar(null); setToast({ msg: 'Período actualizado', tipo: 'ok' }); },
-    onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
+    onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string; errores?: string[] } } })?.response?.data?.errores?.[0] ?? (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
   });
 
   const activarMutation = useMutation({
