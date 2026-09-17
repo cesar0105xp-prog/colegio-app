@@ -543,7 +543,7 @@ function FichaEstudiante({ estudiante, onClose, onEditar }: { estudiante: EstRow
                       </button>
                     </div>
                     <p className="text-sm text-slate-700 break-words whitespace-pre-wrap">{o.descripcion}</p>
-                    <p className="text-xs text-slate-400 mt-1.5 flex items-center gap-1"><Clock className="w-3 h-3" /> Prof. {o.profesor.nombres} {o.profesor.apellidos} · {new Date(o.fecha).toLocaleDateString('es-CO')}</p>
+                    <p className="text-xs text-slate-400 mt-1.5 flex items-center gap-1"><Clock className="w-3 h-3" /> Prof. {o.profesor ? `${o.profesor.nombres} ${o.profesor.apellidos}` : "retirado"} · {new Date(o.fecha).toLocaleDateString('es-CO')}</p>
                   </div>
                 ))
               )}
@@ -801,7 +801,7 @@ function Usuarios() {
           <div className="space-y-4">
             <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl p-4">
               <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-red-700">¿Seguro que quieres eliminar a <strong>{confirmEliminar.perfil?.nombres} {confirmEliminar.perfil?.apellidos}</strong> ({confirmEliminar.email})? Esta acción no se puede deshacer.</p>
+              <p className="text-sm text-red-700">¿Seguro que quieres eliminar a <strong>{confirmEliminar.perfil?.nombres} {confirmEliminar.perfil?.apellidos}</strong> ({confirmEliminar.email})? Se borran su cuenta y sus vínculos: las materias asignadas quedan libres y los hijos quedan sin acudiente. Las notas, la asistencia, las observaciones y las matrículas se conservan. Esta acción no se puede deshacer.</p>
             </div>
             <div className="flex gap-2 justify-end">
               <button onClick={() => setConfirmEliminar(null)} className="px-4 py-2 text-sm text-slate-600">Cancelar</button>

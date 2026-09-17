@@ -182,6 +182,7 @@ model Materia {
   actividades   Actividad[]
   materiaGrados MateriaGradoProfesor[]
   observaciones Observacion[]
+  asistencias   RegistroAsistencia[]
   tareasAgenda  TareaAgenda[]
 
   @@map("materias")
@@ -226,7 +227,7 @@ model MateriaGradoProfesor {
   createdAt  DateTime @default(now()) @map("created_at")
   grado      Grado    @relation(fields: [gradoId], references: [id])
   materia    Materia  @relation(fields: [materiaId], references: [id])
-  profesor   Profesor @relation(fields: [profesorId], references: [id])
+  profesor   Profesor @relation(fields: [profesorId], references: [id], onDelete: Cascade)
 
   @@unique([materiaId, gradoId, anio])
   @@map("materia_grado_profesor")
@@ -242,13 +243,13 @@ model Actividad {
   materiaId      String         @map("materia_id")
   gradoId        String         @map("grado_id")
   periodoId      String         @map("periodo_id")
-  profesorId     String         @map("profesor_id")
+  profesorId     String?        @map("profesor_id")
   createdAt      DateTime       @default(now()) @map("created_at")
   updatedAt      DateTime       @updatedAt @map("updated_at")
   grado          Grado          @relation(fields: [gradoId], references: [id])
   materia        Materia        @relation(fields: [materiaId], references: [id])
   periodo        Periodo        @relation(fields: [periodoId], references: [id])
-  profesor       Profesor       @relation(fields: [profesorId], references: [id])
+  profesor       Profesor?      @relation(fields: [profesorId], references: [id], onDelete: SetNull)
   calificaciones Calificacion[]
 
   @@map("actividades")
@@ -272,7 +273,7 @@ model Calificacion {
 model Observacion {
   id           String             @id @default(uuid())
   estudianteId String             @map("estudiante_id")
-  profesorId   String             @map("profesor_id")
+  profesorId   String?            @map("profesor_id")
   tipo         TipoObservacion
   descripcion  String
   fecha        DateTime           @default(now())
@@ -281,7 +282,7 @@ model Observacion {
   materiaId    String?            @map("materia_id")
   estudiante   Estudiante         @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
   materia      Materia?           @relation(fields: [materiaId], references: [id])
-  profesor     Profesor           @relation(fields: [profesorId], references: [id])
+  profesor     Profesor?          @relation(fields: [profesorId], references: [id], onDelete: SetNull)
   vistas       ObservacionVista[]
 
   @@map("observaciones")
@@ -348,12 +349,12 @@ model Comunicado {
   titulo        String
   mensaje       String
   destinatario  String
-  gradoId       String?  @map("grado_id")
-  creadoPorId   String   @map("creado_por_id")
+  gradoId       String?   @map("grado_id")
+  creadoPorId   String?   @map("creado_por_id")
   totalEnviados Int      @default(0) @map("total_enviados")
   createdAt     DateTime @default(now()) @map("created_at")
   archivado     Boolean  @default(false)
-  creadoPor     Usuario  @relation("ComunicadosCreadosPor", fields: [creadoPorId], references: [id])
+  creadoPor     Usuario? @relation("ComunicadosCreadosPor", fields: [creadoPorId], references: [id], onDelete: SetNull)
   grado         Grado?   @relation(fields: [gradoId], references: [id])
 
   @@map("comunicados")
@@ -362,7 +363,7 @@ model Comunicado {
 model Matricula {
   id                         String         @id @default(uuid())
   estudianteId               String         @unique @map("estudiante_id")
-  padreId                    String         @map("padre_id")
+  padreId                    String?         @map("padre_id")
   pin                        String         @map("pin")
   pinUsado                   Boolean        @default(false) @map("pin_usado")
   estadoDocumentos           String         @default("PENDIENTE") @map("estado_documentos")
@@ -386,7 +387,7 @@ model Matricula {
   formularioFechaPago          DateTime?      @map("formulario_fecha_pago")
   formularioVerificadoPor      String?        @map("formulario_verificado_por")
   estudiante        Estudiante     @relation(fields: [estudianteId], references: [id])
-  padre             Padre          @relation(fields: [padreId], references: [id])
+  padre             Padre?         @relation(fields: [padreId], references: [id], onDelete: SetNull)
   verificador       Usuario?       @relation("MatriculasVerificadas", fields: [verificadoPor], references: [id])
   solicitudCupo     SolicitudCupo? @relation(fields: [solicitudCupoId], references: [id])
 
@@ -463,7 +464,7 @@ model Cobro {
 model ComprobantePago {
   id                String            @id @default(uuid())
   cobroId           String            @map("cobro_id")
-  padreId           String            @map("padre_id")
+  padreId           String?            @map("padre_id")
   archivoUrl        String            @map("archivo_url")
   nombreOriginal    String            @map("nombre_original")
   referenciaTransaccion String?      @db.VarChar(50) @map("referencia_transaccion")
@@ -475,28 +476,31 @@ model ComprobantePago {
   createdAt         DateTime          @default(now()) @map("created_at")
   updatedAt         DateTime          @updatedAt @map("updated_at")
   cobro             Cobro             @relation(fields: [cobroId], references: [id])
-  padre             Usuario           @relation("PadreComprobantes", fields: [padreId], references: [id])
+  padre             Usuario?          @relation("PadreComprobantes", fields: [padreId], references: [id], onDelete: SetNull)
 
   @@index([cobroId])
   @@index([estado])
   @@map("comprobantes_pago")
 }
 
+// Una asistencia por estudiante, día y MATERIA: cada profesor registra la de su
+// propia clase y no pisa la de los demás.
 model RegistroAsistencia {
   id           String           @id @default(uuid())
   estudianteId String           @map("estudiante_id")
-  profesorId   String           @map("profesor_id")
+  materiaId    String           @map("materia_id")
+  profesorId   String?          @map("profesor_id")
   fecha        DateTime         @db.Date
-  estadoManana EstadoAsistencia @default(PRESENTE) @map("estado_manana")
-  estadoTarde  EstadoAsistencia @default(PRESENTE) @map("estado_tarde")
+  estado       EstadoAsistencia @default(PRESENTE)
   observacion  String?          @db.VarChar(300)
   justificada  Boolean          @default(false)
   createdAt    DateTime         @default(now()) @map("created_at")
   updatedAt    DateTime         @updatedAt @map("updated_at")
   estudiante   Estudiante       @relation(fields: [estudianteId], references: [id])
-  profesor     Usuario          @relation(fields: [profesorId], references: [id])
+  materia      Materia          @relation(fields: [materiaId], references: [id])
+  profesor     Usuario?         @relation(fields: [profesorId], references: [id], onDelete: SetNull)
 
-  @@unique([estudianteId, fecha])
+  @@unique([estudianteId, fecha, materiaId])
   @@index([estudianteId])
   @@index([fecha])
   @@map("registros_asistencia")
@@ -505,7 +509,7 @@ model RegistroAsistencia {
 model SolicitudPermiso {
   id              String        @id @default(uuid())
   estudianteId    String        @map("estudiante_id")
-  padreId         String        @map("padre_id")
+  padreId         String?        @map("padre_id")
   fechaPermiso    DateTime      @db.Date @map("fecha_permiso")
   motivoCodigo    MotivoPermiso @map("motivo_codigo")
   descripcion     String        @db.VarChar(500)
@@ -516,7 +520,7 @@ model SolicitudPermiso {
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
   estudiante      Estudiante    @relation(fields: [estudianteId], references: [id])
-  padre           Usuario       @relation("PadrePermisos", fields: [padreId], references: [id])
+  padre           Usuario?      @relation("PadrePermisos", fields: [padreId], references: [id], onDelete: SetNull)
 
   @@unique([estudianteId, fechaPermiso])
   @@index([estudianteId])
@@ -532,12 +536,12 @@ model EventoAgenda {
   fechaFin    DateTime?  @map("fecha_fin")
   tipoEvento  TipoEvento @map("tipo_evento")
   gradoId     String?    @map("grado_id")
-  creadorId   String     @map("creador_id")
+  creadorId   String?    @map("creador_id")
   visible     Boolean    @default(true)
   createdAt   DateTime   @default(now()) @map("created_at")
   updatedAt   DateTime   @updatedAt @map("updated_at")
   grado       Grado?     @relation(fields: [gradoId], references: [id])
-  creador     Usuario    @relation(fields: [creadorId], references: [id])
+  creador     Usuario?   @relation(fields: [creadorId], references: [id], onDelete: SetNull)
 
   @@index([fechaInicio])
   @@index([gradoId])
@@ -551,12 +555,12 @@ model TareaAgenda {
   fechaEntrega DateTime @map("fecha_entrega")
   materiaId    String   @map("materia_id")
   gradoId      String   @map("grado_id")
-  profesorId   String   @map("profesor_id")
+  profesorId   String?  @map("profesor_id")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
   materia      Materia  @relation(fields: [materiaId], references: [id])
   grado        Grado    @relation(fields: [gradoId], references: [id])
-  profesor     Usuario  @relation(fields: [profesorId], references: [id])
+  profesor     Usuario? @relation(fields: [profesorId], references: [id], onDelete: SetNull)
 
   @@index([fechaEntrega])
   @@index([gradoId])
@@ -566,7 +570,7 @@ model TareaAgenda {
 model SolicitudCertificado {
   id              String            @id @default(uuid())
   estudianteId    String            @map("estudiante_id")
-  padreId         String            @map("padre_id")
+  padreId         String?            @map("padre_id")
   tipoCertificado TipoCertificado   @map("tipo_certificado")
   estado          EstadoCertificado @default(PENDIENTE)
   observaciones   String?           @db.VarChar(300)
@@ -577,7 +581,7 @@ model SolicitudCertificado {
   createdAt       DateTime          @default(now()) @map("created_at")
   updatedAt       DateTime          @updatedAt @map("updated_at")
   estudiante      Estudiante        @relation(fields: [estudianteId], references: [id])
-  padre           Usuario           @relation("PadreCertificados", fields: [padreId], references: [id])
+  padre           Usuario?          @relation("PadreCertificados", fields: [padreId], references: [id], onDelete: SetNull)
 
   @@index([estudianteId])
   @@index([estado])

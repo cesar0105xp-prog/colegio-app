@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CalendarCheck, CheckCircle, AlertCircle, X, Save, AlertTriangle } from 'lucide-react';
 import api from '../services/api';
+import { useMisAsignaciones } from '../services/misAsignaciones';
 
 function Toast({ mensaje, tipo, onClose }: { mensaje: string; tipo: 'ok' | 'error'; onClose: () => void }) {
   return (
@@ -27,12 +28,12 @@ const ESTADO_CORTO: Record<string, string> = { PRESENTE: 'P', AUSENTE: 'A', TARD
 const hoyISO = () => new Date().toISOString().split('T')[0];
 const haceNDias = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().split('T')[0]; };
 
-type Grado = { id: string; nombre: string; grupo: string };
+type Materia = { id: string; nombre: string };
 type FilaAsistencia = {
   estudianteId: string; nombres: string; apellidos: string; registroId: string | null;
-  estadoManana: string; estadoTarde: string; observacion: string | null; justificada: boolean; ausenciasMes: number;
+  estado: string; observacion: string | null; justificada: boolean; ausenciasMes: number;
 };
-type EstadoLocal = { estadoManana: string; estadoTarde: string; observacion: string };
+type EstadoLocal = { estado: string; observacion: string };
 
 // Un botón por estado: se marca directamente el que corresponde (sin ir rotando)
 function SelectorEstado({ estado, onChange }: { estado: string; onChange: (estado: string) => void }) {
@@ -52,39 +53,41 @@ function SelectorEstado({ estado, onChange }: { estado: string; onChange: (estad
 export default function Asistencia() {
   const qc = useQueryClient();
   const [gradoId, setGradoId] = useState('');
+  const [materiaId, setMateriaId] = useState('');
   const [fecha, setFecha] = useState(hoyISO());
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'error' } | null>(null);
   const [local, setLocal] = useState<Record<string, EstadoLocal>>({});
 
-  const { data: grados = [] } = useQuery({ queryKey: ['grados'], queryFn: async () => (await api.get('/grados')).data.datos ?? [] });
+  // La asistencia es de la clase del profesor: solo sus grados y materias
+  const { grados, materiasDe, sinAsignaciones } = useMisAsignaciones();
+  const materias: Materia[] = gradoId ? materiasDe(gradoId) : [];
 
   const { data: filas = [], isLoading } = useQuery({
-    queryKey: ['asistencia-grado', gradoId, fecha],
-    queryFn: async () => (await api.get(`/asistencia/grado/${gradoId}`, { params: { fecha } })).data.datos ?? [],
-    enabled: !!(gradoId && fecha),
+    queryKey: ['asistencia-grado', gradoId, materiaId, fecha],
+    queryFn: async () => (await api.get(`/asistencia/grado/${gradoId}`, { params: { fecha, materiaId } })).data.datos ?? [],
+    enabled: !!(gradoId && materiaId && fecha),
     staleTime: 0,
   });
 
   useEffect(() => {
     const seed: Record<string, EstadoLocal> = {};
     for (const f of filas as FilaAsistencia[]) {
-      seed[f.estudianteId] = { estadoManana: f.estadoManana, estadoTarde: f.estadoTarde, observacion: f.observacion ?? '' };
+      seed[f.estudianteId] = { estado: f.estado, observacion: f.observacion ?? '' };
     }
     setLocal(seed);
   }, [filas]);
 
   const guardarMutation = useMutation({
     mutationFn: () => api.post('/asistencia/grado', {
-      gradoId, fecha,
+      gradoId, materiaId, fecha,
       registros: (filas as FilaAsistencia[]).map(f => ({
         estudianteId: f.estudianteId,
-        estadoManana: local[f.estudianteId]?.estadoManana ?? f.estadoManana,
-        estadoTarde: local[f.estudianteId]?.estadoTarde ?? f.estadoTarde,
+        estado: local[f.estudianteId]?.estado ?? f.estado,
         observacion: local[f.estudianteId]?.observacion || undefined,
       })),
     }),
     onSuccess: (res) => {
-      qc.invalidateQueries({ queryKey: ['asistencia-grado', gradoId, fecha] });
+      qc.invalidateQueries({ queryKey: ['asistencia-grado', gradoId, materiaId, fecha] });
       setToast({ msg: res.data.mensaje, tipo: 'ok' });
     },
     onError: (e: unknown) => {
@@ -93,16 +96,16 @@ export default function Asistencia() {
     },
   });
 
-  const cambiarEstado = (estudianteId: string, mitad: 'estadoManana' | 'estadoTarde', estado: string) => {
+  const cambiarEstado = (estudianteId: string, estado: string) => {
     setLocal(prev => {
-      const actual = prev[estudianteId] ?? { estadoManana: 'PRESENTE', estadoTarde: 'PRESENTE', observacion: '' };
-      return { ...prev, [estudianteId]: { ...actual, [mitad]: estado } };
+      const actual = prev[estudianteId] ?? { estado: 'PRESENTE', observacion: '' };
+      return { ...prev, [estudianteId]: { ...actual, estado } };
     });
   };
 
   const setObservacion = (estudianteId: string, valor: string) => {
     setLocal(prev => {
-      const actual = prev[estudianteId] ?? { estadoManana: 'PRESENTE', estadoTarde: 'PRESENTE', observacion: '' };
+      const actual = prev[estudianteId] ?? { estado: 'PRESENTE', observacion: '' };
       return { ...prev, [estudianteId]: { ...actual, observacion: valor } };
     });
   };
@@ -112,15 +115,28 @@ export default function Asistencia() {
       {toast && <Toast mensaje={toast.msg} tipo={toast.tipo} onClose={() => setToast(null)} />}
 
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-        <p className="text-sm font-semibold text-slate-600 mb-3">Selecciona el grado y la fecha</p>
-        <p className="text-xs text-slate-400 -mt-2 mb-3">Estados: P = Presente · A = Ausente · T = Tarde · E = Excusa</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <p className="text-sm font-semibold text-slate-600 mb-3">Selecciona tu clase y la fecha</p>
+        <p className="text-xs text-slate-400 -mt-2 mb-3">La asistencia es de tu materia: cada profesor registra la de su propia clase. Estados: P = Presente · A = Ausente · T = Tarde · E = Excusa</p>
+        {sinAsignaciones && (
+          <div className="mb-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
+            <p className="text-xs text-amber-700">Aún no tienes materias asignadas. Pide a administración que te asigne la materia y el grado para poder tomar asistencia.</p>
+          </div>
+        )}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1.5">Grado</label>
-            <select value={gradoId} onChange={e => setGradoId(e.target.value)}
+            <select value={gradoId} onChange={e => { setGradoId(e.target.value); setMateriaId(''); }}
               className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-h-[44px]">
               <option value="">Seleccionar grado</option>
-              {(grados as Grado[]).map(g => <option key={g.id} value={g.id}>{g.nombre}{g.grupo}</option>)}
+              {grados.map(g => <option key={g.id} value={g.id}>{g.nombre}{g.grupo}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1.5">Materia</label>
+            <select value={materiaId} onChange={e => setMateriaId(e.target.value)} disabled={!gradoId}
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-h-[44px] disabled:opacity-50">
+              <option value="">Seleccionar materia</option>
+              {materias.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
             </select>
           </div>
           <div>
@@ -131,10 +147,10 @@ export default function Asistencia() {
         </div>
       </div>
 
-      {!gradoId ? (
+      {!gradoId || !materiaId ? (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm text-center py-12 text-slate-400">
           <CalendarCheck className="w-10 h-10 mx-auto mb-2 opacity-30" />
-          <p className="text-sm">Selecciona un grado para tomar asistencia</p>
+          <p className="text-sm">Selecciona el grado y la materia para tomar asistencia</p>
         </div>
       ) : isLoading ? (
         <div className="flex items-center justify-center h-32"><div className="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>
@@ -146,13 +162,13 @@ export default function Asistencia() {
       ) : (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px]">
+            <table className="w-full min-w-[560px]">
               <thead className="bg-slate-50 border-b border-slate-100">
-                <tr>{['Estudiante', 'Mañana', 'Tarde', 'Observación'].map(h => <th key={h} className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">{h}</th>)}</tr>
+                <tr>{['Estudiante', 'Asistencia', 'Observación'].map(h => <th key={h} className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">{h}</th>)}</tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {(filas as FilaAsistencia[]).map(f => {
-                  const est = local[f.estudianteId] ?? { estadoManana: f.estadoManana, estadoTarde: f.estadoTarde, observacion: f.observacion ?? '' };
+                  const est = local[f.estudianteId] ?? { estado: f.estado, observacion: f.observacion ?? '' };
                   return (
                     <tr key={f.estudianteId} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3">
@@ -168,8 +184,7 @@ export default function Asistencia() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3"><SelectorEstado estado={est.estadoManana} onChange={e => cambiarEstado(f.estudianteId, 'estadoManana', e)} /></td>
-                      <td className="px-4 py-3"><SelectorEstado estado={est.estadoTarde} onChange={e => cambiarEstado(f.estudianteId, 'estadoTarde', e)} /></td>
+                      <td className="px-4 py-3"><SelectorEstado estado={est.estado} onChange={e => cambiarEstado(f.estudianteId, e)} /></td>
                       <td className="px-4 py-3">
                         <input value={est.observacion} onChange={e => setObservacion(f.estudianteId, e.target.value)} maxLength={300}
                           placeholder="Opcional"

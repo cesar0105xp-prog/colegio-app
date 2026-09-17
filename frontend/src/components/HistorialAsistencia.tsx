@@ -13,7 +13,10 @@ const COLOR_DIA: Record<string, string> = {
   EXCUSA: 'bg-blue-100 text-blue-700',
 };
 
-type Registro = { id: string; fecha: string; estadoManana: string; estadoTarde: string; observacion: string | null; justificada: boolean; estadoDia: string };
+// Cada día trae la asistencia de cada clase; estadoDia es el peor de ellas
+type Clase = { id: string; materia: string; estado: string; observacion: string | null; justificada: boolean };
+type Registro = { fecha: string; estadoDia: string; clases: Clase[] };
+const LABEL_ESTADO: Record<string, string> = { PRESENTE: 'Presente', AUSENTE: 'Ausente', TARDE: 'Tarde', EXCUSA: 'Excusa' };
 type Contador = { presencias: number; ausencias: number; tardanzas: number; excusas: number };
 
 function fmtFechaUTC(y: number, m: number, d: number): string {
@@ -102,8 +105,11 @@ export default function HistorialAsistencia({ estudianteId }: { estudianteId: st
                 const fechaStr = fmtFechaUTC(anio, mes, dia);
                 const registro = porFecha.get(fechaStr);
                 const color = registro ? COLOR_DIA[registro.estadoDia] : 'text-slate-300';
+                const detalle = registro?.clases
+                  .map(c => `${c.materia}: ${LABEL_ESTADO[c.estado] ?? c.estado}${c.observacion ? ' — ' + c.observacion : ''}`)
+                  .join('\n');
                 return (
-                  <div key={dia} title={registro ? `${registro.estadoDia}${registro.observacion ? ': ' + registro.observacion : ''}` : undefined}
+                  <div key={dia} title={detalle}
                     className={`aspect-square flex items-center justify-center rounded-lg text-xs font-medium ${registro ? color : 'bg-slate-50'}`}>
                     {dia}
                   </div>
@@ -113,10 +119,24 @@ export default function HistorialAsistencia({ estudianteId }: { estudianteId: st
             <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t border-slate-100">
               {Object.entries(COLOR_DIA).map(([estado, color]) => (
                 <div key={estado} className="flex items-center gap-1.5 text-xs text-slate-500">
-                  <span className={`w-3 h-3 rounded ${color.split(' ')[0]}`} /> {estado === 'PRESENTE' ? 'Presente' : estado === 'AUSENTE' ? 'Ausente' : estado === 'TARDE' ? 'Tarde' : 'Excusa'}
+                  <span className={`w-3 h-3 rounded ${color.split(' ')[0]}`} /> {LABEL_ESTADO[estado]}
                 </div>
               ))}
             </div>
+            <p className="text-xs text-slate-400 mt-3">El color del día resume todas las clases. Pasa el cursor sobre un día para ver materia por materia.</p>
+
+            {registros.some(r => r.estadoDia !== 'PRESENTE') && (
+              <div className="mt-4 pt-4 border-t border-slate-100 space-y-2">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Detalle por clase</p>
+                {registros.filter(r => r.estadoDia !== 'PRESENTE').map(r => (
+                  <div key={r.fecha} className="text-xs text-slate-600">
+                    <span className="font-medium">{r.fecha.split('T')[0].split('-').reverse().join('/')}</span>
+                    {' — '}
+                    {r.clases.filter(c => c.estado !== 'PRESENTE').map(c => `${c.materia}: ${LABEL_ESTADO[c.estado] ?? c.estado}`).join(' · ')}
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         )}
       </div>

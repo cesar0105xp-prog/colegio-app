@@ -108,7 +108,7 @@ export interface Observacion {
   descripcion: string;
   fecha: string;
   yaVista?: boolean;
-  profesor: { nombres: string; apellidos: string };
+  profesor: { nombres: string; apellidos: string } | null;
 }
 
 // ─── ARCHIVOS ────────────────────────────────────────────────────────────────

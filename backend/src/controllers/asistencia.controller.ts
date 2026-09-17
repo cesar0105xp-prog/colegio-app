@@ -41,11 +41,9 @@ function fechaEnRangoPermitido(fecha: Date): string | null {
   return null;
 }
 
-/** Clasifica el peor estado del día entre mañana y tarde, para colorear el calendario. */
-function estadoDelDia(estadoManana: string, estadoTarde: string): string {
-  if (estadoManana === 'AUSENTE' || estadoTarde === 'AUSENTE') return 'AUSENTE';
-  if (estadoManana === 'TARDE' || estadoTarde === 'TARDE') return 'TARDE';
-  if (estadoManana === 'EXCUSA' || estadoTarde === 'EXCUSA') return 'EXCUSA';
+/** El peor estado del día entre todas las materias, para colorear el calendario. */
+function peorEstado(estados: string[]): string {
+  for (const peor of ['AUSENTE', 'TARDE', 'EXCUSA']) if (estados.includes(peor)) return peor;
   return 'PRESENTE';
 }
 
@@ -53,18 +51,17 @@ function estadoDelDia(estadoManana: string, estadoTarde: string): string {
 
 export const validarAsistenciaGrado = [
   body('gradoId').isUUID().withMessage('Grado inválido'),
+  body('materiaId').isUUID().withMessage('Materia inválida'),
   body('fecha').custom(esFechaValida).withMessage('Fecha inválida (formato YYYY-MM-DD)'),
   body('registros').isArray({ min: 1, max: 200 }).withMessage('Debe incluir al menos un registro'),
   body('registros.*.estudianteId').isUUID().withMessage('Estudiante inválido'),
-  body('registros.*.estadoManana').isIn(ESTADOS).withMessage('Estado de mañana inválido'),
-  body('registros.*.estadoTarde').isIn(ESTADOS).withMessage('Estado de tarde inválido'),
+  body('registros.*.estado').isIn(ESTADOS).withMessage('Estado de asistencia inválido'),
   body('registros.*.observacion').optional({ checkFalsy: true }).trim().isLength({ max: 300 }).withMessage('Observación máximo 300 caracteres'),
 ];
 
 export const validarEditarAsistencia = [
   param('id').isUUID().withMessage('ID inválido'),
-  body('estadoManana').isIn(ESTADOS).withMessage('Estado de mañana inválido'),
-  body('estadoTarde').isIn(ESTADOS).withMessage('Estado de tarde inválido'),
+  body('estado').isIn(ESTADOS).withMessage('Estado de asistencia inválido'),
   body('observacion').optional({ checkFalsy: true }).trim().isLength({ max: 300 }).withMessage('Observación máximo 300 caracteres'),
   body('justificada').optional().isBoolean().withMessage('Valor de justificada inválido'),
 ];
@@ -75,19 +72,19 @@ export async function registrarAsistenciaGrado(req: Request, res: Response): Pro
   const errores = validationResult(req);
   if (!errores.isEmpty()) { res.status(400).json({ ok: false, errores: errores.array().map(e => e.msg) }); return; }
 
-  const { gradoId, fecha: fechaStr, registros } = req.body as { gradoId: string; fecha: string; registros: { estudianteId: string; estadoManana: string; estadoTarde: string; observacion?: string }[] };
+  const { gradoId, materiaId, fecha: fechaStr, registros } = req.body as { gradoId: string; materiaId: string; fecha: string; registros: { estudianteId: string; estado: string; observacion?: string }[] };
   const fecha = parseFechaUTC(fechaStr);
 
   const errorRango = fechaEnRangoPermitido(fecha);
   if (errorRango) { res.status(400).json({ ok: false, mensaje: errorRango }); return; }
 
   try {
-    // Solo profesores con alguna materia asignada en ese grado pueden tomar asistencia
+    // La asistencia es de la clase del profesor: debe tener esa materia en ese grado
     const asignado = await prisma.materiaGradoProfesor.findFirst({
-      where: { gradoId, profesor: { usuarioId: req.usuario!.sub } },
+      where: { gradoId, materiaId, profesor: { usuarioId: req.usuario!.sub } },
     });
     if (!asignado) {
-      res.status(403).json({ ok: false, mensaje: 'No tienes materias asignadas en este grado' });
+      res.status(403).json({ ok: false, mensaje: 'No tienes esta materia asignada en este grado' });
       return;
     }
 
@@ -101,17 +98,17 @@ export async function registrarAsistenciaGrado(req: Request, res: Response): Pro
     const profesorId = req.usuario!.sub;
     await prisma.$transaction(
       registros.map(r => prisma.registroAsistencia.upsert({
-        where: { estudianteId_fecha: { estudianteId: r.estudianteId, fecha } },
-        update: { estadoManana: r.estadoManana as EstadoAsistencia, estadoTarde: r.estadoTarde as EstadoAsistencia, observacion: r.observacion?.trim() || null, profesorId },
+        where: { estudianteId_fecha_materiaId: { estudianteId: r.estudianteId, fecha, materiaId } },
+        update: { estado: r.estado as EstadoAsistencia, observacion: r.observacion?.trim() || null, profesorId },
         create: {
-          estudianteId: r.estudianteId, fecha, profesorId,
-          estadoManana: r.estadoManana as EstadoAsistencia, estadoTarde: r.estadoTarde as EstadoAsistencia,
+          estudianteId: r.estudianteId, fecha, profesorId, materiaId,
+          estado: r.estado as EstadoAsistencia,
           observacion: r.observacion?.trim() || null,
         },
       }))
     );
 
-    await audit({ usuarioId: profesorId, accion: 'CREAR', entidad: 'registros_asistencia', datosDespues: { gradoId, fecha: fechaStr, cantidad: registros.length }, ip: req.ip });
+    await audit({ usuarioId: profesorId, accion: 'CREAR', entidad: 'registros_asistencia', datosDespues: { gradoId, materiaId, fecha: fechaStr, cantidad: registros.length }, ip: req.ip });
     res.status(201).json({ ok: true, mensaje: `Asistencia guardada para ${registros.length} estudiante(s)` });
   } catch (err) {
     logger.error('Error al registrar asistencia del grado', { err });
@@ -123,10 +120,14 @@ export async function registrarAsistenciaGrado(req: Request, res: Response): Pro
 
 export async function listarAsistenciaGrado(req: Request, res: Response): Promise<void> {
   const { gradoId } = req.params;
-  const { fecha: fechaStr } = req.query;
+  const { fecha: fechaStr, materiaId } = req.query;
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(gradoId)) {
+  if (!UUID.test(gradoId)) {
     res.status(400).json({ ok: false, mensaje: 'Grado inválido' }); return;
+  }
+  if (!materiaId || !UUID.test(materiaId as string)) {
+    res.status(400).json({ ok: false, mensaje: 'Indica la materia de la clase' }); return;
   }
   if (!fechaStr || !esFechaValida(fechaStr as string)) {
     res.status(400).json({ ok: false, mensaje: 'Fecha inválida (formato YYYY-MM-DD)' }); return;
@@ -148,22 +149,24 @@ export async function listarAsistenciaGrado(req: Request, res: Response): Promis
     const estudianteIds = estudiantes.map(e => e.id);
 
     const [registrosDelDia, registrosDelMes] = await Promise.all([
+      // Del día: solo la clase de esta materia
       prisma.registroAsistencia.findMany({
-        where: { estudianteId: { in: estudianteIds }, fecha },
-        select: { id: true, estudianteId: true, estadoManana: true, estadoTarde: true, observacion: true, justificada: true },
+        where: { estudianteId: { in: estudianteIds }, fecha, materiaId: materiaId as string },
+        select: { id: true, estudianteId: true, estado: true, observacion: true, justificada: true },
       }),
+      // Del mes: todas las materias, para avisar de estudiantes con varias ausencias
       prisma.registroAsistencia.findMany({
-        where: { estudianteId: { in: estudianteIds }, fecha: { gte: inicioMes, lte: finMes } },
-        select: { estudianteId: true, estadoManana: true, estadoTarde: true },
+        where: { estudianteId: { in: estudianteIds }, fecha: { gte: inicioMes, lte: finMes }, estado: 'AUSENTE' },
+        select: { estudianteId: true, fecha: true },
       }),
     ]);
 
     const porEstudiante = new Map(registrosDelDia.map(r => [r.estudianteId, r]));
-    const ausenciasMes = new Map<string, number>();
+    // Un día con ausencia en varias materias cuenta como un solo día ausente
+    const diasAusente = new Map<string, Set<number>>();
     for (const r of registrosDelMes) {
-      if (r.estadoManana === 'AUSENTE' || r.estadoTarde === 'AUSENTE') {
-        ausenciasMes.set(r.estudianteId, (ausenciasMes.get(r.estudianteId) ?? 0) + 1);
-      }
+      if (!diasAusente.has(r.estudianteId)) diasAusente.set(r.estudianteId, new Set());
+      diasAusente.get(r.estudianteId)!.add(r.fecha.getTime());
     }
 
     const datos = estudiantes.map(e => {
@@ -173,11 +176,10 @@ export async function listarAsistenciaGrado(req: Request, res: Response): Promis
         nombres: e.nombres,
         apellidos: e.apellidos,
         registroId: registro?.id ?? null,
-        estadoManana: registro?.estadoManana ?? 'PRESENTE',
-        estadoTarde: registro?.estadoTarde ?? 'PRESENTE',
+        estado: registro?.estado ?? 'PRESENTE',
         observacion: registro?.observacion ?? null,
         justificada: registro?.justificada ?? false,
-        ausenciasMes: ausenciasMes.get(e.id) ?? 0,
+        ausenciasMes: diasAusente.get(e.id)?.size ?? 0,
       };
     });
 
@@ -195,7 +197,7 @@ export async function editarAsistencia(req: Request, res: Response): Promise<voi
   if (!errores.isEmpty()) { res.status(400).json({ ok: false, errores: errores.array().map(e => e.msg) }); return; }
 
   const { id } = req.params;
-  const { estadoManana, estadoTarde, observacion, justificada } = req.body;
+  const { estado, observacion, justificada } = req.body;
 
   try {
     const registro = await prisma.registroAsistencia.findUnique({ where: { id } });
@@ -213,7 +215,7 @@ export async function editarAsistencia(req: Request, res: Response): Promise<voi
     const actualizado = await prisma.registroAsistencia.update({
       where: { id },
       data: {
-        estadoManana, estadoTarde,
+        estado,
         observacion: observacion?.trim() || null,
         justificada: justificada ?? registro.justificada,
       },
@@ -253,18 +255,33 @@ export async function historialEstudiante(req: Request, res: Response): Promise<
   try {
     const registros = await prisma.registroAsistencia.findMany({
       where: { estudianteId, fecha: { gte: fechaDesde, lte: fechaHasta } },
-      orderBy: { fecha: 'asc' },
+      include: { materia: { select: { id: true, nombre: true } } },
+      orderBy: [{ fecha: 'asc' }, { materia: { nombre: 'asc' } }],
     });
+
+    // Un día puede tener varias clases; se agrupan y el día toma el peor estado
+    type Clase = { id: string; materia: string; materiaId: string; estado: string; observacion: string | null; justificada: boolean };
+    const porDia = new Map<number, { fecha: Date; clases: Clase[] }>();
+    for (const r of registros) {
+      if (!porDia.has(r.fecha.getTime())) porDia.set(r.fecha.getTime(), { fecha: r.fecha, clases: [] });
+      porDia.get(r.fecha.getTime())!.clases.push({
+        id: r.id, materia: r.materia.nombre, materiaId: r.materiaId,
+        estado: r.estado, observacion: r.observacion, justificada: r.justificada,
+      });
+    }
 
     const contador = { presencias: 0, ausencias: 0, tardanzas: 0, excusas: 0 };
     let ausenciasSinJustificar = 0;
-    const datos = registros.map(r => {
-      const estadoDia = estadoDelDia(r.estadoManana, r.estadoTarde);
-      if (estadoDia === 'AUSENTE') { contador.ausencias++; if (!r.justificada) ausenciasSinJustificar++; }
+    const datos = [...porDia.values()].map(({ fecha, clases }) => {
+      const estadoDia = peorEstado(clases.map(c => c.estado));
+      if (estadoDia === 'AUSENTE') {
+        contador.ausencias++;
+        if (clases.some(c => c.estado === 'AUSENTE' && !c.justificada)) ausenciasSinJustificar++;
+      }
       else if (estadoDia === 'TARDE') contador.tardanzas++;
       else if (estadoDia === 'EXCUSA') contador.excusas++;
       else contador.presencias++;
-      return { id: r.id, fecha: r.fecha, estadoManana: r.estadoManana, estadoTarde: r.estadoTarde, observacion: r.observacion, justificada: r.justificada, estadoDia };
+      return { fecha, estadoDia, clases };
     });
 
     res.json({ ok: true, datos: { registros: datos, contador, ausenciasSinJustificar } });
@@ -294,12 +311,14 @@ export async function reporteAusencias(req: Request, res: Response): Promise<voi
     const registros = await prisma.registroAsistencia.findMany({
       where,
       select: {
-        estadoManana: true, estadoTarde: true, justificada: true,
+        estado: true, justificada: true, fecha: true,
         estudiante: { select: { id: true, nombres: true, apellidos: true, grado: { select: { nombre: true, grupo: true } } } },
       },
     });
 
     type Resumen = { estudianteId: string; nombres: string; apellidos: string; grado: string; totalAusencias: number; totalTardanzas: number; totalExcusas: number; ausenciasSinJustificar: number };
+    // Se cuenta por DÍA: si falta a varias clases el mismo día, es una sola ausencia
+    const diasPorEstudiante = new Map<string, Map<number, { estados: string[]; sinJustificar: boolean }>>();
     const porEstudiante = new Map<string, Resumen>();
 
     for (const r of registros) {
@@ -310,12 +329,23 @@ export async function reporteAusencias(req: Request, res: Response): Promise<voi
           grado: `${r.estudiante.grado.nombre}${r.estudiante.grado.grupo}`,
           totalAusencias: 0, totalTardanzas: 0, totalExcusas: 0, ausenciasSinJustificar: 0,
         });
+        diasPorEstudiante.set(key, new Map());
       }
+      const dias = diasPorEstudiante.get(key)!;
+      const dia = dias.get(r.fecha.getTime()) ?? { estados: [], sinJustificar: false };
+      dia.estados.push(r.estado);
+      if (r.estado === 'AUSENTE' && !r.justificada) dia.sinJustificar = true;
+      dias.set(r.fecha.getTime(), dia);
+    }
+
+    for (const [key, dias] of diasPorEstudiante) {
       const item = porEstudiante.get(key)!;
-      const dia = estadoDelDia(r.estadoManana, r.estadoTarde);
-      if (dia === 'AUSENTE') { item.totalAusencias++; if (!r.justificada) item.ausenciasSinJustificar++; }
-      else if (dia === 'TARDE') item.totalTardanzas++;
-      else if (dia === 'EXCUSA') item.totalExcusas++;
+      for (const dia of dias.values()) {
+        const estado = peorEstado(dia.estados);
+        if (estado === 'AUSENTE') { item.totalAusencias++; if (dia.sinJustificar) item.ausenciasSinJustificar++; }
+        else if (estado === 'TARDE') item.totalTardanzas++;
+        else if (estado === 'EXCUSA') item.totalExcusas++;
+      }
     }
 
     const datos = Array.from(porEstudiante.values())
@@ -343,24 +373,27 @@ export async function alertasAusencias(req: Request, res: Response): Promise<voi
 
   try {
     const registros = await prisma.registroAsistencia.findMany({
-      where: { fecha: { gte: inicioMes, lte: finMes }, justificada: false, OR: [{ estadoManana: 'AUSENTE' }, { estadoTarde: 'AUSENTE' }] },
+      where: { fecha: { gte: inicioMes, lte: finMes }, justificada: false, estado: 'AUSENTE' },
       select: {
-        estadoManana: true, estadoTarde: true,
+        fecha: true,
         estudiante: { select: { id: true, nombres: true, apellidos: true, grado: { select: { nombre: true, grupo: true } } } },
       },
     });
 
     type Alerta = { estudianteId: string; nombres: string; apellidos: string; grado: string; ausenciasSinJustificar: number };
     const conteo = new Map<string, Alerta>();
+    // Faltar a varias clases el mismo día cuenta como un solo día ausente
+    const dias = new Map<string, Set<number>>();
 
     for (const r of registros) {
-      if (r.estadoManana !== 'AUSENTE' && r.estadoTarde !== 'AUSENTE') continue;
       const key = r.estudiante.id;
       if (!conteo.has(key)) {
         conteo.set(key, { estudianteId: key, nombres: r.estudiante.nombres, apellidos: r.estudiante.apellidos, grado: `${r.estudiante.grado.nombre}${r.estudiante.grado.grupo}`, ausenciasSinJustificar: 0 });
+        dias.set(key, new Set());
       }
-      conteo.get(key)!.ausenciasSinJustificar++;
+      dias.get(key)!.add(r.fecha.getTime());
     }
+    for (const [key, fechas] of dias) conteo.get(key)!.ausenciasSinJustificar = fechas.size;
 
     const datos = Array.from(conteo.values()).filter(a => a.ausenciasSinJustificar >= UMBRAL).sort((a, b) => b.ausenciasSinJustificar - a.ausenciasSinJustificar);
     res.json({ ok: true, datos, meta: { mes: mesNum, anio: anioNum, umbral: UMBRAL } });

@@ -301,7 +301,7 @@ export async function verificarMatricula(req: Request, res: Response): Promise<v
     await audit({ usuarioId: req.usuario!.sub, accion: 'EDITAR', entidad: 'matriculas', entidadId: id, datosDespues: { estado: 'VERIFICADO' }, ip: req.ip });
 
     const nombreEst = `${matricula.estudiante.nombres} ${matricula.estudiante.apellidos}`;
-    enviarWhatsApp(matricula.padre.telefono, PlantillasWhatsApp.matriculaConfirmada(nombreEst))
+    if (matricula.padre) enviarWhatsApp(matricula.padre.telefono, PlantillasWhatsApp.matriculaConfirmada(nombreEst))
       .catch(err => logger.error('Error al notificar matrícula confirmada', { err }));
 
     res.json({ ok: true, mensaje: 'Matrícula verificada y estudiante activado correctamente' });
@@ -468,7 +468,11 @@ export async function accederConMagicLink(req: Request, res: Response): Promise<
       return;
     }
 
-    const usuario = matricula.padre.usuario;
+    const usuario = matricula.padre?.usuario;
+    if (!usuario) {
+      res.status(403).json({ ok: false, mensaje: 'Esta matrícula ya no tiene un acudiente asociado. Contacta al colegio.' });
+      return;
+    }
     if (usuario.estado !== 'ACTIVO') {
       res.status(403).json({ ok: false, mensaje: 'Cuenta inactiva. Contacta al colegio.' });
       return;
@@ -613,7 +617,7 @@ export async function reenviarLink(req: Request, res: Response): Promise<void> {
     });
     if (!matricula) { res.status(404).json({ ok: false, mensaje: 'Matrícula no encontrada' }); return; }
 
-    if (!matricula.padre.emailContacto) {
+    if (!matricula.padre?.emailContacto) {
       res.status(400).json({ ok: false, mensaje: 'Este padre/acudiente no tiene un correo personal registrado. Actualízalo antes de reenviar el enlace.' });
       return;
     }
