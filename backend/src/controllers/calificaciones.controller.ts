@@ -3,6 +3,7 @@ import { TipoActividad } from '@prisma/client';
 import { body, validationResult } from 'express-validator';
 import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
+import { notaPonderada, promedio } from '../utils/notas';
 
 import { prisma } from '../utils/prisma';
 
@@ -75,8 +76,8 @@ async function validarSumaPorcentajes(
 }
 
 /**
- * Calcula la nota final ponderada de un estudiante en una materia/período.
- * notaPeriodo = SUM(calificacion.valor * actividad.porcentaje / 100)
+ * Nota de un estudiante en una materia/período: promedio ponderado de lo
+ * evaluado (ver utils/notas.ts). null si aún no tiene notas.
  */
 export async function calcularNotaPeriodo(
   estudianteId: string,
@@ -93,13 +94,19 @@ export async function calcularNotaPeriodo(
     },
   });
 
-  if (calificaciones.length === 0) return null;
+  return notaPonderada(calificaciones.map(c => ({ valor: c.valor, porcentaje: c.actividad.porcentaje })))?.nota ?? null;
+}
 
-  const nota = calificaciones.reduce((acc, c) => {
-    return acc + Number(c.valor) * (Number(c.actividad.porcentaje) / 100);
-  }, 0);
-
-  return Math.round(nota * 10) / 10; // redondear a 1 decimal
+/**
+ * Un profesor solo consulta notas/actividades de los grados (y materias, si se
+ * indica) que tiene asignados. Admin y secretaría no tienen esta restricción.
+ */
+export async function profesorTieneAsignacion(usuarioId: string, gradoId: string, materiaId?: string): Promise<boolean> {
+  const asignacion = await prisma.materiaGradoProfesor.findFirst({
+    where: { gradoId, ...(materiaId ? { materiaId } : {}), profesor: { usuarioId } },
+    select: { id: true },
+  });
+  return !!asignacion;
 }
 
 // ─── ACTIVIDADES ─────────────────────────────────────────────────────────────
@@ -177,11 +184,26 @@ export async function listarActividades(req: Request, res: Response): Promise<vo
   const { materiaId, gradoId, periodoId } = req.query;
 
   try {
+    // Profesor: solo actividades de sus materias/grados asignados
+    let soloAsignadas: { materiaId: string; gradoId: string }[] | undefined;
+    if (req.usuario!.rol === 'PROFESOR') {
+      if (gradoId && materiaId && !(await profesorTieneAsignacion(req.usuario!.sub, gradoId as string, materiaId as string))) {
+        res.status(403).json({ ok: false, mensaje: 'No tienes esta materia asignada en este grado' });
+        return;
+      }
+      soloAsignadas = await prisma.materiaGradoProfesor.findMany({
+        where: { profesor: { usuarioId: req.usuario!.sub } },
+        select: { materiaId: true, gradoId: true },
+      });
+    }
+
     const actividades = await prisma.actividad.findMany({
       where: {
         materiaId: materiaId as string | undefined,
         gradoId: gradoId as string | undefined,
         periodoId: periodoId as string | undefined,
+        // OR vacío (profesor sin asignaciones) no devuelve nada
+        ...(soloAsignadas ? { OR: soloAsignadas } : {}),
       },
       include: { materia: true, grado: true, periodo: true, profesor: true },
       orderBy: { createdAt: 'asc' },
@@ -288,11 +310,16 @@ export async function obtenerBoletin(req: Request, res: Response): Promise<void>
       return;
     }
 
-    // Obtener todas las materias del grado
+    // Materias del grado. Un profesor solo ve las que dicta a ese estudiante.
+    const esProfesor = req.usuario!.rol === 'PROFESOR';
     const materiasGrado = await prisma.materiaGradoProfesor.findMany({
-      where: { gradoId: estudiante.gradoId },
+      where: { gradoId: estudiante.gradoId, ...(esProfesor ? { profesor: { usuarioId: req.usuario!.sub } } : {}) },
       include: { materia: true, profesor: true },
     });
+    if (esProfesor && materiasGrado.length === 0) {
+      res.status(403).json({ ok: false, mensaje: 'No tienes materias asignadas en el grado de este estudiante' });
+      return;
+    }
 
     // Para cada materia, calcular la nota del período
     const boletin = await Promise.all(
@@ -309,9 +336,10 @@ export async function obtenerBoletin(req: Request, res: Response): Promise<void>
           orderBy: { createdAt: 'asc' },
         });
 
-        const notaPeriodo = periodoId
-          ? await calcularNotaPeriodo(estudianteId, mg.materiaId, periodoId as string)
+        const calculo = periodoId
+          ? notaPonderada(actividades.filter(a => a.calificaciones[0]).map(a => ({ valor: a.calificaciones[0].valor, porcentaje: a.porcentaje })))
           : null;
+        const notaPeriodo = calculo?.nota ?? null;
 
         return {
           materia: mg.materia,
@@ -324,8 +352,10 @@ export async function obtenerBoletin(req: Request, res: Response): Promise<void>
             nota: a.calificaciones[0]?.valor != null ? Number(a.calificaciones[0].valor) : null,
             observacion: a.calificaciones[0]?.observacion ?? null,
           })),
-          notaPeriodo: notaPeriodo != null ? Number(notaPeriodo) : null,
+          notaPeriodo,
+          // porcentajeTotal: lo planeado por el profesor; porcentajeEvaluado: lo ya calificado a este estudiante
           porcentajeTotal: actividades.reduce((acc, a) => acc + Number(a.porcentaje), 0),
+          porcentajeEvaluado: calculo?.porcentajeEvaluado ?? 0,
         };
       })
     );
@@ -448,7 +478,16 @@ export async function obtenerResumenAnual(req: Request, res: Response): Promise<
       return;
     }
 
-    const materias = estudiante.grado.materiaGrados.map(mg => ({
+    // Un profesor solo ve las materias que dicta a ese estudiante
+    const materiaGrados = req.usuario!.rol === 'PROFESOR'
+      ? estudiante.grado.materiaGrados.filter(mg => mg.profesor.usuarioId === req.usuario!.sub)
+      : estudiante.grado.materiaGrados;
+    if (req.usuario!.rol === 'PROFESOR' && materiaGrados.length === 0) {
+      res.status(403).json({ ok: false, mensaje: 'No tienes materias asignadas en el grado de este estudiante' });
+      return;
+    }
+
+    const materias = materiaGrados.map(mg => ({
       id: mg.materia.id,
       nombre: mg.materia.nombre,
       profesor: `${mg.profesor.nombres} ${mg.profesor.apellidos}`,
@@ -463,30 +502,17 @@ export async function obtenerResumenAnual(req: Request, res: Response): Promise<
           include: { actividad: { select: { porcentaje: true } } },
         });
 
-        if (calificaciones.length === 0) {
-          notasPorPeriodo[per.id] = null;
-        } else {
-          const nota = calificaciones.reduce((acc, c) =>
-            acc + Number(c.valor) * (Number(c.actividad.porcentaje) / 100), 0
-          );
-          notasPorPeriodo[per.id] = Math.round(nota * 10) / 10;
-        }
+        notasPorPeriodo[per.id] = notaPonderada(calificaciones.map(c => ({ valor: c.valor, porcentaje: c.actividad.porcentaje })))?.nota ?? null;
       }));
 
-      const notasValidas = Object.values(notasPorPeriodo).filter(n => n !== null) as number[];
-      const promedioAnual = notasValidas.length > 0
-        ? Math.round((notasValidas.reduce((a, b) => a + b, 0) / notasValidas.length) * 10) / 10
-        : null;
+      const promedioAnual = promedio(Object.values(notasPorPeriodo).filter(n => n !== null) as number[]);
 
       return { materia: { id: mat.id, nombre: mat.nombre }, profesor: mat.profesor, notasPorPeriodo, promedioAnual };
     }));
 
     const promediosPorPeriodo: Record<string, number | null> = {};
     periodos.forEach(per => {
-      const notas = resumen.map(r => r.notasPorPeriodo[per.id]).filter(n => n !== null) as number[];
-      promediosPorPeriodo[per.id] = notas.length > 0
-        ? Math.round((notas.reduce((a, b) => a + b, 0) / notas.length) * 10) / 10
-        : null;
+      promediosPorPeriodo[per.id] = promedio(resumen.map(r => r.notasPorPeriodo[per.id]).filter(n => n !== null) as number[]);
     });
 
     res.json({

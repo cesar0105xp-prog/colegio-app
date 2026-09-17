@@ -501,11 +501,11 @@ function FichaEstudiante({ estudiante, onClose, onEditar }: { estudiante: EstRow
                 <p className="text-sm text-slate-400 italic text-center py-6">Sin notas registradas para este período</p>
               ) : (
                 <div className="space-y-2 max-h-72 overflow-y-auto">
-                  {(boletinData.boletin as { materia: { id: string; nombre: string }; profesor: string; notaPeriodo: number | null; porcentajeTotal: number }[]).map(m => (
+                  {(boletinData.boletin as { materia: { id: string; nombre: string }; profesor: string; notaPeriodo: number | null; porcentajeEvaluado?: number }[]).map(m => (
                     <div key={m.materia.id} className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-2.5">
                       <div>
                         <p className="text-sm font-medium text-slate-800">{m.materia.nombre}</p>
-                        <p className="text-xs text-slate-400">Prof. {m.profesor} · {m.porcentajeTotal}% evaluado</p>
+                        <p className="text-xs text-slate-400">Prof. {m.profesor} · {m.porcentajeEvaluado ?? 0}% evaluado</p>
                       </div>
                       <span className={`text-lg ${COLOR_NOTA(m.notaPeriodo)}`}>{m.notaPeriodo != null ? m.notaPeriodo.toFixed(1) : '—'}</span>
                     </div>

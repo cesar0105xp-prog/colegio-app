@@ -42,7 +42,7 @@ function Toast({ mensaje, tipo, onClose }: { mensaje: string; tipo: 'ok' | 'erro
 }
 
 type Hijo = { id: string; nombres: string; apellidos: string; grado: { id: string; nombre: string; grupo: string }; estado: string };
-type MateriaBoletin = { materia: { id: string; nombre: string }; profesor: string; actividades: { id: string; nombre: string; tipo: string; porcentaje: number; nota: number | null; observacion?: string }[]; notaPeriodo: number | null; porcentajeTotal: number };
+type MateriaBoletin = { materia: { id: string; nombre: string }; profesor: string; actividades: { id: string; nombre: string; tipo: string; porcentaje: number; nota: number | null; observacion?: string }[]; notaPeriodo: number | null; porcentajeTotal: number; porcentajeEvaluado?: number };
 type Observacion = { id: string; tipo: string; descripcion: string; fecha: string; yaVista: boolean; profesor: { nombres: string; apellidos: string }; materia?: { nombre: string } };
 type Periodo = { id: string; nombre: string; numero: number; anio: number; activo: boolean };
 type ComunicadoRow = { id: string; titulo: string; mensaje: string; destinatario: string; createdAt: string; grado?: { nombre: string; grupo: string } };
@@ -70,10 +70,13 @@ function TarjetaMateria({ m }: { m: MateriaBoletin }) {
       <div className="px-4 pb-3">
         <div className="flex items-center gap-2">
           <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-            <div className="h-full bg-blue-500 rounded-full" style={{ width: `${m.porcentajeTotal}%` }} />
+            <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(m.porcentajeEvaluado ?? 0, 100)}%` }} />
           </div>
-          <span className="text-xs text-slate-400">{m.porcentajeTotal}%</span>
+          <span className="text-xs text-slate-400 whitespace-nowrap">{m.porcentajeEvaluado ?? 0}% evaluado</span>
         </div>
+        {m.notaPeriodo != null && (m.porcentajeEvaluado ?? 0) < 100 && (
+          <p className="text-xs text-slate-400 mt-0.5">Nota con lo evaluado hasta hoy; falta calificar el {Math.round((100 - (m.porcentajeEvaluado ?? 0)) * 10) / 10}% del período</p>
+        )}
       </div>
       {abierta && (
         <div className="border-t border-slate-100 px-4 pb-4 pt-3 space-y-2">

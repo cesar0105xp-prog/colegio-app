@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CalendarCheck, CheckCircle, AlertCircle, X, Save, AlertTriangle } from 'lucide-react';
 import api from '../services/api';
+import { useMisAsignaciones } from '../services/misAsignaciones';
 
 function Toast({ mensaje, tipo, onClose }: { mensaje: string; tipo: 'ok' | 'error'; onClose: () => void }) {
   return (
@@ -48,7 +49,8 @@ export default function Asistencia() {
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'error' } | null>(null);
   const [local, setLocal] = useState<Record<string, EstadoLocal>>({});
 
-  const { data: grados = [] } = useQuery({ queryKey: ['grados'], queryFn: async () => (await api.get('/grados')).data.datos ?? [] });
+  // Solo los grados donde el profesor tiene materias asignadas
+  const { grados, sinAsignaciones } = useMisAsignaciones();
 
   const { data: filas = [], isLoading } = useQuery({
     queryKey: ['asistencia-grado', gradoId, fecha],
@@ -105,6 +107,11 @@ export default function Asistencia() {
 
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
         <p className="text-sm font-semibold text-slate-600 mb-3">Selecciona el grado y la fecha</p>
+        {sinAsignaciones && (
+          <div className="mb-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
+            <p className="text-xs text-amber-700">Aún no tienes materias asignadas. Pide a administración que te asigne la materia y el grado para poder tomar asistencia.</p>
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1.5">Grado</label>

@@ -86,6 +86,7 @@ export interface MateriaBoletin {
   actividades: ActividadBoletin[];
   notaPeriodo: number | null;
   porcentajeTotal: number;
+  porcentajeEvaluado?: number;
 }
 
 export interface Boletin {

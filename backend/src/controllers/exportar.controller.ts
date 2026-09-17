@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import ExcelJS from 'exceljs';
 import { logger } from '../utils/logger';
+import { notaPonderada } from '../utils/notas';
 
 import { prisma } from '../utils/prisma';
 
@@ -86,8 +87,7 @@ async function construirHojaMateria(
     estiloCelda(sheet.getCell(filaActual, col)); sheet.getCell(filaActual, col++).value = est.nombres;
     estiloCelda(sheet.getCell(filaActual, col)); sheet.getCell(filaActual, col++).value = est.apellidos;
 
-    let sumaPonderada = 0;
-    let porcentajeConNota = 0;
+    const conNota: { valor: number; porcentaje: number }[] = [];
 
     for (const act of actividades) {
       const cal = calificaciones.find(c => c.actividadId === act.id && c.estudianteId === est.id);
@@ -97,8 +97,7 @@ async function construirHojaMateria(
         const valor = Number(cal.valor);
         cell.value = valor;
         cell.numFmt = '0.0';
-        sumaPonderada += valor * (Number(act.porcentaje) / 100);
-        porcentajeConNota += Number(act.porcentaje);
+        conNota.push({ valor, porcentaje: Number(act.porcentaje) });
         if (valor < 70) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_REPROBADO } };
       } else {
         cell.value = '—';
@@ -108,8 +107,9 @@ async function construirHojaMateria(
 
     const cellPromedio = sheet.getCell(filaActual, col);
     estiloCelda(cellPromedio, true);
-    if (porcentajeConNota > 0) {
-      const promedio = Math.round(sumaPonderada * 10) / 10;
+    const calculo = notaPonderada(conNota);
+    if (calculo) {
+      const promedio = calculo.nota;
       cellPromedio.value = promedio;
       cellPromedio.numFmt = '0.0';
       cellPromedio.font = { name: 'Arial', size: 11, bold: true };
