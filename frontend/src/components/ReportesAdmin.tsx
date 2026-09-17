@@ -90,7 +90,7 @@ export default function Reportes() {
     if (!boletines.length) return [];
     const promedios = (boletines as { promedio: number | null }[]).map(e => e.promedio).filter(Boolean) as number[];
     const excelente = promedios.filter(n => n >= 90).length;
-    const aprobado = promedios.filter(n => n >= 70 && n < 4.5).length;
+    const aprobado = promedios.filter(n => n >= 70 && n < 90).length;
     const riesgo = promedios.filter(n => n < 70).length;
     return [
       { name: 'Excelente (≥90)', value: excelente, color: COLOR_APROBADO },

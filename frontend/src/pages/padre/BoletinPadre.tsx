@@ -22,7 +22,8 @@ function TarjetaMateria({ materia }: { materia: MateriaBoletin }) {
   const [expandida, setExpandida] = useState(false);
 
   const notaColor = COLOR_NOTA(materia.notaPeriodo);
-  const porcentajeFaltante = 100 - materia.porcentajeTotal;
+  const porcentajeEvaluado = materia.porcentajeEvaluado ?? 0;
+  const porcentajeFaltante = Math.round((100 - porcentajeEvaluado) * 10) / 10;
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
@@ -63,14 +64,14 @@ function TarjetaMateria({ materia }: { materia: MateriaBoletin }) {
           <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
             <div
               className="h-full bg-blue-500 rounded-full transition-all"
-              style={{ width: `${materia.porcentajeTotal}%` }}
+              style={{ width: `${Math.min(porcentajeEvaluado, 100)}%` }}
             />
           </div>
-          <span className="text-xs text-slate-500">{materia.porcentajeTotal}%</span>
+          <span className="text-xs text-slate-500 whitespace-nowrap">{porcentajeEvaluado}% evaluado</span>
         </div>
-        {porcentajeFaltante > 0 && (
+        {materia.notaPeriodo !== null && porcentajeFaltante > 0 && (
           <p className="text-xs text-slate-400 mt-0.5">
-            Faltan actividades por {porcentajeFaltante}%
+            Nota con lo evaluado hasta hoy; falta calificar el {porcentajeFaltante}% del período
           </p>
         )}
       </div>

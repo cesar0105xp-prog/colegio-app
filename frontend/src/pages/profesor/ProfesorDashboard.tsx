@@ -11,6 +11,7 @@ import { useAuthStore } from '../../store/auth.store';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import CalendarioAcademico from '../../components/CalendarioAcademico';
+import { useMisAsignaciones } from '../../services/misAsignaciones';
 import { CambiarPassword } from '../../components/CambiarPassword';
 import Asistencia from '../../components/Asistencia';
 import AgendaCalendario from '../../components/AgendaCalendario';
@@ -111,15 +112,10 @@ function ModuloNotas() {
   const [vistaNotas, setVistaNotas] = useState(false);
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'error' } | null>(null);
 
-  const { data: grados = [] } = useQuery({ queryKey: ['grados'], queryFn: async () => (await api.get('/grados')).data.datos ?? [] });
+  // Solo los grados y materias asignados a este profesor
+  const { grados, materiasDe, sinAsignaciones } = useMisAsignaciones();
   const { data: periodos = [] } = useQuery({ queryKey: ['periodos'], queryFn: async () => (await api.get('/periodos')).data.datos ?? [] });
-
-  const { data: gradoDetalle } = useQuery({
-    queryKey: ['grado-detalle', gradoId],
-    queryFn: async () => (await api.get('/grados')).data.datos?.find((g: Grado & { materiaGrados: { materia: Materia; profesorId: string }[] }) => g.id === gradoId),
-    enabled: !!gradoId,
-  });
-  const materias: Materia[] = gradoDetalle?.materiaGrados?.map((mg: { materia: Materia }) => mg.materia) ?? [];
+  const materias: Materia[] = gradoId ? materiasDe(gradoId) : [];
 
   const { data: actividadesData } = useQuery({
     queryKey: ['actividades', materiaId, gradoId, periodoId],
@@ -195,7 +191,12 @@ function ModuloNotas() {
 
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
         <p className="text-sm font-semibold text-slate-600 mb-3">Selecciona el contexto</p>
-        <div className="grid grid-cols-3 gap-3">
+        {sinAsignaciones && (
+          <div className="mb-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
+            <p className="text-xs text-amber-700">Aún no tienes materias asignadas. Pide a administración que te asigne la materia y el grado para poder registrar notas.</p>
+          </div>
+        )}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1.5">Grado</label>
             <select value={gradoId} onChange={e => { setGradoId(e.target.value); setMateriaId(''); setVistaNotas(false); }} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
@@ -306,7 +307,7 @@ function ModuloNotas() {
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-slate-100">
                 <h3 className="font-semibold text-slate-700">Notas de estudiantes</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Escala 0 – 100 · Mínimo aprobatorio: 70</p>
+                <p className="text-xs text-slate-400 mt-0.5">Escala 0 – 100 · Mínimo aprobatorio: 70 · La nota del período es el promedio de lo ya evaluado</p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-max">
@@ -325,7 +326,7 @@ function ModuloNotas() {
                   <tbody className="divide-y divide-slate-50">
                     {estudiantes.map(est => {
                       const boletinEst = calificacionesData?.find(c => c.estudianteId === est.id);
-                      const materiaBoletin = boletinEst?.boletin?.find((m: { materia: { id: string }; notaPeriodo: number | null; actividades: { id: string; nota: number | null }[] }) => m.materia.id === materiaId);
+                      const materiaBoletin = boletinEst?.boletin?.find((m: { materia: { id: string }; notaPeriodo: number | null; porcentajeEvaluado: number; actividades: { id: string; nota: number | null }[] }) => m.materia.id === materiaId);
 
                       return (
                         <tr key={est.id} className="hover:bg-slate-50 transition-colors">
@@ -365,6 +366,9 @@ function ModuloNotas() {
                             <span className={`text-lg font-bold ${COLOR_NOTA(materiaBoletin?.notaPeriodo != null ? Number(materiaBoletin.notaPeriodo) : null)}`}>
                               {materiaBoletin?.notaPeriodo != null ? Number(materiaBoletin.notaPeriodo).toFixed(1) : '—'}
                             </span>
+                            {materiaBoletin?.notaPeriodo != null && (
+                              <p className="text-[11px] text-slate-400 whitespace-nowrap">{materiaBoletin.porcentajeEvaluado}% evaluado</p>
+                            )}
                           </td>
                         </tr>
                       );

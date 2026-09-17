@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { logger } from '../utils/logger';
+import { ItemNota, notaPonderada, promedio as promediar } from '../utils/notas';
 
 import { prisma } from '../utils/prisma';
 
@@ -26,14 +27,11 @@ export async function reporteBoletinesPorGrado(req: Request, res: Response): Pro
           where: { estudianteId: est.id, actividad: { materiaId: mg.materiaId, periodoId: periodoId as string } },
           include: { actividad: { select: { porcentaje: true } } },
         });
-        const nota = calificaciones.length > 0
-          ? Math.round(calificaciones.reduce((acc, c) => acc + Number(c.valor) * (Number(c.actividad.porcentaje) / 100), 0) * 10) / 10
-          : null;
+        const nota = notaPonderada(calificaciones.map(c => ({ valor: c.valor, porcentaje: c.actividad.porcentaje })))?.nota ?? null;
         return { materia: mg.materia.nombre, nota };
       }));
 
-      const notasValidas = materias.filter(m => m.nota !== null).map(m => m.nota as number);
-      const promedio = notasValidas.length > 0 ? Math.round((notasValidas.reduce((a, b) => a + b, 0) / notasValidas.length) * 10) / 10 : null;
+      const promedio = promediar(materias.filter(m => m.nota !== null).map(m => m.nota as number));
 
       return {
         estudiante: `${est.nombres} ${est.apellidos}`,
@@ -67,13 +65,13 @@ export async function reporteRendimientoMateria(req: Request, res: Response): Pr
       if (calificaciones.length === 0) return { materia: mat.nombre, promedioGeneral: null, totalCalificaciones: 0 };
 
       // Agrupar por estudiante para calcular nota ponderada de cada uno
-      const porEstudiante: Record<string, number> = {};
+      const porEstudiante: Record<string, ItemNota[]> = {};
       calificaciones.forEach(c => {
-        porEstudiante[c.estudiante.id] = (porEstudiante[c.estudiante.id] ?? 0) + Number(c.valor) * (Number(c.actividad.porcentaje) / 100);
+        (porEstudiante[c.estudiante.id] ??= []).push({ valor: c.valor, porcentaje: c.actividad.porcentaje });
       });
 
-      const notas = Object.values(porEstudiante);
-      const promedioGeneral = Math.round((notas.reduce((a, b) => a + b, 0) / notas.length) * 10) / 10;
+      const notas = Object.values(porEstudiante).map(items => notaPonderada(items)!.nota);
+      const promedioGeneral = promediar(notas)!;
 
       return { materia: mat.nombre, promedioGeneral, totalCalificaciones: calificaciones.length, totalEstudiantes: notas.length };
     }));
@@ -87,7 +85,8 @@ export async function reporteRendimientoMateria(req: Request, res: Response): Pr
 
 // ─── REPORTE: ESTUDIANTES DESTACADOS ─────────────────────────────────────────
 export async function reporteEstudiantesDestacados(req: Request, res: Response): Promise<void> {
-  const { periodoId, umbral = '4.5' } = req.query;
+  // Escala 0–100: destacado = Excelente (≥ 90)
+  const { periodoId, umbral = '90' } = req.query;
   if (!periodoId) { res.status(400).json({ ok: false, mensaje: 'periodoId es requerido' }); return; }
 
   try {
@@ -100,14 +99,13 @@ export async function reporteEstudiantesDestacados(req: Request, res: Response):
       });
       if (calificaciones.length === 0) return null;
 
-      const porMateria: Record<string, number> = {};
+      const porMateria: Record<string, ItemNota[]> = {};
       calificaciones.forEach(c => {
-        const key = c.actividad.materiaId;
-        porMateria[key] = (porMateria[key] ?? 0) + Number(c.valor) * (Number(c.actividad.porcentaje) / 100);
+        (porMateria[c.actividad.materiaId] ??= []).push({ valor: c.valor, porcentaje: c.actividad.porcentaje });
       });
 
-      const notas = Object.values(porMateria);
-      const promedio = Math.round((notas.reduce((a, b) => a + b, 0) / notas.length) * 10) / 10;
+      const notas = Object.values(porMateria).map(items => notaPonderada(items)!.nota);
+      const promedio = promediar(notas)!;
 
       if (promedio < parseFloat(umbral as string)) return null;
 
