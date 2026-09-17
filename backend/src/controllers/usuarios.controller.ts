@@ -15,8 +15,11 @@ export const validarCrearUsuario = [
   body('rol').isIn(Object.values(Rol)).withMessage('Rol inválido'),
   body('nombres').trim().notEmpty().withMessage('Nombres requeridos').isLength({ min: 2, max: 50 }).withMessage('Entre 2 y 50 caracteres').matches(REGEX.SOLO_LETRAS).withMessage('Solo letras'),
   body('apellidos').trim().notEmpty().withMessage('Apellidos requeridos').isLength({ min: 2, max: 50 }).withMessage('Entre 2 y 50 caracteres').matches(REGEX.SOLO_LETRAS).withMessage('Solo letras'),
-  body('telefono').optional().trim().matches(REGEX.TELEFONO).withMessage('Teléfono inválido'),
-  body('numeroDocumento').optional().trim().matches(REGEX.SOLO_NUMEROS).withMessage('Documento solo dígitos'),
+  // checkFalsy: el formulario envía "" cuando el campo opcional queda vacío
+  body('telefono').optional({ checkFalsy: true }).trim().matches(REGEX.TELEFONO).withMessage('Teléfono inválido (7 a 10 dígitos)'),
+  body('numeroDocumento').optional({ checkFalsy: true }).trim()
+    .custom((valor: string, { req }) => (req.body.tipoDocumento === 'PASAPORTE' ? /^[A-Za-z0-9]+$/ : REGEX.SOLO_NUMEROS).test(valor))
+    .withMessage('Número de documento inválido'),
 ];
 
 export const validarEditarMiPerfil = [
@@ -35,7 +38,7 @@ export const validarActualizarCorreo = [
 export const validarEditarUsuario = [
   body('nombres').optional().trim().isLength({ min: 2, max: 50 }).withMessage('Entre 2 y 50 caracteres').matches(REGEX.SOLO_LETRAS).withMessage('Solo letras'),
   body('apellidos').optional().trim().isLength({ min: 2, max: 50 }).withMessage('Entre 2 y 50 caracteres').matches(REGEX.SOLO_LETRAS).withMessage('Solo letras'),
-  body('telefono').optional().trim().matches(REGEX.TELEFONO).withMessage('Teléfono inválido'),
+  body('telefono').optional({ checkFalsy: true }).trim().matches(REGEX.TELEFONO).withMessage('Teléfono inválido (7 a 10 dígitos)'),
   body('email').optional().trim().isEmail().withMessage('Email inválido').isLength({ max: 100 }).withMessage('Máximo 100 caracteres'),
 ];
 
