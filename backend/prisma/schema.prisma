@@ -78,6 +78,8 @@ model Profesor {
   updatedAt       DateTime               @updatedAt @map("updated_at")
   actividades     Actividad[]
   materiaGrados   MateriaGradoProfesor[]
+  gradosDirigidos Grado[]                @relation("DirectorDeCurso")
+  horarios        HorarioClase[]
   observaciones   Observacion[]
   usuario         Usuario                @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
@@ -161,6 +163,12 @@ model Grado {
   grupo         String
   nivel         String
   anio          Int
+  // Quién llama a lista: un director de curso fijo (preescolar a 4°) o el
+  // profesor de la primera clase del día según el horario (5° en adelante).
+  tipoAsistencia  TipoAsistencia @default(DIRECTOR_FIJO) @map("tipo_asistencia")
+  directorCursoId String?        @map("director_curso_id")
+  directorCurso   Profesor?      @relation("DirectorDeCurso", fields: [directorCursoId], references: [id], onDelete: SetNull)
+  horarios        HorarioClase[]
   createdAt     DateTime               @default(now()) @map("created_at")
   updatedAt     DateTime               @updatedAt @map("updated_at")
   actividades   Actividad[]
@@ -181,6 +189,7 @@ model Materia {
   createdAt     DateTime               @default(now()) @map("created_at")
   actividades   Actividad[]
   materiaGrados MateriaGradoProfesor[]
+  horarios      HorarioClase[]
   observaciones Observacion[]
   tareasAgenda  TareaAgenda[]
 
@@ -504,6 +513,28 @@ model RegistroAsistencia {
   @@map("registros_asistencia")
 }
 
+// Horario semanal de clases. Para los grados rotativos, la franja marcada como
+// primera clase define quién llama a lista ese día.
+model HorarioClase {
+  id             String   @id @default(uuid())
+  gradoId        String   @map("grado_id")
+  materiaId      String   @map("materia_id")
+  profesorId     String   @map("profesor_id")
+  diaSemana      Int      @map("dia_semana") // 1 = lunes … 5 = viernes
+  horaInicio     String   @map("hora_inicio") @db.VarChar(5) // HH:MM
+  horaFin        String   @map("hora_fin") @db.VarChar(5)
+  esPrimeraClase Boolean  @default(false) @map("es_primera_clase")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  grado          Grado    @relation(fields: [gradoId], references: [id], onDelete: Cascade)
+  materia        Materia  @relation(fields: [materiaId], references: [id])
+  profesor       Profesor @relation(fields: [profesorId], references: [id], onDelete: Cascade)
+
+  @@index([gradoId, diaSemana])
+  @@index([profesorId])
+  @@map("horarios_clase")
+}
+
 model SolicitudPermiso {
   id              String        @id @default(uuid())
   estudianteId    String        @map("estudiante_id")
@@ -698,6 +729,11 @@ enum MetodoPago {
   BANCO_BOGOTA
   PSE
   NEQUI
+}
+
+enum TipoAsistencia {
+  DIRECTOR_FIJO
+  ROTATIVO_HORARIO
 }
 
 enum EstadoAsistencia {

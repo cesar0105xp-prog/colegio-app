@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, GraduationCap, FileText,
   LogOut, Menu, Search, UserPlus,
   CheckCircle, AlertCircle, X, Edit2,
-  Eye, KeyRound, BarChart2, CreditCard, ClipboardList, Calendar, Award
+  Eye, KeyRound, BarChart2, CreditCard, ClipboardList, Calendar, Award, CalendarCheck
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import { useNavigate } from 'react-router-dom';
@@ -17,8 +17,10 @@ import Pagos from '../../components/Pagos';
 import GestionPermisos from '../../components/GestionPermisos';
 import AgendaCalendario from '../../components/AgendaCalendario';
 import GestionCertificados from '../../components/GestionCertificados';
+import Asistencia from '../../components/Asistencia';
+import { ResponsablesAsistencia } from '../../components/ConfiguracionAsistencia';
 
-type Seccion = 'resumen' | 'estudiantes' | 'padres' | 'reportes' | 'matriculas' | 'pagos' | 'permisos' | 'agenda' | 'certificados';
+type Seccion = 'resumen' | 'estudiantes' | 'padres' | 'reportes' | 'matriculas' | 'pagos' | 'permisos' | 'agenda' | 'certificados' | 'asistencia';
 
 // ─── LÍMITES COLOMBIANOS ──────────────────────────────────────────────────────
 const DOC_REGLAS: Record<string, { min: number; max: number; soloNumeros: boolean; placeholder: string }> = {
@@ -406,6 +408,25 @@ function PadresSecretario() {
   );
 }
 
+// Secretaría cubre la asistencia cuando el docente falta, y consulta quién la
+// toma cada día.
+function AsistenciaSecretaria() {
+  const [tab, setTab] = useState<'tomar' | 'responsables'>('tomar');
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        {[{ id: 'tomar' as const, label: 'Tomar asistencia' }, { id: 'responsables' as const, label: 'Quién toma asistencia' }].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-colors min-h-[44px] ${tab === t.id ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {tab === 'tomar' ? <Asistencia modoLibre /> : <ResponsablesAsistencia />}
+    </div>
+  );
+}
+
 // ─── NAV Y DASHBOARD PRINCIPAL ────────────────────────────────────────────────
 const NAV = [
   { id: 'resumen',      label: 'Resumen',      icono: LayoutDashboard },
@@ -413,6 +434,7 @@ const NAV = [
   { id: 'estudiantes',  label: 'Estudiantes',  icono: GraduationCap },
   { id: 'padres',       label: 'Padres',        icono: Users },
   { id: 'pagos',        label: 'Pagos y cartera', icono: CreditCard },
+  { id: 'asistencia',   label: 'Asistencia',     icono: CalendarCheck },
   { id: 'permisos',     label: 'Permisos',       icono: ClipboardList },
   { id: 'agenda',       label: 'Agenda escolar', icono: Calendar },
   { id: 'certificados', label: 'Certificados',   icono: Award },
@@ -424,6 +446,7 @@ const TITULOS: Record<Seccion, string> = {
   padres: 'Padres y acudientes', reportes: 'Reportes',
   matriculas: 'Matrículas', pagos: 'Pagos y cartera',
   permisos: 'Permisos y ausencias', agenda: 'Agenda escolar digital',
+  asistencia: 'Asistencia por ausencia del docente',
   certificados: 'Certificados desde el portal',
 };
 
@@ -448,6 +471,7 @@ export default function SecretarioDashboard() {
       case 'estudiantes': return <EstudiantesSecretario />;
       case 'padres':      return <PadresSecretario />;
       case 'pagos':       return <Pagos />;
+      case 'asistencia':  return <AsistenciaSecretaria />;
       case 'permisos':    return <GestionPermisos />;
       case 'agenda':      return <AgendaCalendario />;
       case 'certificados': return <GestionCertificados />;

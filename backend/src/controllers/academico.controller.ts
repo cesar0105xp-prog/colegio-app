@@ -14,6 +14,8 @@ export const validarGrado = [
     .matches(/^[A-Za-z]$/).withMessage('El grupo debe ser una sola letra'),
   body('nivel').isIn(['primaria', 'secundaria', 'media']).withMessage('Nivel inválido'),
   body('anio').isInt({ min: 2020, max: 2099 }).withMessage('Año inválido'),
+  body('tipoAsistencia').optional().isIn(['DIRECTOR_FIJO', 'ROTATIVO_HORARIO']).withMessage('Tipo de asistencia inválido'),
+  body('directorCursoId').optional({ checkFalsy: true }).isUUID().withMessage('Director de curso inválido'),
 ];
 
 export async function listarGrados(req: Request, res: Response): Promise<void> {
@@ -24,12 +26,31 @@ export async function listarGrados(req: Request, res: Response): Promise<void> {
       include: {
         _count: { select: { estudiantes: true } },
         materiaGrados: { include: { materia: true, profesor: true } },
+        directorCurso: { select: { id: true, nombres: true, apellidos: true } },
       },
       orderBy: [{ nivel: 'asc' }, { nombre: 'asc' }, { grupo: 'asc' }],
     });
     res.json({ ok: true, datos: grados });
   } catch (err) {
     logger.error('Error al listar grados', { err });
+    res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
+  }
+}
+
+/**
+ * Nombres de grado para el formulario público de solicitud de cupo. Se leen de
+ * la base: cuando administración cree 8° a 11°, aparecen solos.
+ */
+export async function listarGradosPublicos(_req: Request, res: Response): Promise<void> {
+  try {
+    const grados = await prisma.grado.findMany({
+      distinct: ['nombre'],
+      select: { nombre: true, nivel: true },
+      orderBy: [{ anio: 'desc' }, { nivel: 'asc' }, { nombre: 'asc' }],
+    });
+    res.json({ ok: true, datos: grados.map(g => g.nombre) });
+  } catch (err) {
+    logger.error('Error al listar los grados públicos', { err });
     res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
   }
 }
@@ -231,11 +252,29 @@ export async function editarPeriodo(req: Request, res: Response): Promise<void> 
 // ─── EDITAR GRADO ─────────────────────────────────────────────────────────────
 export async function editarGrado(req: Request, res: Response): Promise<void> {
   const { id } = req.params;
-  const { nombre, grupo, nivel, anio } = req.body;
+  const { nombre, grupo, nivel, anio, tipoAsistencia, directorCursoId } = req.body;
   try {
+    // Quién llama a lista: director de curso fijo, o el profesor de la primera clase
+    if (tipoAsistencia === 'DIRECTOR_FIJO' && !directorCursoId) {
+      res.status(400).json({ ok: false, mensaje: 'Indica el director de curso que tomará la asistencia' });
+      return;
+    }
+    if (tipoAsistencia === 'ROTATIVO_HORARIO') {
+      const primerasClases = await prisma.horarioClase.count({ where: { gradoId: id, esPrimeraClase: true } });
+      if (primerasClases === 0) {
+        res.status(400).json({ ok: false, mensaje: 'Antes de pasar a horario rotativo, marca la primera clase de al menos un día en el horario del grado' });
+        return;
+      }
+    }
+
     const grado = await prisma.grado.update({
       where: { id },
-      data: { nombre: nombre?.trim(), grupo: grupo?.toUpperCase(), nivel, anio: parseInt(anio) },
+      data: {
+        nombre: nombre?.trim(), grupo: grupo?.toUpperCase(), nivel, anio: parseInt(anio),
+        tipoAsistencia: tipoAsistencia ?? undefined,
+        // En rotativo no hay director de curso tomando asistencia
+        directorCursoId: tipoAsistencia === 'ROTATIVO_HORARIO' ? null : (directorCursoId ?? undefined),
+      },
     });
     await audit({ usuarioId: req.usuario!.sub, accion: 'EDITAR', entidad: 'grados', entidadId: id, ip: req.ip });
     res.json({ ok: true, datos: grado });

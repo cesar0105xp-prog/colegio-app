@@ -3,7 +3,7 @@ import { Rol } from '@prisma/client';
 import { login, logout, refreshToken, cambiarPassword, validarLogin, validarCambioPassword } from '../controllers/auth.controller';
 import { listarEstudiantes, obtenerEstudiante, crearEstudiante, editarEstudiante, cambiarEstadoEstudiante, validarEstudiante } from '../controllers/estudiantes.controller';
 import { listarUsuarios, obtenerUsuario, crearUsuario, editarUsuario, eliminarUsuario, cambiarEstadoUsuario, resetearPassword, validarCrearUsuario, validarEditarUsuario, miPerfil, editarMiPerfil, actualizarCorreo, validarEditarMiPerfil, validarActualizarCorreo } from '../controllers/usuarios.controller';
-import { listarGrados, crearGrado, editarGrado, validarGrado, listarMaterias, crearMateria, editarMateria, eliminarMateria, validarMateria, asignarMateriaGrado, listarPeriodos, crearPeriodo, editarPeriodo, validarPeriodo, activarPeriodo, obtenerStats } from '../controllers/academico.controller';
+import { listarGrados, listarGradosPublicos, crearGrado, editarGrado, validarGrado, listarMaterias, crearMateria, editarMateria, eliminarMateria, validarMateria, asignarMateriaGrado, listarPeriodos, crearPeriodo, editarPeriodo, validarPeriodo, activarPeriodo, obtenerStats } from '../controllers/academico.controller';
 import { crearActividad, listarActividades, registrarCalificacion, obtenerBoletin, validarActividad, validarCalificacion, editarActividad, eliminarActividad, validarEditarActividad } from '../controllers/calificaciones.controller';
 import { crearObservacion, listarObservaciones, marcarObservacionVista, validarObservacion, eliminarObservacion, editarObservacion, validarEditarObservacion } from '../controllers/observaciones.controller';
 import { subirArchivo, descargarArchivo, listarArchivos, aprobarDocumento, rechazarDocumento, validarRechazoDocumento } from '../controllers/archivos.controller';
@@ -137,6 +137,8 @@ router.patch('/matriculas/:id/formulario/verificar', autenticar, autorizar(ADMIN
 
 // SOLICITUDES DE CUPO (público + secretaría)
 import { crearSolicitudCupo, listarSolicitudesCupo, actualizarEstadoSolicitud, validarSolicitudCupo, validarEstadoSolicitud } from '../controllers/solicitudes_cupo.controller';
+// Grados para el formulario público de solicitud de cupo (sin sesión)
+router.get('/grados-publicos',              listarGradosPublicos);
 router.post('/solicitudes-cupo',            validarSolicitudCupo, crearSolicitudCupo);
 router.get('/solicitudes-cupo',             autenticar, autorizar(ADMIN, SEC), listarSolicitudesCupo);
 router.patch('/solicitudes-cupo/:id/estado', autenticar, autorizar(ADMIN, SEC), validarEstadoSolicitud, actualizarEstadoSolicitud);
@@ -209,12 +211,23 @@ router.get('/configuraciones-academicas', autenticar, autorizar(ADMIN), listarCo
 // ASISTENCIA
 import {
   registrarAsistenciaGrado, listarAsistenciaGrado, editarAsistencia, historialEstudiante,
-  reporteAusencias, alertasAusencias, validarAsistenciaGrado, validarEditarAsistencia,
+  reporteAusencias, alertasAusencias, misGradosDeHoy, validarAsistenciaGrado, validarEditarAsistencia,
 } from '../controllers/asistencia.controller';
-router.post('/asistencia/grado',                  autenticar, autorizar(PROF), validarAsistenciaGrado, registrarAsistenciaGrado);
-router.get('/asistencia/grado/:gradoId',           autenticar, autorizar(PROF), listarAsistenciaGrado);
-router.put('/asistencia/:id',                      autenticar, autorizar(PROF), validarEditarAsistencia, editarAsistencia);
-router.get('/asistencia/estudiante/:estudianteId', autenticar, autorizar(ADMIN, PROF, PADRE), validarAccesoPadreEstudiante, historialEstudiante);
+// Administración y secretaría pueden tomar o corregir asistencia si el docente falta
+router.get('/asistencia/mis-grados-hoy',           autenticar, autorizar(PROF), misGradosDeHoy);
+router.post('/asistencia/grado',                  autenticar, autorizar(PROF, ADMIN, SEC), validarAsistenciaGrado, registrarAsistenciaGrado);
+router.get('/asistencia/grado/:gradoId',           autenticar, autorizar(PROF, ADMIN, SEC), listarAsistenciaGrado);
+router.put('/asistencia/:id',                      autenticar, autorizar(PROF, ADMIN, SEC), validarEditarAsistencia, editarAsistencia);
+router.get('/asistencia/estudiante/:estudianteId', autenticar, autorizar(ADMIN, SEC, PROF, PADRE), validarAccesoPadreEstudiante, historialEstudiante);
+
+// HORARIOS DE CLASE (definen quién llama a lista en los grados rotativos)
+import {
+  listarHorarios, crearHorario, eliminarHorario, resumenResponsablesAsistencia, validarHorario,
+} from '../controllers/horarios.controller';
+router.get('/horarios',                       autenticar, autorizar(ADMIN, SEC, PROF), listarHorarios);
+router.post('/horarios',                      autenticar, autorizar(ADMIN), validarHorario, crearHorario);
+router.delete('/horarios/:id',                autenticar, autorizar(ADMIN), eliminarHorario);
+router.get('/asistencia/responsables',        autenticar, autorizar(ADMIN, SEC), resumenResponsablesAsistencia);
 router.get('/asistencia/reporte',                  autenticar, autorizar(ADMIN), reporteAusencias);
 router.get('/asistencia/alertas',                  autenticar, autorizar(ADMIN), alertasAusencias);
 

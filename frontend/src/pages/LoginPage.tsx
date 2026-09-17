@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { Eye, EyeOff, GraduationCap, Lock, Mail, AlertCircle, X, CheckCircle, UserPlus } from 'lucide-react';
@@ -6,11 +6,17 @@ import api from '../services/api';
 import { useAuthStore } from '../store/auth.store';
 import { Rol } from '../types';
 
-const GRADOS_DISPONIBLES = [
-  'Prejardín', 'Jardín', 'Transición',
-  'Primero', 'Segundo', 'Tercero', 'Cuarto', 'Quinto',
-  'Sexto', 'Séptimo', 'Octavo', 'Noveno', 'Décimo', 'Once',
-];
+// Los grados se leen de la base: cuando administración cree 8° a 11°, aparecen
+// solos en este formulario.
+function useGradosDisponibles() {
+  const [grados, setGrados] = useState<string[]>([]);
+  useEffect(() => {
+    api.get('/grados-publicos')
+      .then(res => setGrados(res.data.datos ?? []))
+      .catch(() => setGrados([]));
+  }, []);
+  return grados;
+}
 
 interface SolicitudCupoForm {
   nombreEstudiante: string;
@@ -25,6 +31,7 @@ function ModalSolicitarCupo({ onClose }: { onClose: () => void }) {
   const [enviado, setEnviado] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { register, handleSubmit, formState: { errors } } = useForm<SolicitudCupoForm>();
+  const gradosDisponibles = useGradosDisponibles();
 
   const inputCls = (err?: string) =>
     `w-full px-3 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white ${err ? 'border-red-400' : 'border-slate-200'}`;
@@ -78,11 +85,17 @@ function ModalSolicitarCupo({ onClose }: { onClose: () => void }) {
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1.5">Grado de interés *</label>
-              <select className={inputCls(errors.gradoInteres?.message)} defaultValue=""
-                {...register('gradoInteres', { required: 'Requerido' })}>
-                <option value="" disabled>Selecciona un grado</option>
-                {GRADOS_DISPONIBLES.map(g => <option key={g} value={g}>{g}</option>)}
-              </select>
+              {gradosDisponibles.length > 0 ? (
+                <select className={inputCls(errors.gradoInteres?.message)} defaultValue=""
+                  {...register('gradoInteres', { required: 'Requerido' })}>
+                  <option value="" disabled>Selecciona un grado</option>
+                  {gradosDisponibles.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
+              ) : (
+                // Si aún no hay grados creados, se escribe a mano
+                <input className={inputCls(errors.gradoInteres?.message)} placeholder="Ej: Transición, 5°"
+                  {...register('gradoInteres', { required: 'Requerido', maxLength: { value: 50, message: 'Máximo 50 caracteres' } })} />
+              )}
               {errors.gradoInteres && <p className="mt-1 text-xs text-red-500">{errors.gradoInteres.message}</p>}
             </div>
             <div>
