@@ -137,15 +137,6 @@ export async function listarAsistenciaGrado(req: Request, res: Response): Promis
   const finMes = new Date(Date.UTC(fecha.getUTCFullYear(), fecha.getUTCMonth() + 1, 0));
 
   try {
-    // La ruta es solo de profesores: únicamente grados donde tiene materias asignadas
-    const asignado = await prisma.materiaGradoProfesor.findFirst({
-      where: { gradoId, profesor: { usuarioId: req.usuario!.sub } },
-      select: { id: true },
-    });
-    if (!asignado) {
-      res.status(403).json({ ok: false, mensaje: 'No tienes materias asignadas en este grado' });
-      return;
-    }
 
     const estudiantes = await prisma.estudiante.findMany({
       where: { gradoId, estado: 'ACTIVO' },

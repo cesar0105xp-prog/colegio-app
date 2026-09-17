@@ -97,18 +97,6 @@ export async function calcularNotaPeriodo(
   return notaPonderada(calificaciones.map(c => ({ valor: c.valor, porcentaje: c.actividad.porcentaje })))?.nota ?? null;
 }
 
-/**
- * Un profesor solo consulta notas/actividades de los grados (y materias, si se
- * indica) que tiene asignados. Admin y secretaría no tienen esta restricción.
- */
-export async function profesorTieneAsignacion(usuarioId: string, gradoId: string, materiaId?: string): Promise<boolean> {
-  const asignacion = await prisma.materiaGradoProfesor.findFirst({
-    where: { gradoId, ...(materiaId ? { materiaId } : {}), profesor: { usuarioId } },
-    select: { id: true },
-  });
-  return !!asignacion;
-}
-
 // ─── ACTIVIDADES ─────────────────────────────────────────────────────────────
 
 export async function crearActividad(req: Request, res: Response): Promise<void> {
@@ -184,26 +172,11 @@ export async function listarActividades(req: Request, res: Response): Promise<vo
   const { materiaId, gradoId, periodoId } = req.query;
 
   try {
-    // Profesor: solo actividades de sus materias/grados asignados
-    let soloAsignadas: { materiaId: string; gradoId: string }[] | undefined;
-    if (req.usuario!.rol === 'PROFESOR') {
-      if (gradoId && materiaId && !(await profesorTieneAsignacion(req.usuario!.sub, gradoId as string, materiaId as string))) {
-        res.status(403).json({ ok: false, mensaje: 'No tienes esta materia asignada en este grado' });
-        return;
-      }
-      soloAsignadas = await prisma.materiaGradoProfesor.findMany({
-        where: { profesor: { usuarioId: req.usuario!.sub } },
-        select: { materiaId: true, gradoId: true },
-      });
-    }
-
     const actividades = await prisma.actividad.findMany({
       where: {
         materiaId: materiaId as string | undefined,
         gradoId: gradoId as string | undefined,
         periodoId: periodoId as string | undefined,
-        // OR vacío (profesor sin asignaciones) no devuelve nada
-        ...(soloAsignadas ? { OR: soloAsignadas } : {}),
       },
       include: { materia: true, grado: true, periodo: true, profesor: true },
       orderBy: { createdAt: 'asc' },
@@ -310,16 +283,11 @@ export async function obtenerBoletin(req: Request, res: Response): Promise<void>
       return;
     }
 
-    // Materias del grado. Un profesor solo ve las que dicta a ese estudiante.
-    const esProfesor = req.usuario!.rol === 'PROFESOR';
+    // Obtener todas las materias del grado
     const materiasGrado = await prisma.materiaGradoProfesor.findMany({
-      where: { gradoId: estudiante.gradoId, ...(esProfesor ? { profesor: { usuarioId: req.usuario!.sub } } : {}) },
+      where: { gradoId: estudiante.gradoId },
       include: { materia: true, profesor: true },
     });
-    if (esProfesor && materiasGrado.length === 0) {
-      res.status(403).json({ ok: false, mensaje: 'No tienes materias asignadas en el grado de este estudiante' });
-      return;
-    }
 
     // Para cada materia, calcular la nota del período
     const boletin = await Promise.all(
@@ -478,16 +446,7 @@ export async function obtenerResumenAnual(req: Request, res: Response): Promise<
       return;
     }
 
-    // Un profesor solo ve las materias que dicta a ese estudiante
-    const materiaGrados = req.usuario!.rol === 'PROFESOR'
-      ? estudiante.grado.materiaGrados.filter(mg => mg.profesor.usuarioId === req.usuario!.sub)
-      : estudiante.grado.materiaGrados;
-    if (req.usuario!.rol === 'PROFESOR' && materiaGrados.length === 0) {
-      res.status(403).json({ ok: false, mensaje: 'No tienes materias asignadas en el grado de este estudiante' });
-      return;
-    }
-
-    const materias = materiaGrados.map(mg => ({
+    const materias = estudiante.grado.materiaGrados.map(mg => ({
       id: mg.materia.id,
       nombre: mg.materia.nombre,
       profesor: `${mg.profesor.nombres} ${mg.profesor.apellidos}`,

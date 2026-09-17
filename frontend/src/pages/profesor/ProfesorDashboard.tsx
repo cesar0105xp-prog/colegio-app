@@ -11,7 +11,6 @@ import { useAuthStore } from '../../store/auth.store';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import CalendarioAcademico from '../../components/CalendarioAcademico';
-import { useMisAsignaciones } from '../../services/misAsignaciones';
 import { CambiarPassword } from '../../components/CambiarPassword';
 import Asistencia from '../../components/Asistencia';
 import AgendaCalendario from '../../components/AgendaCalendario';
@@ -112,10 +111,15 @@ function ModuloNotas() {
   const [vistaNotas, setVistaNotas] = useState(false);
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'error' } | null>(null);
 
-  // Solo los grados y materias asignados a este profesor
-  const { grados, materiasDe, sinAsignaciones } = useMisAsignaciones();
+  const { data: grados = [] } = useQuery({ queryKey: ['grados'], queryFn: async () => (await api.get('/grados')).data.datos ?? [] });
   const { data: periodos = [] } = useQuery({ queryKey: ['periodos'], queryFn: async () => (await api.get('/periodos')).data.datos ?? [] });
-  const materias: Materia[] = gradoId ? materiasDe(gradoId) : [];
+
+  const { data: gradoDetalle } = useQuery({
+    queryKey: ['grado-detalle', gradoId],
+    queryFn: async () => (await api.get('/grados')).data.datos?.find((g: Grado & { materiaGrados: { materia: Materia; profesorId: string }[] }) => g.id === gradoId),
+    enabled: !!gradoId,
+  });
+  const materias: Materia[] = gradoDetalle?.materiaGrados?.map((mg: { materia: Materia }) => mg.materia) ?? [];
 
   const { data: actividadesData } = useQuery({
     queryKey: ['actividades', materiaId, gradoId, periodoId],
@@ -191,12 +195,7 @@ function ModuloNotas() {
 
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
         <p className="text-sm font-semibold text-slate-600 mb-3">Selecciona el contexto</p>
-        {sinAsignaciones && (
-          <div className="mb-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
-            <p className="text-xs text-amber-700">Aún no tienes materias asignadas. Pide a administración que te asigne la materia y el grado para poder registrar notas.</p>
-          </div>
-        )}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1.5">Grado</label>
             <select value={gradoId} onChange={e => { setGradoId(e.target.value); setMateriaId(''); setVistaNotas(false); }} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">

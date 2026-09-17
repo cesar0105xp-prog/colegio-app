@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CalendarCheck, CheckCircle, AlertCircle, X, Save, AlertTriangle } from 'lucide-react';
 import api from '../services/api';
-import { useMisAsignaciones } from '../services/misAsignaciones';
 
 function Toast({ mensaje, tipo, onClose }: { mensaje: string; tipo: 'ok' | 'error'; onClose: () => void }) {
   return (
@@ -14,14 +13,16 @@ function Toast({ mensaje, tipo, onClose }: { mensaje: string; tipo: 'ok' | 'erro
   );
 }
 
-const CICLO: Record<string, string> = { PRESENTE: 'AUSENTE', AUSENTE: 'TARDE', TARDE: 'EXCUSA', EXCUSA: 'PRESENTE' };
-const ESTADO_COLOR: Record<string, string> = {
-  PRESENTE: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200',
-  AUSENTE: 'bg-red-100 text-red-700 hover:bg-red-200',
-  TARDE: 'bg-amber-100 text-amber-700 hover:bg-amber-200',
-  EXCUSA: 'bg-blue-100 text-blue-700 hover:bg-blue-200',
+const ESTADOS = ['PRESENTE', 'AUSENTE', 'TARDE', 'EXCUSA'] as const;
+// Color del botón seleccionado
+const ESTADO_ACTIVO: Record<string, string> = {
+  PRESENTE: 'bg-emerald-600 text-white border-emerald-600',
+  AUSENTE: 'bg-red-600 text-white border-red-600',
+  TARDE: 'bg-amber-500 text-white border-amber-500',
+  EXCUSA: 'bg-blue-600 text-white border-blue-600',
 };
 const ESTADO_LABEL: Record<string, string> = { PRESENTE: 'Presente', AUSENTE: 'Ausente', TARDE: 'Tarde', EXCUSA: 'Excusa' };
+const ESTADO_CORTO: Record<string, string> = { PRESENTE: 'P', AUSENTE: 'A', TARDE: 'T', EXCUSA: 'E' };
 
 const hoyISO = () => new Date().toISOString().split('T')[0];
 const haceNDias = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().split('T')[0]; };
@@ -33,12 +34,18 @@ type FilaAsistencia = {
 };
 type EstadoLocal = { estadoManana: string; estadoTarde: string; observacion: string };
 
-function EstadoBadge({ estado, onClick }: { estado: string; onClick: () => void }) {
+// Un botón por estado: se marca directamente el que corresponde (sin ir rotando)
+function SelectorEstado({ estado, onChange }: { estado: string; onChange: (estado: string) => void }) {
   return (
-    <button type="button" onClick={onClick}
-      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors min-w-[80px] min-h-[36px] ${ESTADO_COLOR[estado]}`}>
-      {ESTADO_LABEL[estado]}
-    </button>
+    <div className="flex gap-1" role="radiogroup">
+      {ESTADOS.map(e => (
+        <button key={e} type="button" role="radio" aria-checked={estado === e} title={ESTADO_LABEL[e]} onClick={() => onChange(e)}
+          className={`min-w-[36px] min-h-[36px] px-2 rounded-lg border text-xs font-semibold transition-colors ${estado === e ? ESTADO_ACTIVO[e] : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'}`}>
+          <span className="xl:hidden">{ESTADO_CORTO[e]}</span>
+          <span className="hidden xl:inline">{ESTADO_LABEL[e]}</span>
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -49,8 +56,7 @@ export default function Asistencia() {
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'error' } | null>(null);
   const [local, setLocal] = useState<Record<string, EstadoLocal>>({});
 
-  // Solo los grados donde el profesor tiene materias asignadas
-  const { grados, sinAsignaciones } = useMisAsignaciones();
+  const { data: grados = [] } = useQuery({ queryKey: ['grados'], queryFn: async () => (await api.get('/grados')).data.datos ?? [] });
 
   const { data: filas = [], isLoading } = useQuery({
     queryKey: ['asistencia-grado', gradoId, fecha],
@@ -87,10 +93,10 @@ export default function Asistencia() {
     },
   });
 
-  const toggle = (estudianteId: string, mitad: 'estadoManana' | 'estadoTarde') => {
+  const cambiarEstado = (estudianteId: string, mitad: 'estadoManana' | 'estadoTarde', estado: string) => {
     setLocal(prev => {
       const actual = prev[estudianteId] ?? { estadoManana: 'PRESENTE', estadoTarde: 'PRESENTE', observacion: '' };
-      return { ...prev, [estudianteId]: { ...actual, [mitad]: CICLO[actual[mitad]] } };
+      return { ...prev, [estudianteId]: { ...actual, [mitad]: estado } };
     });
   };
 
@@ -107,11 +113,7 @@ export default function Asistencia() {
 
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
         <p className="text-sm font-semibold text-slate-600 mb-3">Selecciona el grado y la fecha</p>
-        {sinAsignaciones && (
-          <div className="mb-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
-            <p className="text-xs text-amber-700">Aún no tienes materias asignadas. Pide a administración que te asigne la materia y el grado para poder tomar asistencia.</p>
-          </div>
-        )}
+        <p className="text-xs text-slate-400 -mt-2 mb-3">Estados: P = Presente · A = Ausente · T = Tarde · E = Excusa</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1.5">Grado</label>
@@ -166,8 +168,8 @@ export default function Asistencia() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3"><EstadoBadge estado={est.estadoManana} onClick={() => toggle(f.estudianteId, 'estadoManana')} /></td>
-                      <td className="px-4 py-3"><EstadoBadge estado={est.estadoTarde} onClick={() => toggle(f.estudianteId, 'estadoTarde')} /></td>
+                      <td className="px-4 py-3"><SelectorEstado estado={est.estadoManana} onChange={e => cambiarEstado(f.estudianteId, 'estadoManana', e)} /></td>
+                      <td className="px-4 py-3"><SelectorEstado estado={est.estadoTarde} onChange={e => cambiarEstado(f.estudianteId, 'estadoTarde', e)} /></td>
                       <td className="px-4 py-3">
                         <input value={est.observacion} onChange={e => setObservacion(f.estudianteId, e.target.value)} maxLength={300}
                           placeholder="Opcional"
