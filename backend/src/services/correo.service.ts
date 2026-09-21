@@ -20,7 +20,7 @@ export async function enviarCorreo({
 }): Promise<boolean> {
   try {
     await transporter.sendMail({
-      from: process.env.MAIL_FROM ?? 'Portal Escolar',
+      from: process.env.MAIL_FROM ?? 'SAM · Liceo Moderno San Marcos',
       to: Array.isArray(para) ? para.join(',') : para,
       subject: asunto,
       html,
@@ -32,7 +32,7 @@ export async function enviarCorreo({
   }
 }
 
-export function plantillaAccesoMatricula(nombreEstudiante: string, enlace: string, horasExpira = 72, colegio = 'Portal Escolar'): string {
+export function plantillaAccesoMatricula(nombreEstudiante: string, enlace: string, horasExpira = 72, colegio = 'SAM · Liceo Moderno San Marcos'): string {
   return `
   <!DOCTYPE html>
   <html>
@@ -59,7 +59,7 @@ export function plantillaAccesoMatricula(nombreEstudiante: string, enlace: strin
   </html>`;
 }
 
-export function plantillaComunicado(titulo: string, mensaje: string, colegio = 'Portal Escolar'): string {
+export function plantillaComunicado(titulo: string, mensaje: string, colegio = 'SAM · Liceo Moderno San Marcos'): string {
   return `
   <!DOCTYPE html>
   <html>

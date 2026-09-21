@@ -44,13 +44,13 @@ export async function enviarWhatsApp(numero: string | null | undefined, mensaje:
 
 export const PlantillasWhatsApp = {
   documentoAprobado: (nombreEstudiante: string, documento: string) =>
-    `Portal Escolar: el documento "${documento}" de ${nombreEstudiante} fue aprobado. Sigue así con el proceso de matrícula.`,
+    `SAM Liceo San Marcos: el documento "${documento}" de ${nombreEstudiante} fue aprobado. Sigue así con el proceso de matrícula.`,
   documentoRechazado: (nombreEstudiante: string, documento: string, motivo: string) =>
-    `Portal Escolar: el documento "${documento}" de ${nombreEstudiante} fue rechazado. Motivo: ${motivo}. Ingresa al portal para volver a subirlo.`,
+    `SAM Liceo San Marcos: el documento "${documento}" de ${nombreEstudiante} fue rechazado. Motivo: ${motivo}. Ingresa al portal para volver a subirlo.`,
   matriculaConfirmada: (nombreEstudiante: string) =>
-    `Portal Escolar: ¡la matrícula de ${nombreEstudiante} fue confirmada! Ya puedes ver toda la información en el portal.`,
+    `SAM Liceo San Marcos: ¡la matrícula de ${nombreEstudiante} fue confirmada! Ya puedes ver toda la información en el portal.`,
   cobroPendiente: (nombreEstudiante: string, concepto: string, monto: string) =>
-    `Portal Escolar: tienes un cobro pendiente de ${concepto} (${monto}) para ${nombreEstudiante}. Ingresa al portal para pagarlo.`,
+    `SAM Liceo San Marcos: tienes un cobro pendiente de ${concepto} (${monto}) para ${nombreEstudiante}. Ingresa al portal para pagarlo.`,
   comprobanteAprobado: (nombreEstudiante: string, concepto: string) =>
-    `Portal Escolar: tu comprobante de pago de ${concepto} para ${nombreEstudiante} fue aprobado. Gracias por tu pago.`,
+    `SAM Liceo San Marcos: tu comprobante de pago de ${concepto} para ${nombreEstudiante} fue aprobado. Gracias por tu pago.`,
 };

@@ -6,7 +6,7 @@ import { notaPonderada } from '../utils/notas';
 import { prisma } from '../utils/prisma';
 
 // Colores institucionales
-const COLOR_HEADER = 'FF1E40AF';      // azul oscuro
+const COLOR_HEADER = 'FF1E3A6E';      // azul institucional SAM
 const COLOR_HEADER_TEXT = 'FFFFFFFF'; // blanco
 const COLOR_APROBADO = 'FFD1FAE5';    // verde claro
 const COLOR_REPROBADO = 'FFFEE2E2';   // rojo claro
@@ -57,7 +57,7 @@ async function construirHojaMateria(
   const colsTotal = 3 + actividades.length + 1; // documento+nombre+apellido + actividades + promedio
   sheet.mergeCells(1, 1, 1, colsTotal);
   const tituloCell = sheet.getCell(1, 1);
-  tituloCell.value = `PORTAL ESCOLAR — Boletín de notas`;
+  tituloCell.value = `SAM · LICEO MODERNO SAN MARCOS — Boletín de notas`;
   tituloCell.font = { name: 'Arial', bold: true, size: 14, color: { argb: COLOR_HEADER } };
   tituloCell.alignment = { horizontal: 'center' };
 
@@ -166,7 +166,7 @@ export async function exportarNotasProfesor(req: Request, res: Response): Promis
     const periodo = await prisma.periodo.findUnique({ where: { id: periodoId as string } });
 
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'Portal Escolar';
+    workbook.creator = 'SAM · Liceo Moderno San Marcos';
     workbook.created = new Date();
 
     for (const asig of asignaciones) {
@@ -204,7 +204,7 @@ export async function exportarNotasGrado(req: Request, res: Response): Promise<v
     const periodo = await prisma.periodo.findUnique({ where: { id: periodoId as string } });
 
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'Portal Escolar';
+    workbook.creator = 'SAM · Liceo Moderno San Marcos';
     workbook.created = new Date();
 
     for (const asig of asignaciones) {
