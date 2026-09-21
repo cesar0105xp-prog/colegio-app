@@ -32,7 +32,7 @@ function agregarFirma(doc: PDFKit.PDFDocument): void {
 function agregarPie(doc: PDFKit.PDFDocument): void {
   const fecha = new Date().toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' });
   doc.moveDown(2);
-  doc.fontSize(9).fillColor('#94a3b8').text(`Documento generado el ${fecha} a través del Portal Escolar.`, { align: 'center' });
+  doc.fontSize(9).fillColor('#94a3b8').text(`Documento generado el ${fecha} a través de SAM — Sistema de Acompañamiento y Monitoreo.`, { align: 'center' });
   doc.fillColor('#000');
 }
 

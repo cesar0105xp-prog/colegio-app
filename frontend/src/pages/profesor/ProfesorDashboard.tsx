@@ -4,12 +4,13 @@ import { useForm } from 'react-hook-form';
 import {
   Users, MessageSquare, LogOut, Menu, Plus,
   Save, AlertCircle, CheckCircle, X, ChevronDown, ChevronUp,
-  GraduationCap, BarChart2, Edit2, FileSpreadsheet, Trash2,
+  BarChart2, Edit2, FileSpreadsheet, Trash2,
   Calendar, KeyRound, Mail, Phone, CreditCard, BookOpen as BookOpenIcon, CalendarCheck, CalendarDays
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
+import { IconoSAM } from '../../components/MarcaSAM';
 import CalendarioAcademico from '../../components/CalendarioAcademico';
 import { CambiarPassword } from '../../components/CambiarPassword';
 import Asistencia from '../../components/Asistencia';
@@ -737,7 +738,7 @@ function MiPerfil() {
           </div>
           <div>
             <h2 className="text-xl font-bold text-white">{perfil?.perfilProfesor?.nombres} {perfil?.perfilProfesor?.apellidos}</h2>
-            <p className="text-blue-200 text-sm mt-0.5">Docente · Portal Escolar</p>
+            <p className="text-blue-200 text-sm mt-0.5">Docente · SAM Liceo Moderno San Marcos</p>
           </div>
         </div>
 
@@ -897,8 +898,8 @@ export default function ProfesorDashboard() {
       <aside className={`fixed inset-y-0 left-0 z-30 w-64 bg-slate-900 flex flex-col overflow-hidden transition-transform duration-200 ${sidebar ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         <div className="px-5 py-5 border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center"><GraduationCap className="w-5 h-5 text-white" /></div>
-            <div><p className="text-white font-bold text-sm">Portal Escolar</p><p className="text-slate-400 text-xs">Profesor/a</p></div>
+            <IconoSAM className="w-9 h-9 flex-shrink-0" />
+            <div><p className="text-white font-bold text-sm">SAM</p><p className="text-slate-400 text-xs">Profesor/a</p></div>
           </div>
         </div>
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto scrollbar-none">

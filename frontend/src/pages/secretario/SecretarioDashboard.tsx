@@ -10,6 +10,7 @@ import {
 import { useAuthStore } from '../../store/auth.store';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
+import { IconoSAM } from '../../components/MarcaSAM';
 import { CambiarPassword } from '../../components/CambiarPassword';
 import ReportesAdmin from '../../components/ReportesAdmin';
 import Matriculas from '../../components/Matriculas';
@@ -486,8 +487,8 @@ export default function SecretarioDashboard() {
       <aside className={`fixed inset-y-0 left-0 z-30 w-64 bg-slate-900 flex flex-col overflow-hidden transition-transform duration-200 ${sidebar ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         <div className="px-5 py-5 border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center"><GraduationCap className="w-5 h-5 text-white" /></div>
-            <div><p className="text-white font-bold text-sm">Portal Escolar</p><p className="text-slate-400 text-xs">Secretario/a</p></div>
+            <IconoSAM className="w-9 h-9 flex-shrink-0" />
+            <div><p className="text-white font-bold text-sm">SAM</p><p className="text-slate-400 text-xs">Secretario/a</p></div>
           </div>
         </div>
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto scrollbar-none">

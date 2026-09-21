@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { Eye, EyeOff, GraduationCap, Lock, Mail, AlertCircle, X, CheckCircle, UserPlus } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, AlertCircle, X, CheckCircle, UserPlus } from 'lucide-react';
+import { EncabezadoSAM, COLORES_SAM } from '../components/MarcaSAM';
 import api from '../services/api';
 import { useAuthStore } from '../store/auth.store';
 import { Rol } from '../types';
@@ -174,37 +175,35 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 flex items-center justify-center p-4">
-      {/* Fondo decorativo */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl" />
+    <div className="relative min-h-screen overflow-hidden flex items-center justify-center p-4" style={{ background: COLORES_SAM.crema }}>
+      {/* Fondo decorativo: círculos lavanda y arcos dorados como en el logo */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden>
+        <div className="absolute -top-24 -left-24 w-72 h-72 rounded-full" style={{ background: COLORES_SAM.lavanda, opacity: 0.45 }} />
+        <div className="absolute -bottom-28 -right-28 w-80 h-80 rounded-full" style={{ background: COLORES_SAM.lavanda, opacity: 0.45 }} />
+        <div className="absolute -top-40 -left-10 w-[28rem] h-[28rem] rounded-full border-2" style={{ borderColor: COLORES_SAM.dorado, opacity: 0.5 }} />
+        <div className="absolute -bottom-52 -right-16 w-[30rem] h-[30rem] rounded-full border-2" style={{ borderColor: COLORES_SAM.dorado, opacity: 0.5 }} />
       </div>
 
       <div className="relative w-full max-w-md">
         {/* Card */}
-        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl">
-          {/* Logo / Icono */}
-          <div className="flex flex-col items-center mb-8">
-            <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-blue-600/30">
-              <GraduationCap className="w-9 h-9 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">Portal Escolar</h1>
-            <p className="text-slate-400 text-sm mt-1">Ingresa con tus credenciales</p>
+        <div className="bg-white/90 backdrop-blur border border-slate-200/70 rounded-3xl p-6 sm:p-8 shadow-xl">
+          <div className="mb-6">
+            <EncabezadoSAM />
           </div>
+          <p className="text-slate-500 text-sm text-center mb-5">Ingresa con tus credenciales</p>
 
           {/* Error global */}
           {error && (
-            <div className="mb-5 flex items-start gap-3 bg-red-500/10 border border-red-500/30 rounded-xl p-4">
-              <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-              <p className="text-red-300 text-sm">{error}</p>
+            <div className="mb-5 flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl p-4">
+              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <p className="text-red-700 text-sm">{error}</p>
             </div>
           )}
 
           <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
             {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
+              <label className="block text-sm font-medium text-slate-600 mb-2">
                 Correo electrónico
               </label>
               <div className="relative">
@@ -213,8 +212,8 @@ export default function LoginPage() {
                   type="email"
                   autoComplete="email"
                   placeholder="correo@ejemplo.com"
-                  className={`w-full pl-10 pr-4 py-3 bg-white/5 border rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition ${
-                    errors.email ? 'border-red-500/60' : 'border-white/10 focus:border-blue-500'
+                  className={`w-full pl-10 pr-4 py-3 bg-white border rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E3A6E] transition ${
+                    errors.email ? 'border-red-400' : 'border-slate-200 focus:border-[#1E3A6E]'
                   }`}
                   {...register('email', {
                     required: 'El correo es requerido',
@@ -226,13 +225,13 @@ export default function LoginPage() {
                 />
               </div>
               {errors.email && (
-                <p className="mt-1.5 text-xs text-red-400">{errors.email.message}</p>
+                <p className="mt-1.5 text-xs text-red-500">{errors.email.message}</p>
               )}
             </div>
 
             {/* Contraseña */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
+              <label className="block text-sm font-medium text-slate-600 mb-2">
                 Contraseña
               </label>
               <div className="relative">
@@ -241,8 +240,8 @@ export default function LoginPage() {
                   type={mostrarPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   placeholder="Tu contraseña"
-                  className={`w-full pl-10 pr-12 py-3 bg-white/5 border rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition ${
-                    errors.password ? 'border-red-500/60' : 'border-white/10 focus:border-blue-500'
+                  className={`w-full pl-10 pr-12 py-3 bg-white border rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E3A6E] transition ${
+                    errors.password ? 'border-red-400' : 'border-slate-200 focus:border-[#1E3A6E]'
                   }`}
                   {...register('password', {
                     required: 'La contraseña es requerida',
@@ -252,13 +251,13 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setMostrarPassword(!mostrarPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
                 >
                   {mostrarPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
               {errors.password && (
-                <p className="mt-1.5 text-xs text-red-400">{errors.password.message}</p>
+                <p className="mt-1.5 text-xs text-red-500">{errors.password.message}</p>
               )}
             </div>
 
@@ -266,7 +265,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={cargando}
-              className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors shadow-lg shadow-blue-600/20 mt-2"
+              className="w-full py-3 bg-[#1E3A6E] hover:bg-[#274a8a] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors shadow-lg shadow-[#1E3A6E]/20 mt-2 min-h-[44px]"
             >
               {cargando ? (
                 <span className="flex items-center justify-center gap-2">
@@ -280,8 +279,8 @@ export default function LoginPage() {
           </form>
 
           {/* Info de roles */}
-          <div className="mt-6 pt-6 border-t border-white/10">
-            <p className="text-slate-500 text-xs text-center">
+          <div className="mt-6 pt-6 border-t border-slate-200">
+            <p className="text-slate-400 text-xs text-center">
               Acceso disponible para administradores, secretarios, profesores, padres y estudiantes
             </p>
           </div>
@@ -289,7 +288,7 @@ export default function LoginPage() {
           {/* Solicitar cupo */}
           <div className="mt-4 text-center">
             <button type="button" onClick={() => setModalCupo(true)}
-              className="text-blue-400 hover:text-blue-300 text-sm font-medium transition-colors">
+              className="text-[#7C4DDB] hover:text-[#6a3fc4] text-sm font-semibold transition-colors min-h-[44px]">
               ¿Quieres matricular a tu hijo/a? Solicita un cupo
             </button>
           </div>
