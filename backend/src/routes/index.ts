@@ -8,6 +8,7 @@ import { crearActividad, listarActividades, registrarCalificacion, obtenerBoleti
 import { crearObservacion, listarObservaciones, marcarObservacionVista, validarObservacion, eliminarObservacion, editarObservacion, validarEditarObservacion } from '../controllers/observaciones.controller';
 import { subirArchivo, descargarArchivo, listarArchivos, aprobarDocumento, rechazarDocumento, validarRechazoDocumento } from '../controllers/archivos.controller';
 import { misHijos, miPerfilEstudiante } from '../controllers/padre.controller';
+import { misAsignaciones } from '../controllers/profesor.controller';
 import { listarVinculos, crearVinculo, eliminarVinculo, validarVinculo } from '../controllers/vinculos.controller';
 import { reporteBoletinesPorGrado, reporteRendimientoMateria, reporteEstudiantesDestacados, reporteObservacionesPendientes, coberturaAcademica } from '../controllers/reportes.controller';
 import { listarAuditoria } from '../controllers/auditoria.controller';
@@ -51,6 +52,9 @@ router.delete('/usuarios/:id',              autenticar, autorizar(ADMIN), elimin
 router.patch('/usuarios/:id/estado',        autenticar, autorizar(ADMIN), cambiarEstadoUsuario);
 router.post('/usuarios/:id/reset-password', autenticar, autorizar(ADMIN), resetearPassword);
 router.post('/usuarios/:id/enviar-credenciales', autenticar, autorizar(ADMIN), enviarCredenciales);
+
+// PROFESOR: materias y grados que dicta
+router.get('/profesor/mis-asignaciones', autenticar, autorizar(PROF), misAsignaciones);
 
 // VÍNCULOS PADRE-ESTUDIANTE
 router.get('/vinculos',      autenticar, autorizar(ADMIN, SEC), listarVinculos);
