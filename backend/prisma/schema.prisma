@@ -19,6 +19,8 @@ model Usuario {
   tokenResetPassword    String?        @map("token_reset_password")
   tokenResetExpira      DateTime?      @map("token_reset_expira")
   refreshToken          String?        @map("refresh_token")
+  // Obliga a cambiar la contraseña temporal en el primer ingreso
+  debeCambiarPassword   Boolean        @default(false) @map("debe_cambiar_password")
   createdAt             DateTime       @default(now()) @map("created_at")
   updatedAt             DateTime       @updatedAt @map("updated_at")
   perfilAdmin           Administrador?
@@ -74,6 +76,8 @@ model Profesor {
   numeroDocumento String                 @unique @map("numero_documento")
   telefono        String
   especialidad    String?
+  // true mientras el docente tenga correo o documento provisional
+  datosPendientes Boolean                @default(false) @map("datos_pendientes")
   createdAt       DateTime               @default(now()) @map("created_at")
   updatedAt       DateTime               @updatedAt @map("updated_at")
   actividades     Actividad[]
