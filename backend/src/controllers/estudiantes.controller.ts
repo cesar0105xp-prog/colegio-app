@@ -36,6 +36,8 @@ export const validarEstudiante = [
     .trim()
     .notEmpty().withMessage('El número de documento es requerido')
     .custom((valor, { req }) => {
+      // TMP- es el documento provisional de la importación masiva, no un documento real
+      if (/^tmp-/i.test(valor)) throw new Error('TMP- es un documento provisional: escribe el número de documento real del estudiante');
       const tipo = req.body.tipoDocumento as string;
       const limites = DOC_LIMITES[tipo];
       if (!limites) throw new Error('Tipo de documento inválido');
@@ -64,13 +66,15 @@ export const validarEstudiante = [
 ];
 
 export async function listarEstudiantes(req: Request, res: Response): Promise<void> {
-  const { gradoId, estado, busqueda, pagina = '1', limite = '20' } = req.query;
+  const { gradoId, estado, busqueda, datosPendientes, pagina = '1', limite = '20' } = req.query;
   try {
     const skip = (parseInt(pagina as string) - 1) * parseInt(limite as string);
     const take = parseInt(limite as string);
     const where: Record<string, unknown> = {};
     if (gradoId) where.gradoId = gradoId;
     if (estado) where.estado = estado;
+    // Filtro de la importación masiva: estudiantes a los que les falta información
+    if (datosPendientes === 'true') where.datosPendientes = true;
     if (busqueda) {
       where.OR = [
         { nombres: { contains: busqueda as string, mode: 'insensitive' } },
@@ -78,11 +82,21 @@ export async function listarEstudiantes(req: Request, res: Response): Promise<vo
         { numeroDocumento: { contains: busqueda as string } },
       ];
     }
-    const [estudiantes, total] = await Promise.all([
-      prisma.estudiante.findMany({ where, include: { grado: true }, orderBy: [{ apellidos: 'asc' }, { nombres: 'asc' }], skip, take }),
+    const [estudiantes, total, pendientes] = await Promise.all([
+      prisma.estudiante.findMany({
+        where,
+        include: { grado: true, _count: { select: { padres: true } } },
+        orderBy: [{ apellidos: 'asc' }, { nombres: 'asc' }],
+        skip, take,
+      }),
       prisma.estudiante.count({ where }),
+      prisma.estudiante.count({ where: { datosPendientes: true } }),
     ]);
-    res.json({ ok: true, datos: estudiantes, meta: { pagina: parseInt(pagina as string), limite: take, total, totalPaginas: Math.ceil(total / take) } });
+    res.json({
+      ok: true,
+      datos: estudiantes,
+      meta: { pagina: parseInt(pagina as string), limite: take, total, totalPaginas: Math.ceil(total / take), pendientes },
+    });
   } catch (err) {
     logger.error('Error al listar estudiantes', { err });
     res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
@@ -132,9 +146,22 @@ export async function editarEstudiante(req: Request, res: Response): Promise<voi
       const existe = await prisma.estudiante.findFirst({ where: { numeroDocumento, id: { not: id } } });
       if (existe) { res.status(409).json({ ok: false, mensaje: 'Ya existe un estudiante con ese número de documento' }); return; }
     }
+    // La ficha deja de estar pendiente cuando ya tiene documento real, fecha de
+    // nacimiento y al menos un acudiente vinculado.
+    const documentoFinal = (numeroDocumento?.trim() ?? anterior.numeroDocumento);
+    const fechaFinal = fechaNacimiento ? new Date(fechaNacimiento) : anterior.fechaNacimiento;
+    const acudientes = await prisma.padreEstudiante.count({ where: { estudianteId: id } });
+    const completo = !/^tmp-/i.test(documentoFinal) && !!fechaFinal && acudientes > 0;
+
     const estudiante = await prisma.estudiante.update({
       where: { id },
-      data: { nombres: nombres?.trim(), apellidos: apellidos?.trim(), tipoDocumento, numeroDocumento: numeroDocumento?.trim(), fechaNacimiento: fechaNacimiento ? new Date(fechaNacimiento) : undefined, genero, gradoId, direccion: direccion?.trim(), telefono: telefono?.trim(), estado },
+      data: {
+        nombres: nombres?.trim(), apellidos: apellidos?.trim(), tipoDocumento,
+        numeroDocumento: numeroDocumento?.trim(),
+        fechaNacimiento: fechaNacimiento ? new Date(fechaNacimiento) : undefined,
+        genero, gradoId, direccion: direccion?.trim(), telefono: telefono?.trim(), estado,
+        datosPendientes: !completo,
+      },
       include: { grado: true },
     });
     await audit({ usuarioId: req.usuario!.sub, accion: 'EDITAR', entidad: 'estudiantes', entidadId: id, datosAntes: anterior, datosDespues: estudiante, ip: req.ip });

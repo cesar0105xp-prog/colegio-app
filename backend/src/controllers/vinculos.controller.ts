@@ -78,6 +78,11 @@ export async function crearVinculo(req: Request, res: Response): Promise<void> {
       },
     });
 
+    // Con acudiente, documento real y fecha de nacimiento, la ficha queda completa
+    if (estudiante.datosPendientes && !/^tmp-/i.test(estudiante.numeroDocumento) && estudiante.fechaNacimiento) {
+      await prisma.estudiante.update({ where: { id: estudianteId }, data: { datosPendientes: false } });
+    }
+
     await audit({
       usuarioId: req.usuario!.sub,
       accion: 'CREAR',
