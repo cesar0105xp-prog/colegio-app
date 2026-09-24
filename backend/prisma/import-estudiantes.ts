@@ -33,7 +33,7 @@ const NIVEL: Record<string, string> = {
 /** "PRE-JARDÍN" → "Pre-jardín", "SÉPTIMO" → "Séptimo" */
 function aTitulo(nombre: string): string {
   return nombre.toLocaleLowerCase('es')
-    .replace(/(^|[\s-])([a-záéíóúüñ])/g, (_, sep, letra) => sep + letra.toLocaleUpperCase('es'));
+    .replace(/(^|\s)([a-záéíóúüñ])/g, (_, sep, letra) => sep + letra.toLocaleUpperCase('es'));
 }
 
 const sinTildes = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
