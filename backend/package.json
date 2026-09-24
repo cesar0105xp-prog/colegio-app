@@ -5,7 +5,8 @@
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "ts-node prisma/seed.ts",
+    "import:estudiantes": "ts-node prisma/import-estudiantes.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
