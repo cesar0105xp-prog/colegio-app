@@ -172,11 +172,19 @@ export async function listarActividades(req: Request, res: Response): Promise<vo
   const { materiaId, gradoId, periodoId } = req.query;
 
   try {
+    // Un profesor solo ve sus propias actividades, sin importar qué filtros mande
+    let soloDelProfesor: string | undefined;
+    if (req.usuario!.rol === 'PROFESOR') {
+      const profesor = await prisma.profesor.findUnique({ where: { usuarioId: req.usuario!.sub }, select: { id: true } });
+      soloDelProfesor = profesor?.id ?? '00000000-0000-0000-0000-000000000000';
+    }
+
     const actividades = await prisma.actividad.findMany({
       where: {
         materiaId: materiaId as string | undefined,
         gradoId: gradoId as string | undefined,
         periodoId: periodoId as string | undefined,
+        profesorId: soloDelProfesor,
       },
       include: { materia: true, grado: true, periodo: true, profesor: true },
       orderBy: { createdAt: 'asc' },
@@ -214,16 +222,17 @@ export async function registrarCalificacion(req: Request, res: Response): Promis
       return;
     }
 
-    // Un profesor solo califica actividades suyas o de una materia que tiene
-    // asignada en ese grado (cubre el caso de un profesor que reemplaza a otro).
+    // Un profesor solo califica sus propias actividades. Si la actividad quedó sin
+    // dueño (el docente salió del colegio), puede calificarla quien tenga ahora
+    // esa materia en ese grado.
     if (req.usuario!.rol === 'PROFESOR') {
-      const profesor = await prisma.profesor.findUnique({ where: { usuarioId: req.usuario!.sub } });
+      const profesor = await prisma.profesor.findUnique({ where: { usuarioId: req.usuario!.sub }, select: { id: true } });
       const esDueno = !!profesor && actividad.profesorId === profesor.id;
-      const asignado = !!profesor && !!(await prisma.materiaGradoProfesor.findFirst({
+      const reemplaza = !!profesor && actividad.profesorId === null && !!(await prisma.materiaGradoProfesor.findFirst({
         where: { profesorId: profesor.id, materiaId: actividad.materiaId, gradoId: actividad.gradoId },
       }));
-      if (!esDueno && !asignado) {
-        res.status(403).json({ ok: false, mensaje: 'Solo puedes calificar actividades de tus materias asignadas' });
+      if (!esDueno && !reemplaza) {
+        res.status(403).json({ ok: false, mensaje: 'Esta actividad es de otro docente: solo puedes calificar las tuyas' });
         return;
       }
     }

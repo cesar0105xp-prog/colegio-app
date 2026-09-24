@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import {
@@ -11,12 +11,13 @@ import { useAuthStore } from '../../store/auth.store';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { IconoSAM } from '../../components/MarcaSAM';
+import { useMisAsignaciones, nombreGrado } from '../../services/misAsignaciones';
 import CalendarioAcademico from '../../components/CalendarioAcademico';
 import { CambiarPassword } from '../../components/CambiarPassword';
 import Asistencia from '../../components/Asistencia';
 import AgendaCalendario from '../../components/AgendaCalendario';
 
-type Seccion = 'notas' | 'observaciones' | 'asistencia' | 'agenda' | 'calendario' | 'estudiantes' | 'perfil';
+type Seccion = 'mis-materias' | 'notas' | 'observaciones' | 'asistencia' | 'agenda' | 'calendario' | 'estudiantes' | 'perfil';
 
 // ─── UI HELPERS ───────────────────────────────────────────────────────────────
 function Toast({ mensaje, tipo, onClose }: { mensaje: string; tipo: 'ok' | 'error'; onClose: () => void }) {
@@ -101,10 +102,10 @@ type Actividad = { id: string; nombre: string; tipo: string; porcentaje: number;
 type Estudiante = { id: string; nombres: string; apellidos: string; numeroDocumento: string };
 
 // ─── MÓDULO NOTAS ─────────────────────────────────────────────────────────────
-function ModuloNotas() {
+function ModuloNotas({ seleccionInicial }: { seleccionInicial?: { materiaId: string; gradoId: string } }) {
   const qc = useQueryClient();
-  const [gradoId, setGradoId] = useState('');
-  const [materiaId, setMateriaId] = useState('');
+  const [gradoId, setGradoId] = useState(seleccionInicial?.gradoId ?? '');
+  const [materiaId, setMateriaId] = useState(seleccionInicial?.materiaId ?? '');
   const [periodoId, setPeriodoId] = useState('');
   const [modalActividad, setModalActividad] = useState(false);
   const [actividadEditar, setActividadEditar] = useState<Actividad | null>(null);
@@ -112,15 +113,28 @@ function ModuloNotas() {
   const [vistaNotas, setVistaNotas] = useState(false);
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'error' } | null>(null);
 
-  const { data: grados = [] } = useQuery({ queryKey: ['grados'], queryFn: async () => (await api.get('/grados')).data.datos ?? [] });
+  // Solo lo que el profesor tiene asignado
+  const { materias, gradosDe, sinAsignaciones, cargando } = useMisAsignaciones();
   const { data: periodos = [] } = useQuery({ queryKey: ['periodos'], queryFn: async () => (await api.get('/periodos')).data.datos ?? [] });
 
-  const { data: gradoDetalle } = useQuery({
-    queryKey: ['grado-detalle', gradoId],
-    queryFn: async () => (await api.get('/grados')).data.datos?.find((g: Grado & { materiaGrados: { materia: Materia; profesorId: string }[] }) => g.id === gradoId),
-    enabled: !!gradoId,
-  });
-  const materias: Materia[] = gradoDetalle?.materiaGrados?.map((mg: { materia: Materia }) => mg.materia) ?? [];
+  const gradosDeMateria = materiaId ? gradosDe(materiaId) : [];
+
+  // Con una sola materia (o una sola materia y un solo grado) no hay nada que elegir
+  useEffect(() => {
+    if (!materiaId && materias.length === 1) setMateriaId(materias[0].id);
+  }, [materias, materiaId]);
+
+  useEffect(() => {
+    if (materiaId && !gradoId && gradosDeMateria.length === 1) setGradoId(gradosDeMateria[0].id);
+  }, [materiaId, gradoId, gradosDeMateria]);
+
+  // Al cambiar de materia, el grado anterior puede no corresponder
+  const cambiarMateria = (nuevaMateriaId: string) => {
+    setMateriaId(nuevaMateriaId);
+    const grados = gradosDe(nuevaMateriaId);
+    setGradoId(grados.length === 1 ? grados[0].id : '');
+    setVistaNotas(false);
+  };
 
   const { data: actividadesData } = useQuery({
     queryKey: ['actividades', materiaId, gradoId, periodoId],
@@ -194,21 +208,38 @@ function ModuloNotas() {
     <div className="space-y-5">
       {toast && <Toast mensaje={toast.msg} tipo={toast.tipo} onClose={() => setToast(null)} />}
 
+      {cargando ? (
+        <div className="flex items-center justify-center h-32"><div className="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>
+      ) : sinAsignaciones ? (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm text-center py-12 px-5 text-slate-400">
+          <BookOpenIcon className="w-10 h-10 mx-auto mb-2 opacity-30" />
+          <p className="text-sm font-medium text-slate-500">Todavía no tienes materias asignadas</p>
+          <p className="text-xs mt-1">Comunícate con coordinación.</p>
+        </div>
+      ) : (
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
         <p className="text-sm font-semibold text-slate-600 mb-3">Selecciona el contexto</p>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Con una sola materia no hay nada que escoger: se muestra fija */}
+          {materias.length === 1 ? (
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1.5">Materia</label>
+              <p className="px-3 py-2.5 bg-slate-50 rounded-xl text-sm font-medium text-slate-700 min-h-[44px]">{materias[0].nombre}</p>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1.5">Materia</label>
+              <select value={materiaId} onChange={e => cambiarMateria(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-h-[44px]">
+                <option value="">Seleccionar</option>
+                {materias.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+              </select>
+            </div>
+          )}
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1.5">Grado</label>
-            <select value={gradoId} onChange={e => { setGradoId(e.target.value); setMateriaId(''); setVistaNotas(false); }} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+            <select value={gradoId} onChange={e => { setGradoId(e.target.value); setVistaNotas(false); }} disabled={!materiaId} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:opacity-50 min-h-[44px]">
               <option value="">Seleccionar</option>
-              {(grados as Grado[]).map(g => <option key={g.id} value={g.id}>{g.nombre}{g.grupo}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">Materia</label>
-            <select value={materiaId} onChange={e => { setMateriaId(e.target.value); setVistaNotas(false); }} disabled={!gradoId} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:opacity-50">
-              <option value="">Seleccionar</option>
-              {materias.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+              {gradosDeMateria.map(g => <option key={g.id} value={g.id}>{nombreGrado(g)}</option>)}
             </select>
           </div>
           <div>
@@ -230,6 +261,7 @@ function ModuloNotas() {
           </div>
         )}
       </div>
+      )}
 
       {listo && (
         <>
@@ -865,7 +897,71 @@ function MiPerfil() {
   );
 }
 
+// Primera pantalla del docente: qué tiene a cargo, con acceso directo a las notas
+function MisMaterias({ onAbrir }: { onAbrir: (materiaId: string, gradoId: string) => void }) {
+  const { asignaciones, sinAsignaciones, cargando } = useMisAsignaciones();
+
+  if (cargando) return <div className="flex items-center justify-center h-32"><div className="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>;
+
+  if (sinAsignaciones) {
+    return (
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm text-center py-12 px-5 text-slate-400">
+        <BookOpenIcon className="w-10 h-10 mx-auto mb-2 opacity-30" />
+        <p className="text-sm font-medium text-slate-500">Todavía no tienes materias asignadas</p>
+        <p className="text-xs mt-1">Comunícate con coordinación.</p>
+      </div>
+    );
+  }
+
+  const totalCursos = asignaciones.reduce((acc, a) => acc + a.grados.length, 0);
+  const totalEstudiantes = asignaciones.reduce((acc, a) => acc + a.grados.reduce((s, g) => s + g.totalEstudiantes, 0), 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {[
+          { label: 'Materias', valor: asignaciones.length },
+          { label: 'Cursos', valor: totalCursos },
+          { label: 'Estudiantes', valor: totalEstudiantes },
+        ].map(s => (
+          <div key={s.label} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+            <p className="text-xs text-slate-400">{s.label}</p>
+            <p className="text-2xl font-bold text-slate-700">{s.valor}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {asignaciones.map(a => (
+          <div key={a.materia.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-100">
+              <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0"><BookOpenIcon className="w-5 h-5 text-blue-600" /></div>
+              <div className="min-w-0">
+                <h3 className="font-semibold text-slate-800 truncate">{a.materia.nombre}</h3>
+                <p className="text-xs text-slate-400">{a.grados.length} curso(s)</p>
+              </div>
+            </div>
+            <div className="divide-y divide-slate-50">
+              {a.grados.map(g => (
+                <button key={g.id} onClick={() => onAbrir(a.materia.id, g.id)}
+                  className="w-full flex items-center justify-between gap-3 px-5 py-3 text-left hover:bg-slate-50 transition-colors min-h-[44px]">
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">{nombreGrado(g)}</p>
+                    <p className="text-xs text-slate-400">{g.totalEstudiantes} estudiante(s)</p>
+                  </div>
+                  <span className="text-xs font-semibold text-blue-600 whitespace-nowrap">Ver notas →</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const NAV = [
+  { id: 'mis-materias',  label: 'Mis materias',        icono: BookOpenIcon },
   { id: 'notas',         label: 'Notas y actividades', icono: BarChart2 },
   { id: 'observaciones', label: 'Observaciones',        icono: MessageSquare },
   { id: 'asistencia',    label: 'Asistencia',           icono: CalendarCheck },
@@ -875,6 +971,7 @@ const NAV = [
 ] as const;
 
 const TITULOS: Record<Seccion, string> = {
+  'mis-materias': 'Mis materias',
   notas: 'Notas y actividades',
   observaciones: 'Observador del estudiante',
   asistencia: 'Asistencia diaria',
@@ -885,7 +982,9 @@ const TITULOS: Record<Seccion, string> = {
 };
 
 export default function ProfesorDashboard() {
-  const [seccion, setSeccion] = useState<Seccion>('notas');
+  const [seccion, setSeccion] = useState<Seccion>('mis-materias');
+  // Curso que el docente abrió desde "Mis materias"
+  const [seleccion, setSeleccion] = useState<{ materiaId: string; gradoId: string } | undefined>();
   const [sidebar, setSidebar] = useState(false);
   const { usuario, clearAuth } = useAuthStore();
   // Si entró con una contraseña temporal, el portal le pide cambiarla de entrada
@@ -930,7 +1029,8 @@ export default function ProfesorDashboard() {
           <h1 className="font-bold text-slate-800 flex-1">{TITULOS[seccion]}</h1>
         </header>
         <main className="flex-1 p-4 lg:p-6 overflow-auto">
-          {seccion === 'notas' ? <ModuloNotas />
+          {seccion === 'mis-materias' ? <MisMaterias onAbrir={(materiaId, gradoId) => { setSeleccion({ materiaId, gradoId }); setSeccion('notas'); }} />
+            : seccion === 'notas' ? <ModuloNotas key={`${seleccion?.materiaId ?? ''}-${seleccion?.gradoId ?? ''}`} seleccionInicial={seleccion} />
             : seccion === 'observaciones' ? <ModuloObservaciones />
             : seccion === 'asistencia' ? <Asistencia />
             : seccion === 'agenda' ? <AgendaCalendario />
