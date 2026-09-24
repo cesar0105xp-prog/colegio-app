@@ -116,8 +116,8 @@ model Estudiante {
   apellidos           String
   tipoDocumento       TipoDocumento        @map("tipo_documento")
   numeroDocumento     String               @unique @map("numero_documento")
-  fechaNacimiento     DateTime             @map("fecha_nacimiento")
-  genero              Genero
+  fechaNacimiento     DateTime?            @map("fecha_nacimiento")
+  genero              Genero?
   direccion           String?
   telefono            String?
   estado              EstadoEstudiante     @default(ACTIVO)
@@ -126,6 +126,8 @@ model Estudiante {
   createdAt           DateTime             @default(now()) @map("created_at")
   updatedAt           DateTime             @updatedAt @map("updated_at")
   codigoMatricula     String?              @unique @map("codigo_matricula")
+  // true mientras falten documento real, fecha de nacimiento o acudiente
+  datosPendientes     Boolean              @default(false) @map("datos_pendientes")
   archivos            Archivo[]
   calificaciones      Calificacion[]
   contactosEmergencia ContactoEmergencia[]
@@ -163,6 +165,8 @@ model Grado {
   grupo         String
   nivel         String
   anio          Int
+  // Cupo sugerido del curso; administración lo ajusta
+  cupoMaximo    Int?                   @map("cupo_maximo")
   // Quién llama a lista: un director de curso fijo (preescolar a 4°) o el
   // profesor de la primera clase del día según el horario (5° en adelante).
   tipoAsistencia  TipoAsistencia @default(DIRECTOR_FIJO) @map("tipo_asistencia")
