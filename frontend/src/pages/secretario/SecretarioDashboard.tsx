@@ -125,7 +125,10 @@ function ResumenSecretario({ setSeccion }: { setSeccion: (s: Seccion) => void })
 }
 
 // ─── ESTUDIANTES (secretario: crear y editar, no eliminar) ────────────────────
-type EstRow = { id: string; nombres: string; apellidos: string; tipoDocumento: string; numeroDocumento: string; fechaNacimiento: string; genero: string; grado: { id: string; nombre: string; grupo: string; nivel: string }; estado: string; direccion?: string; telefono?: string; gradoId: string };
+type EstRow = { id: string; nombres: string; apellidos: string; tipoDocumento: string; numeroDocumento: string; fechaNacimiento: string | null; genero: string | null; grado: { id: string; nombre: string; grupo: string; nivel: string }; estado: string; direccion?: string; telefono?: string; gradoId: string; datosPendientes?: boolean; _count?: { padres: number } };
+
+/** Documento provisional de la importación masiva: hay que reemplazarlo por el real. */
+const esDocumentoProvisional = (doc: string) => /^tmp-/i.test(doc);
 type EstForm = { nombres: string; apellidos: string; tipoDocumento: string; numeroDocumento: string; fechaNacimiento: string; genero: string; gradoId: string; direccion?: string; telefono?: string; estado?: string };
 
 function EstudiantesSecretario() {
@@ -133,6 +136,7 @@ function EstudiantesSecretario() {
   const [busqueda, setBusqueda] = useState('');
   const [filtroGrado, setFiltroGrado] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('');
+  const [soloPendientes, setSoloPendientes] = useState(false);
   const [modalCrear, setModalCrear] = useState(false);
   const [modalEditar, setModalEditar] = useState<EstRow | null>(null);
   const [modalVer, setModalVer] = useState<EstRow | null>(null);
@@ -140,13 +144,30 @@ function EstudiantesSecretario() {
 
   const { data: gradosData } = useQuery({ queryKey: ['grados'], queryFn: async () => (await api.get('/grados')).data.datos ?? [] });
   const { data, isLoading } = useQuery({
-    queryKey: ['estudiantes', busqueda, filtroGrado, filtroEstado],
-    queryFn: async () => (await api.get('/estudiantes', { params: { busqueda: busqueda || undefined, gradoId: filtroGrado || undefined, estado: filtroEstado || undefined } })).data,
+    queryKey: ['estudiantes', busqueda, filtroGrado, filtroEstado, soloPendientes],
+    queryFn: async () => (await api.get('/estudiantes', { params: {
+      busqueda: busqueda || undefined, gradoId: filtroGrado || undefined, estado: filtroEstado || undefined,
+      datosPendientes: soloPendientes ? 'true' : undefined, limite: 100,
+    } })).data,
     staleTime: 0,
   });
 
   const { register: regC, handleSubmit: hC, watch: wC, formState: { errors: eC } } = useForm<EstForm>();
-  const { register: regE, handleSubmit: hE, watch: wE, formState: { errors: eE } } = useForm<EstForm>();
+  const { register: regE, handleSubmit: hE, watch: wE, reset: rE, formState: { errors: eE } } = useForm<EstForm>();
+
+  // Al abrir la edición se cargan los datos que ya tiene; el documento provisional
+  // (TMP-) se deja en blanco para que secretaría escriba el real.
+  const abrirEditar = (e: EstRow) => {
+    rE({
+      nombres: e.nombres, apellidos: e.apellidos,
+      tipoDocumento: e.tipoDocumento,
+      numeroDocumento: esDocumentoProvisional(e.numeroDocumento) ? '' : e.numeroDocumento,
+      fechaNacimiento: e.fechaNacimiento ? e.fechaNacimiento.split('T')[0] : '',
+      genero: e.genero ?? '', gradoId: e.gradoId, estado: e.estado,
+      direccion: e.direccion ?? '', telefono: e.telefono ?? '',
+    });
+    setModalEditar(e);
+  };
 
 
   const crearMutation = useMutation({
@@ -196,7 +217,7 @@ function EstudiantesSecretario() {
           <Campo label="Número de documento *" error={errs.numeroDocumento?.message} hint={tipoDoc ? regla.placeholder : 'Selecciona el tipo'}>
             <input className={inputCls(errs.numeroDocumento?.message)} placeholder={tipoDoc ? regla.placeholder : '—'}
               maxLength={regla.max} disabled={!tipoDoc} onKeyDown={regla.soloNumeros ? soloNumerosKeyDown : undefined}
-              {...reg('numeroDocumento', { required: 'Requerido', minLength: { value: regla.min, message: `Mínimo ${regla.min}` }, maxLength: { value: regla.max, message: `Máximo ${regla.max}` }, pattern: regla.soloNumeros ? { value: /^\d+$/, message: 'Solo dígitos' } : undefined })} />
+              {...reg('numeroDocumento', { required: 'Requerido', minLength: { value: regla.min, message: `Mínimo ${regla.min}` }, maxLength: { value: regla.max, message: `Máximo ${regla.max}` }, pattern: regla.soloNumeros ? { value: /^\d+$/, message: 'Solo dígitos' } : undefined, validate: (v: string) => !esDocumentoProvisional(v) || 'TMP- es provisional: escribe el documento real del estudiante' })} />
           </Campo>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -268,17 +289,32 @@ function EstudiantesSecretario() {
           <option value="ACTIVO">Activo</option>
           <option value="INACTIVO">Inactivo</option>
         </select>
-        <button onClick={() => setModalCrear(true)} className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors">
+        <button onClick={() => setSoloPendientes(v => !v)}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl border transition-colors min-h-[44px] ${soloPendientes ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-orange-700 border-orange-200 hover:bg-orange-50'}`}>
+          <AlertCircle className="w-4 h-4" /> Solo datos pendientes
+        </button>
+        <button onClick={() => setModalCrear(true)} className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors min-h-[44px]">
           <UserPlus className="w-4 h-4" /> Nuevo estudiante
         </button>
       </div>
+
+      {(data?.meta?.pendientes ?? 0) > 0 && (
+        <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 text-orange-600 mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-orange-800">
+            Faltan <strong>{data.meta.pendientes}</strong> estudiante(s) por completar: documento real, fecha de nacimiento y acudiente.
+            {!soloPendientes && ' Usa "Solo datos pendientes" para trabajarlos de a uno.'}
+          </p>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         {isLoading ? <div className="flex items-center justify-center h-32"><div className="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>
         : (data?.datos ?? []).length === 0 ? (
           <div className="text-center py-12 text-slate-400"><GraduationCap className="w-10 h-10 mx-auto mb-2 opacity-30" /><p className="text-sm">No hay estudiantes</p></div>
         ) : (
-          <table className="w-full">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px]">
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr>{['Estudiante','Documento','Grado','Estado',''].map(h => <th key={h} className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-5 py-3">{h}</th>)}</tr>
             </thead>
@@ -287,23 +323,35 @@ function EstudiantesSecretario() {
                 <tr key={e.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-700 text-xs font-bold">{e.nombres[0]}{e.apellidos[0]}</div>
-                      <span className="text-sm font-medium text-slate-800">{e.nombres} {e.apellidos}</span>
+                      <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-700 text-xs font-bold flex-shrink-0">{e.nombres[0]}{e.apellidos[0]}</div>
+                      <div className="min-w-0">
+                        <span className="text-sm font-medium text-slate-800 whitespace-nowrap">{e.nombres} {e.apellidos}</span>
+                        {e.datosPendientes && (
+                          <span className="ml-2 inline-flex items-center gap-1 text-[11px] font-semibold bg-orange-100 text-orange-700 px-2 py-0.5 rounded-lg whitespace-nowrap">
+                            <AlertCircle className="w-3 h-3" /> Datos pendientes
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </td>
-                  <td className="px-5 py-3 text-sm text-slate-500">{e.tipoDocumento} {e.numeroDocumento}</td>
+                  <td className="px-5 py-3 text-sm text-slate-500 whitespace-nowrap">
+                    {esDocumentoProvisional(e.numeroDocumento)
+                      ? <span className="text-orange-600">Provisional {e.numeroDocumento}</span>
+                      : `${e.tipoDocumento} ${e.numeroDocumento}`}
+                  </td>
                   <td className="px-5 py-3"><Badge texto={`${e.grado.nombre}${e.grado.grupo}`} color="bg-blue-50 text-blue-700" /></td>
                   <td className="px-5 py-3"><Badge texto={e.estado} color={ESTADO_COLOR[e.estado] ?? 'bg-slate-100'} /></td>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => setModalVer(e)} className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"><Eye className="w-4 h-4" /></button>
-                      <button onClick={() => setModalEditar(e)} className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"><Edit2 className="w-4 h-4" /></button>
+                      <button onClick={() => setModalVer(e)} aria-label="Ver detalle" className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"><Eye className="w-4 h-4" /></button>
+                      <button onClick={() => abrirEditar(e)} aria-label="Editar" className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"><Edit2 className="w-4 h-4" /></button>
                     </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
         )}
         {data?.meta && <div className="px-5 py-3 border-t border-slate-100 text-xs text-slate-400">{data.meta.total} estudiante(s)</div>}
       </div>
@@ -316,6 +364,17 @@ function EstudiantesSecretario() {
 
       {modalEditar && (
         <Modal titulo="Editar estudiante" onClose={() => setModalEditar(null)}>
+          {modalEditar.datosPendientes && (
+            <div className="mb-4 bg-orange-50 border border-orange-200 rounded-xl p-3">
+              <p className="text-xs text-orange-800">
+                A este estudiante le faltan datos:
+                {esDocumentoProvisional(modalEditar.numeroDocumento) && ' documento real,'}
+                {!modalEditar.fechaNacimiento && ' fecha de nacimiento,'}
+                {(modalEditar._count?.padres ?? 0) === 0 && ' acudiente (se vincula en la sección Vínculos),'}
+                {' '}y la marca naranja desaparece sola cuando estén completos.
+              </p>
+            </div>
+          )}
           <FormEst reg={regE} errors={eE} watch={wE} gradosData={gradosData ?? []} modoEditar
             onSubmit={hE(d => editarMutation.mutate({ ...d, id: modalEditar.id }))}
             cargando={editarMutation.isPending} onCancel={() => setModalEditar(null)} />
@@ -334,10 +393,10 @@ function EstudiantesSecretario() {
             </div>
             <div className="grid grid-cols-2 gap-3 text-sm">
               {[
-                ['Documento', `${modalVer.tipoDocumento} ${modalVer.numeroDocumento}`],
+                ['Documento', esDocumentoProvisional(modalVer.numeroDocumento) ? `Provisional ${modalVer.numeroDocumento}` : `${modalVer.tipoDocumento} ${modalVer.numeroDocumento}`],
                 ['Grado', `${modalVer.grado.nombre}${modalVer.grado.grupo}`],
-                ['Fecha de nacimiento', new Date(modalVer.fechaNacimiento).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })],
-                ['Género', modalVer.genero],
+                ['Fecha de nacimiento', modalVer.fechaNacimiento ? new Date(modalVer.fechaNacimiento).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Pendiente'],
+                ['Género', modalVer.genero ?? 'Pendiente'],
                 ['Teléfono', modalVer.telefono ?? '—'],
                 ['Dirección', modalVer.direccion ?? '—'],
               ].map(([k, v]) => (

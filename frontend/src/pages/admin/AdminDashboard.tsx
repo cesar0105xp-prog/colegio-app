@@ -246,7 +246,7 @@ function FormEstudiante({ inicial, gradosData, onSubmit, cargando, onCancel, mod
   );
 }
 
-type EstRow = { id: string; nombres: string; apellidos: string; tipoDocumento: string; numeroDocumento: string; fechaNacimiento: string; genero: string; grado: { id: string; nombre: string; grupo: string; nivel: string }; estado: string; direccion?: string; telefono?: string; gradoId: string };
+type EstRow = { id: string; nombres: string; apellidos: string; tipoDocumento: string; numeroDocumento: string; fechaNacimiento: string | null; genero: string | null; datosPendientes?: boolean; grado: { id: string; nombre: string; grupo: string; nivel: string }; estado: string; direccion?: string; telefono?: string; gradoId: string };
 
 function Estudiantes() {
   const qc = useQueryClient();
@@ -359,7 +359,7 @@ function Estudiantes() {
           <FormEstudiante
             modoEditar
             gradosData={gradosData ?? []}
-            inicial={{ ...modalEditar, fechaNacimiento: modalEditar.fechaNacimiento?.split('T')[0] ?? '' }}
+            inicial={{ ...modalEditar, genero: modalEditar.genero ?? undefined, fechaNacimiento: modalEditar.fechaNacimiento?.split("T")[0] ?? "" }}
             onSubmit={d => editarMutation.mutate({ ...d, id: modalEditar.id })}
             cargando={editarMutation.isPending}
             onCancel={() => setModalEditar(null)}
@@ -474,7 +474,7 @@ function FichaEstudiante({ estudiante, onClose, onEditar }: { estudiante: EstRow
           {tab === 'datos' && (
             <div className="grid grid-cols-2 gap-3 text-sm">
               {[
-                ['Fecha de nacimiento', new Date(estudiante.fechaNacimiento).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })],
+                ['Fecha de nacimiento', estudiante.fechaNacimiento ? new Date(estudiante.fechaNacimiento).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Pendiente'],
                 ['Género', estudiante.genero],
                 ['Teléfono', estudiante.telefono ?? '—'],
                 ['Dirección', estudiante.direccion ?? '—'],
