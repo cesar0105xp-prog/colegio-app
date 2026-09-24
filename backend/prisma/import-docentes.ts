@@ -42,8 +42,13 @@ function distancia(a: string, b: string): number {
   return d[a.length][b.length];
 }
 
-const palabraCoincide = (a: string, b: string) =>
-  a === b || a.startsWith(b) || b.startsWith(a) || distancia(a, b) <= 1;
+// Palabras cortas exigen más parecido; en las largas se toleran dos cambios
+// ("Valery"/"Valerie", "Yudy"/"Yudi", "Katerin"/"Katherine").
+const palabraCoincide = (a: string, b: string) => {
+  if (a === b || a.startsWith(b) || b.startsWith(a)) return true;
+  const tolerancia = Math.min(a.length, b.length) >= 6 ? 2 : 1;
+  return distancia(a, b) <= tolerancia;
+};
 
 /** Cada palabra del nombre del CSV debe aparecer en el nombre completo registrado. */
 function coincideNombre(nombreCsv: string, nombreCompleto: string): boolean {
