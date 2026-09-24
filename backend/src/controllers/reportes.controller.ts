@@ -124,6 +124,53 @@ export async function reporteEstudiantesDestacados(req: Request, res: Response):
   }
 }
 
+// ─── COBERTURA ACADÉMICA: QUÉ MATERIAS TIENEN DOCENTE EN CADA GRADO ──────────
+
+export async function coberturaAcademica(req: Request, res: Response): Promise<void> {
+  const anio = req.query.anio ? parseInt(req.query.anio as string) : new Date().getFullYear();
+  try {
+    const [grados, materias, asignaciones] = await Promise.all([
+      prisma.grado.findMany({ where: { anio }, orderBy: [{ nivel: 'asc' }, { nombre: 'asc' }, { grupo: 'asc' }] }),
+      prisma.materia.findMany({ orderBy: { nombre: 'asc' } }),
+      prisma.materiaGradoProfesor.findMany({
+        where: { anio },
+        include: { profesor: { select: { nombres: true, apellidos: true } } },
+      }),
+    ]);
+
+    const porCelda = new Map(asignaciones.map(a => [`${a.gradoId}|${a.materiaId}`, `${a.profesor.nombres} ${a.profesor.apellidos}`]));
+
+    const filas = grados.map(g => {
+      const celdas = materias.map(m => ({
+        materiaId: m.id,
+        profesor: porCelda.get(`${g.id}|${m.id}`) ?? null,
+      }));
+      return {
+        gradoId: g.id,
+        grado: `${g.nombre}${g.grupo ? ' ' + g.grupo : ''}`,
+        nivel: g.nivel,
+        celdas,
+        conDocente: celdas.filter(c => c.profesor).length,
+      };
+    });
+
+    const totalCeldas = grados.length * materias.length;
+    const cubiertas = filas.reduce((acc, f) => acc + f.conDocente, 0);
+
+    res.json({
+      ok: true,
+      datos: {
+        materias: materias.map(m => ({ id: m.id, nombre: m.nombre })),
+        filas,
+        meta: { anio, totalCeldas, cubiertas, sinDocente: totalCeldas - cubiertas },
+      },
+    });
+  } catch (err) {
+    logger.error('Error al generar la cobertura académica', { err });
+    res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
+  }
+}
+
 // ─── REPORTE: OBSERVACIONES PENDIENTES ───────────────────────────────────────
 export async function reporteObservacionesPendientes(_req: Request, res: Response): Promise<void> {
   try {

@@ -59,6 +59,37 @@ export function plantillaAccesoMatricula(nombreEstudiante: string, enlace: strin
   </html>`;
 }
 
+/** Credenciales de acceso para un docente o funcionario. */
+export function plantillaCredenciales(nombre: string, email: string, passwordTemporal: string, colegio = 'SAM · Liceo Moderno San Marcos'): string {
+  const url = process.env.FRONTEND_URL ?? '';
+  return `
+  <!DOCTYPE html>
+  <html>
+  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+  <body style="margin:0;padding:0;background:#FAF8F3;font-family:Arial,sans-serif;">
+    <div style="max-width:600px;margin:32px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+      <div style="background:#1E3A6E;padding:32px 40px;">
+        <h1 style="margin:0;color:white;font-size:22px;font-weight:700;">${colegio}</h1>
+        <p style="margin:4px 0 0;color:#E8B33A;font-size:13px;">Acceso al portal</p>
+      </div>
+      <div style="padding:32px 40px;color:#475569;font-size:15px;line-height:1.7;">
+        <p style="margin:0 0 16px;">Hola ${nombre},</p>
+        <p style="margin:0 0 16px;">Estos son tus datos para entrar a SAM:</p>
+        <div style="background:#F1F5F9;border-radius:12px;padding:16px;margin-bottom:16px;">
+          <p style="margin:0 0 6px;"><strong>Usuario:</strong> ${email}</p>
+          <p style="margin:0;"><strong>Contraseña temporal:</strong> <span style="font-family:monospace;font-size:16px;">${passwordTemporal}</span></p>
+        </div>
+        <p style="margin:0 0 16px;">Por seguridad, el portal te pedirá cambiar esta contraseña la primera vez que entres.</p>
+        ${url ? `<p style="margin:0 0 8px;"><a href="${url}" style="background:#1E3A6E;color:white;text-decoration:none;padding:12px 20px;border-radius:10px;display:inline-block;">Entrar a SAM</a></p>` : ''}
+      </div>
+      <div style="background:#F1F5F9;padding:20px 40px;border-top:1px solid #E2E8F0;">
+        <p style="margin:0;color:#94A3B8;font-size:12px;">Mensaje automático de ${colegio}. Si no esperabas este correo, avísale a administración.</p>
+      </div>
+    </div>
+  </body>
+  </html>`;
+}
+
 export function plantillaComunicado(titulo: string, mensaje: string, colegio = 'SAM · Liceo Moderno San Marcos'): string {
   return `
   <!DOCTYPE html>

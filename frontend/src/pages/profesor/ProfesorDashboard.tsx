@@ -887,8 +887,9 @@ const TITULOS: Record<Seccion, string> = {
 export default function ProfesorDashboard() {
   const [seccion, setSeccion] = useState<Seccion>('notas');
   const [sidebar, setSidebar] = useState(false);
-  const [modalPassword, setModalPassword] = useState(false);
   const { usuario, clearAuth } = useAuthStore();
+  // Si entró con una contraseña temporal, el portal le pide cambiarla de entrada
+  const [modalPassword, setModalPassword] = useState(usuario?.debeCambiarPassword === true);
   const navigate = useNavigate();
   const handleLogout = async () => { try { await api.post('/auth/logout'); } catch {} clearAuth(); navigate('/login'); };
 
