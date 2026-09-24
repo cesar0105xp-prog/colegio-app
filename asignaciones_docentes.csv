@@ -1,0 +1,119 @@
+docente,materia,grado,grupo
+Angie Cruz,Español,PRIMERO,A
+Angie Cruz,Español,SEGUNDO,A
+Angie Cruz,Español,SEGUNDO,B
+Angie Cruz,Inglés,PRIMERO,A
+Angie Cruz,Inglés,SEGUNDO,A
+Angie Cruz,Inglés,SEGUNDO,B
+Jimena Benavides,Danzas,PRIMERO,A
+Jimena Benavides,Danzas,SEGUNDO,A
+Jimena Benavides,Danzas,SEGUNDO,B
+Jimena Benavides,Artes,PRIMERO,A
+Jimena Benavides,Artes,SEGUNDO,A
+Jimena Benavides,Artes,SEGUNDO,B
+Jimena Benavides,Ciencias Sociales,PRIMERO,A
+Jimena Benavides,Ciencias Sociales,SEGUNDO,A
+Jimena Benavides,Ciencias Sociales,SEGUNDO,B
+Nancy Molina,Matemáticas,PRIMERO,A
+Nancy Molina,Matemáticas,SEGUNDO,A
+Nancy Molina,Matemáticas,SEGUNDO,B
+Nancy Molina,Ciencias Naturales,PRIMERO,A
+Nancy Molina,Ciencias Naturales,SEGUNDO,A
+Nancy Molina,Ciencias Naturales,SEGUNDO,B
+María Fernanda,Matemáticas,TERCERO,A
+María Fernanda,Matemáticas,TERCERO,B
+María Fernanda,Matemáticas,CUARTO,A
+María Fernanda,Matemáticas,CUARTO,B
+María Fernanda,Ciencias Naturales,TERCERO,A
+María Fernanda,Ciencias Naturales,TERCERO,B
+María Fernanda,Ciencias Naturales,CUARTO,A
+María Fernanda,Ciencias Naturales,CUARTO,B
+Jessika Ocampo,Inglés,TERCERO,A
+Jessika Ocampo,Inglés,TERCERO,B
+Jessika Ocampo,Inglés,CUARTO,A
+Jessika Ocampo,Inglés,CUARTO,B
+Jessika Ocampo,Español,TERCERO,A
+Jessika Ocampo,Español,TERCERO,B
+Jessika Ocampo,Español,CUARTO,A
+Jessika Ocampo,Español,CUARTO,B
+Silvana Benavides,Ciencias Sociales,TERCERO,A
+Silvana Benavides,Ciencias Sociales,TERCERO,B
+Silvana Benavides,Ciencias Sociales,CUARTO,A
+Silvana Benavides,Ciencias Sociales,CUARTO,B
+Silvana Benavides,Plan Lector,TERCERO,A
+Silvana Benavides,Plan Lector,TERCERO,B
+Silvana Benavides,Plan Lector,CUARTO,A
+Silvana Benavides,Plan Lector,CUARTO,B
+Silvana Benavides,Religión,TERCERO,A
+Silvana Benavides,Religión,TERCERO,B
+Silvana Benavides,Religión,CUARTO,A
+Silvana Benavides,Religión,CUARTO,B
+Silvana Benavides,Valores,TERCERO,A
+Silvana Benavides,Valores,TERCERO,B
+Silvana Benavides,Valores,CUARTO,A
+Silvana Benavides,Valores,CUARTO,B
+Valery,Danzas,TERCERO,A
+Valery,Danzas,TERCERO,B
+Valery,Danzas,CUARTO,A
+Valery,Danzas,CUARTO,B
+Valery,Artes,TERCERO,A
+Valery,Artes,TERCERO,B
+Valery,Artes,CUARTO,A
+Valery,Artes,CUARTO,B
+Valery,Artes,QUINTO,A
+Valery,Artes,QUINTO,B
+Valery,Artes,SEXTO,
+Valery,Artes,SÉPTIMO,
+Brayan,Deportes,TERCERO,A
+Brayan,Deportes,TERCERO,B
+Brayan,Deportes,CUARTO,A
+Brayan,Deportes,CUARTO,B
+Brayan,Deportes,QUINTO,A
+Brayan,Deportes,QUINTO,B
+Brayan,Deportes,SEXTO,
+Brayan,Deportes,SÉPTIMO,
+Brayan,Danzas,QUINTO,A
+Brayan,Danzas,QUINTO,B
+Brayan,Danzas,SEXTO,
+Brayan,Danzas,SÉPTIMO,
+Brayan,Tecnología,QUINTO,A
+Brayan,Tecnología,QUINTO,B
+Brayan,Tecnología,SEXTO,
+Brayan,Tecnología,SÉPTIMO,
+Valentina Rodríguez,Matemáticas,QUINTO,A
+Valentina Rodríguez,Matemáticas,QUINTO,B
+Valentina Rodríguez,Matemáticas,SEXTO,
+Valentina Rodríguez,Matemáticas,SÉPTIMO,
+Valentina Rodríguez,Ciencias Naturales,QUINTO,A
+Valentina Rodríguez,Ciencias Naturales,QUINTO,B
+Valentina Rodríguez,Ciencias Naturales,SEXTO,
+Valentina Rodríguez,Ciencias Naturales,SÉPTIMO,
+Valentina Rodríguez,Física,SEXTO,
+Valentina Rodríguez,Física,SÉPTIMO,
+Jhonatan,Inglés,QUINTO,A
+Jhonatan,Inglés,QUINTO,B
+Jhonatan,Inglés,SEXTO,
+Jhonatan,Inglés,SÉPTIMO,
+Jhonatan,Ciencias Sociales,QUINTO,A
+Jhonatan,Ciencias Sociales,QUINTO,B
+Jhonatan,Ciencias Sociales,SEXTO,
+Jhonatan,Ciencias Sociales,SÉPTIMO,
+Jhonatan,Química,SEXTO,
+Jhonatan,Química,SÉPTIMO,
+Angie Gómez,Español,QUINTO,A
+Angie Gómez,Español,QUINTO,B
+Angie Gómez,Español,SEXTO,
+Angie Gómez,Español,SÉPTIMO,
+Angie Gómez,Plan Lector,QUINTO,A
+Angie Gómez,Plan Lector,QUINTO,B
+Angie Gómez,Plan Lector,SEXTO,
+Angie Gómez,Plan Lector,SÉPTIMO,
+Angie Gómez,Cátedra,QUINTO,A
+Angie Gómez,Cátedra,QUINTO,B
+Angie Gómez,Cátedra,SEXTO,
+Angie Gómez,Cátedra,SÉPTIMO,
+Angie Gómez,Religión,QUINTO,A
+Angie Gómez,Religión,QUINTO,B
+Angie Gómez,Religión,SEXTO,
+Angie Gómez,Religión,SÉPTIMO,
+Yudy Alba,Prácticas Educativas,SÉPTIMO,
