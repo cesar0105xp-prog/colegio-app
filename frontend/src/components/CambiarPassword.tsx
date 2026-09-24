@@ -5,11 +5,66 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import { KeyRound, X, CheckCircle, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { KeyRound, X, CheckCircle, AlertCircle, Eye, EyeOff, Circle } from 'lucide-react';
 import api from '../services/api';
 import { useAuthStore } from '../store/auth.store';
 
 type FormPass = { passwordActual: string; passwordNuevo: string; confirmar: string };
+
+// Requisitos que exige el portal. La barra se llena a medida que se cumplen.
+const REQUISITOS = [
+  { etiqueta: 'Mínimo 8 caracteres', cumple: (p: string) => p.length >= 8 },
+  { etiqueta: 'Una letra mayúscula', cumple: (p: string) => /[A-ZÁÉÍÓÚÜÑ]/.test(p) },
+  { etiqueta: 'Un número', cumple: (p: string) => /[0-9]/.test(p) },
+  { etiqueta: 'Un símbolo (! @ # $ % ^ & * - _)', cumple: (p: string) => /[!@#$%^&*\-_]/.test(p) },
+];
+
+const NIVELES = [
+  { texto: 'Muy débil', barra: 'bg-red-500', texto_color: 'text-red-600' },
+  { texto: 'Débil', barra: 'bg-orange-500', texto_color: 'text-orange-600' },
+  { texto: 'Aceptable', barra: 'bg-amber-500', texto_color: 'text-amber-600' },
+  { texto: 'Buena', barra: 'bg-lime-500', texto_color: 'text-lime-600' },
+  { texto: 'Segura', barra: 'bg-emerald-500', texto_color: 'text-emerald-600' },
+];
+
+/** Barra de seguridad con el detalle de lo que falta por cumplir. */
+function FuerzaPassword({ password }: { password: string }) {
+  const cumplidos = REQUISITOS.map(r => r.cumple(password));
+  const total = cumplidos.filter(Boolean).length;
+  const nivel = NIVELES[total];
+  const completa = total === REQUISITOS.length;
+
+  if (!password) return null;
+
+  return (
+    <div className="mt-2">
+      <div className="flex items-center gap-2">
+        <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden flex gap-0.5" role="progressbar"
+          aria-valuenow={total} aria-valuemin={0} aria-valuemax={REQUISITOS.length} aria-label="Seguridad de la contraseña">
+          {REQUISITOS.map((_, i) => (
+            <span key={i} className={`flex-1 h-full transition-colors ${i < total ? nivel.barra : 'bg-transparent'}`} />
+          ))}
+        </div>
+        <span className={`text-xs font-semibold whitespace-nowrap ${nivel.texto_color}`}>{nivel.texto}</span>
+      </div>
+
+      <ul className="mt-2 space-y-1">
+        {REQUISITOS.map((r, i) => (
+          <li key={r.etiqueta} className={`flex items-center gap-1.5 text-xs ${cumplidos[i] ? 'text-emerald-600' : 'text-slate-400'}`}>
+            {cumplidos[i] ? <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" /> : <Circle className="w-3.5 h-3.5 flex-shrink-0" />}
+            {r.etiqueta}
+          </li>
+        ))}
+      </ul>
+
+      {completa && (
+        <p className="mt-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1.5">
+          ¡Listo! Tu contraseña cumple con todo lo que pide el portal.
+        </p>
+      )}
+    </div>
+  );
+}
 
 function Toast({ mensaje, tipo, onClose }: { mensaje: string; tipo: 'ok' | 'error'; onClose: () => void }) {
   return (
@@ -91,7 +146,7 @@ export function CambiarPassword({ onClose }: { onClose: () => void }) {
                 </button>
               </div>
               {errors.passwordNuevo && <p className="mt-1 text-xs text-red-500">{errors.passwordNuevo.message}</p>}
-              <p className="mt-1 text-xs text-slate-400">Debe tener mayúscula, número y uno de estos símbolos: ! @ # $ % ^ &amp; * - _</p>
+              <FuerzaPassword password={passwordNuevo ?? ''} />
             </div>
 
             <div>
