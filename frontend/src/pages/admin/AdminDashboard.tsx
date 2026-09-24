@@ -22,8 +22,9 @@ import GestionPermisos from '../../components/GestionPermisos';
 import AgendaCalendario from '../../components/AgendaCalendario';
 import Asistencia from '../../components/Asistencia';
 import { ResponsablesAsistencia, ConfiguracionAsistenciaGrado } from '../../components/ConfiguracionAsistencia';
+import CoberturaAcademica from '../../components/CoberturaAcademica';
 
-type Seccion = 'resumen' | 'estudiantes' | 'usuarios' | 'vinculos' | 'grados' | 'materias' | 'periodos' | 'reportes' | 'auditoria' | 'directorio' | 'comunicados' | 'documentos' | 'pagos' | 'asistencia' | 'permisos' | 'agenda' | 'certificados';
+type Seccion = 'resumen' | 'estudiantes' | 'usuarios' | 'vinculos' | 'grados' | 'materias' | 'periodos' | 'reportes' | 'auditoria' | 'directorio' | 'comunicados' | 'documentos' | 'pagos' | 'asistencia' | 'permisos' | 'agenda' | 'certificados' | 'cobertura';
 
 const DOC_REGLAS: Record<string, { min: number; max: number; soloNumeros: boolean; placeholder: string }> = {
   RC:        { min: 8,  max: 11, soloNumeros: true,  placeholder: '8 a 11 dígitos' },
@@ -613,7 +614,11 @@ function FichaEstudiante({ estudiante, onClose, onEditar }: { estudiante: EstRow
   );
 }
 
-type UsuRow = { id: string; email: string; rol: string; estado: string; ultimoLogin: string | null; perfil: { nombres: string; apellidos: string; telefono?: string } | null };
+type UsuRow = { id: string; email: string; rol: string; estado: string; ultimoLogin: string | null; datosPendientes?: boolean; perfil: { nombres: string; apellidos: string; telefono?: string; numeroDocumento?: string; tipoDocumento?: string } | null };
+
+// Provisionales que deja la importación de docentes
+const esCorreoProvisional = (email: string) => /@pendiente\.local$/i.test(email);
+const esDocumentoProvisional = (doc?: string) => !!doc && /^tmp-/i.test(doc);
 
 function Usuarios() {
   const qc = useQueryClient();
@@ -623,11 +628,14 @@ function Usuarios() {
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'error' } | null>(null);
   const [passwordMsg, setPasswordMsg] = useState<string | null>(null);
   const [filtroRol, setFiltroRol] = useState('');
+  const [soloPendientes, setSoloPendientes] = useState(false);
 
-  const { data, isLoading } = useQuery({ queryKey: ['usuarios', filtroRol], queryFn: async () => (await api.get('/usuarios', { params: { rol: filtroRol || undefined } })).data.datos });
+  const { data: respuesta, isLoading } = useQuery({ queryKey: ['usuarios', filtroRol, soloPendientes], queryFn: async () => (await api.get('/usuarios', { params: { rol: filtroRol || undefined, datosPendientes: soloPendientes ? 'true' : undefined } })).data });
+  const data = respuesta?.datos;
+  const docentesPendientes = respuesta?.meta?.pendientes ?? 0;
 
   const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<{ email: string; rol: string; nombres: string; apellidos: string; telefono?: string; tipoDocumento?: string; numeroDocumento?: string }>();
-  const { register: regE, handleSubmit: hE, reset: rE, formState: { errors: eE } } = useForm<{ email: string; nombres: string; apellidos: string; telefono?: string }>();
+  const { register: regE, handleSubmit: hE, reset: rE, formState: { errors: eE } } = useForm<{ email: string; nombres: string; apellidos: string; telefono?: string; tipoDocumento?: string; numeroDocumento?: string }>();
 
   const rolSeleccionado = watch('rol');
   const tipoDocUsuario = watch('tipoDocumento') ?? '';
@@ -655,6 +663,13 @@ function Usuarios() {
   const cambiarEstadoMutation = useMutation({
     mutationFn: ({ id, estado }: { id: string; estado: string }) => api.patch(`/usuarios/${id}/estado`, { estado }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['usuarios'] }); setToast({ msg: 'Estado actualizado', tipo: 'ok' }); },
+    onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string; errores?: string[] } } })?.response?.data?.errores?.[0] ?? (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
+  });
+
+  // Envía al docente su usuario y una contraseña temporal nueva al correo real
+  const credencialesMutation = useMutation({
+    mutationFn: (id: string) => api.post(`/usuarios/${id}/enviar-credenciales`),
+    onSuccess: (res) => setPasswordMsg(res.data.mensaje),
     onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string; errores?: string[] } } })?.response?.data?.errores?.[0] ?? (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
   });
 
@@ -687,24 +702,52 @@ function Usuarios() {
         <button onClick={() => setModal(true)} className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors ml-auto">
           <UserPlus className="w-4 h-4" /> Nuevo usuario
         </button>
+        <button onClick={() => setSoloPendientes(v => !v)}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl border transition-colors min-h-[44px] ${soloPendientes ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-orange-700 border-orange-200 hover:bg-orange-50'}`}>
+          <AlertCircle className="w-4 h-4" /> Solo datos pendientes
+        </button>
       </div>
+
+      {docentesPendientes > 0 && (
+        <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 text-orange-600 mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-orange-800">
+            Hay <strong>{docentesPendientes}</strong> docente(s) con correo o documento provisional de la importación.
+            Al ponerles los datos reales, la marca desaparece sola y podrás enviarles sus credenciales.
+          </p>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         {isLoading ? <div className="flex items-center justify-center h-32"><div className="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div> : (
-          <table className="w-full">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px]">
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr>{['Usuario','Rol','Último acceso','Estado','Acciones'].map(h => <th key={h} className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-5 py-3">{h}</th>)}</tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {(data ?? []).map((u: UsuRow) => (
                 <tr key={u.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-5 py-3"><p className="text-sm font-medium text-slate-800">{u.perfil ? `${u.perfil.nombres} ${u.perfil.apellidos}` : '—'}</p><p className="text-xs text-slate-400">{u.email}</p></td>
+                  <td className="px-5 py-3">
+                    <p className="text-sm font-medium text-slate-800 whitespace-nowrap">
+                      {u.perfil ? `${u.perfil.nombres} ${u.perfil.apellidos}` : '—'}
+                      {u.datosPendientes && (
+                        <span className="ml-2 inline-flex items-center gap-1 text-[11px] font-semibold bg-orange-100 text-orange-700 px-2 py-0.5 rounded-lg">
+                          <AlertCircle className="w-3 h-3" /> Datos pendientes
+                        </span>
+                      )}
+                    </p>
+                    <p className={`text-xs ${esCorreoProvisional(u.email) ? 'text-orange-600' : 'text-slate-400'}`}>{u.email}</p>
+                  </td>
                   <td className="px-5 py-3"><Badge texto={u.rol} color={ROL_COLOR[u.rol] ?? 'bg-slate-100'} /></td>
                   <td className="px-5 py-3 text-xs text-slate-400">{u.ultimoLogin ? new Date(u.ultimoLogin).toLocaleDateString('es-CO') : 'Nunca'}</td>
                   <td className="px-5 py-3"><Badge texto={u.estado} color={u.estado === 'ACTIVO' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'} /></td>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-1.5">
-                      <button onClick={() => { setModalEditar(u); rE({ email: u.email, nombres: u.perfil?.nombres ?? '', apellidos: u.perfil?.apellidos ?? '', telefono: u.perfil?.telefono ?? '' }); }} title="Editar" className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"><Edit2 className="w-4 h-4" /></button>
+                      <button onClick={() => { setModalEditar(u); rE({ email: esCorreoProvisional(u.email) ? '' : u.email, nombres: u.perfil?.nombres ?? '', apellidos: u.perfil?.apellidos ?? '', telefono: u.perfil?.telefono ?? '', tipoDocumento: u.perfil?.tipoDocumento ?? 'CC', numeroDocumento: esDocumentoProvisional(u.perfil?.numeroDocumento) ? '' : (u.perfil?.numeroDocumento ?? '') }); }} title="Editar" className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"><Edit2 className="w-4 h-4" /></button>
+                      {u.rol === 'PROFESOR' && !esCorreoProvisional(u.email) && (
+                        <button onClick={() => credencialesMutation.mutate(u.id)} title="Enviar credenciales de acceso" className="p-1.5 rounded-lg text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition-colors"><Mail className="w-4 h-4" /></button>
+                      )}
                       <button onClick={() => resetMutation.mutate(u.id)} title="Resetear contraseña" className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"><RefreshCw className="w-4 h-4" /></button>
                       <button onClick={() => cambiarEstadoMutation.mutate({ id: u.id, estado: u.estado === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO' })} title={u.estado === 'ACTIVO' ? 'Desactivar' : 'Activar'}
                         className={`p-1.5 rounded-lg transition-colors ${u.estado === 'ACTIVO' ? 'text-slate-400 hover:text-orange-600 hover:bg-orange-50' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'}`}>
@@ -717,6 +760,7 @@ function Usuarios() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
@@ -776,10 +820,33 @@ function Usuarios() {
       {modalEditar && (
         <Modal titulo="Editar usuario" onClose={() => setModalEditar(null)}>
           <form onSubmit={hE(d => editarMutation.mutate({ id: modalEditar.id, ...d }))} className="space-y-4">
-            <Campo label="Correo electrónico" error={eE.email?.message} hint="Máx. 100 caracteres">
+            {modalEditar.datosPendientes && (
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-3">
+                <p className="text-xs text-orange-800">
+                  Este docente entró con datos provisionales de la importación.
+                  Escríbele el correo institucional y el documento reales; la marca naranja desaparece sola y después podrás enviarle las credenciales.
+                </p>
+              </div>
+            )}
+            <Campo label="Correo electrónico" error={eE.email?.message} hint="No puede ser @pendiente.local">
               <input type="email" className={inputCls(eE.email?.message)} maxLength={100}
-                {...regE('email', { maxLength: { value: 100, message: 'Máximo 100 caracteres' }, pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Email inválido' } })} />
+                {...regE('email', { maxLength: { value: 100, message: 'Máximo 100 caracteres' }, pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Email inválido' }, validate: (v: string) => !v || !esCorreoProvisional(v) || '@pendiente.local es provisional: escribe el correo real' })} />
             </Campo>
+            {modalEditar.rol === 'PROFESOR' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Campo label="Tipo de documento" error={eE.tipoDocumento?.message}>
+                  <select className={inputCls(eE.tipoDocumento?.message)} {...regE('tipoDocumento')}>
+                    <option value="CC">CC — Cédula</option>
+                    <option value="CE">CE — Cédula Extranjería</option>
+                    <option value="PASAPORTE">Pasaporte</option>
+                  </select>
+                </Campo>
+                <Campo label="Número de documento" error={eE.numeroDocumento?.message} hint="No puede empezar por TMP-">
+                  <input className={inputCls(eE.numeroDocumento?.message)} maxLength={15}
+                    {...regE('numeroDocumento', { minLength: { value: 5, message: 'Mínimo 5' }, maxLength: { value: 15, message: 'Máximo 15' }, validate: (v?: string) => !v || !esDocumentoProvisional(v) || 'TMP- es provisional: escribe el documento real' })} />
+                </Campo>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <Campo label="Nombres" error={eE.nombres?.message}>
                 <input className={inputCls(eE.nombres?.message)} maxLength={50} onKeyDown={soloLetrasKeyDown}
@@ -1595,6 +1662,7 @@ const NAV = [
   { id: 'vinculos',    label: 'Vínculos Padres',   icono: Users },
   { id: 'grados',      label: 'Grados',            icono: Layers },
   { id: 'materias',    label: 'Materias',          icono: BookOpen },
+  { id: 'cobertura',   label: 'Cobertura académica', icono: Layers },
   { id: 'periodos',    label: 'Períodos',          icono: Calendar },
   { id: 'pagos',       label: 'Pagos y cartera',   icono: CreditCard },
   { id: 'asistencia',  label: 'Asistencia',        icono: CalendarCheck },
@@ -1611,7 +1679,7 @@ const NAV = [
 const TITULOS: Record<Seccion, string> = {
   resumen: 'Resumen general', estudiantes: 'Gestión de estudiantes',
   usuarios: 'Gestión de usuarios', vinculos: 'Vínculos padre-estudiante',
-  grados: 'Grados', materias: 'Materias',
+  grados: 'Grados', materias: 'Materias', cobertura: 'Cobertura académica',
   periodos: 'Períodos académicos', reportes: 'Reportes', auditoria: 'Log de auditoría',
   directorio: 'Directorio de docentes', comunicados: 'Comunicados a padres',
   documentos: 'Documentos requeridos', pagos: 'Pagos y cartera',
@@ -1911,6 +1979,7 @@ export default function AdminDashboard() {
         </div>
       );
       case 'pagos':       return <Pagos />;
+      case 'cobertura':   return <CoberturaAcademica />;
       case 'asistencia':  return <AsistenciaAdmin />;
       case 'permisos':    return <GestionPermisos />;
       case 'agenda':      return <AgendaCalendario />;

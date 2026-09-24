@@ -39,6 +39,8 @@ export interface UsuarioAuth {
   id: string;
   email: string;
   rol: Rol;
+  /** Entró con una contraseña temporal y el portal le pide cambiarla */
+  debeCambiarPassword?: boolean;
 }
 
 export interface LoginResponse {

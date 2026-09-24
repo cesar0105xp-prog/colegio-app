@@ -142,7 +142,7 @@ export async function login(req: Request, res: Response): Promise<void> {
       ok: true,
       datos: {
         accessToken,
-        usuario: { id: usuario.id, email: usuario.email, rol: usuario.rol },
+        usuario: { id: usuario.id, email: usuario.email, rol: usuario.rol, debeCambiarPassword: usuario.debeCambiarPassword },
       },
     });
   } catch (err) {
@@ -260,7 +260,7 @@ export async function cambiarPassword(req: Request, res: Response): Promise<void
     const nuevoHash = await bcrypt.hash(passwordNueva, SALT_ROUNDS);
     await prisma.usuario.update({
       where: { id: usuario.id },
-      data: { passwordHash: nuevoHash, refreshToken: null },
+      data: { passwordHash: nuevoHash, refreshToken: null, debeCambiarPassword: false },
     });
 
     await audit({

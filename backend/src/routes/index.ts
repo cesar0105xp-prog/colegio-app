@@ -2,14 +2,14 @@ import { Router } from 'express';
 import { Rol } from '@prisma/client';
 import { login, logout, refreshToken, cambiarPassword, validarLogin, validarCambioPassword } from '../controllers/auth.controller';
 import { listarEstudiantes, obtenerEstudiante, crearEstudiante, editarEstudiante, cambiarEstadoEstudiante, validarEstudiante } from '../controllers/estudiantes.controller';
-import { listarUsuarios, obtenerUsuario, crearUsuario, editarUsuario, eliminarUsuario, cambiarEstadoUsuario, resetearPassword, validarCrearUsuario, validarEditarUsuario, miPerfil, editarMiPerfil, actualizarCorreo, validarEditarMiPerfil, validarActualizarCorreo } from '../controllers/usuarios.controller';
+import { listarUsuarios, obtenerUsuario, crearUsuario, editarUsuario, eliminarUsuario, cambiarEstadoUsuario, resetearPassword, enviarCredenciales, validarCrearUsuario, validarEditarUsuario, miPerfil, editarMiPerfil, actualizarCorreo, validarEditarMiPerfil, validarActualizarCorreo } from '../controllers/usuarios.controller';
 import { listarGrados, listarGradosPublicos, crearGrado, editarGrado, validarGrado, listarMaterias, crearMateria, editarMateria, eliminarMateria, validarMateria, asignarMateriaGrado, listarPeriodos, crearPeriodo, editarPeriodo, validarPeriodo, activarPeriodo, obtenerStats } from '../controllers/academico.controller';
 import { crearActividad, listarActividades, registrarCalificacion, obtenerBoletin, validarActividad, validarCalificacion, editarActividad, eliminarActividad, validarEditarActividad } from '../controllers/calificaciones.controller';
 import { crearObservacion, listarObservaciones, marcarObservacionVista, validarObservacion, eliminarObservacion, editarObservacion, validarEditarObservacion } from '../controllers/observaciones.controller';
 import { subirArchivo, descargarArchivo, listarArchivos, aprobarDocumento, rechazarDocumento, validarRechazoDocumento } from '../controllers/archivos.controller';
 import { misHijos, miPerfilEstudiante } from '../controllers/padre.controller';
 import { listarVinculos, crearVinculo, eliminarVinculo, validarVinculo } from '../controllers/vinculos.controller';
-import { reporteBoletinesPorGrado, reporteRendimientoMateria, reporteEstudiantesDestacados, reporteObservacionesPendientes } from '../controllers/reportes.controller';
+import { reporteBoletinesPorGrado, reporteRendimientoMateria, reporteEstudiantesDestacados, reporteObservacionesPendientes, coberturaAcademica } from '../controllers/reportes.controller';
 import { listarAuditoria } from '../controllers/auditoria.controller';
 import { autenticar, autorizar, validarAccesoPadreEstudiante, validarAccesoEstudiante } from '../middlewares/auth.middleware';
 import { uploadPDF, validarPDFReal } from '../middlewares/upload.middleware';
@@ -50,6 +50,7 @@ router.put('/usuarios/:id',                 autenticar, autorizar(ADMIN), valida
 router.delete('/usuarios/:id',              autenticar, autorizar(ADMIN), eliminarUsuario);
 router.patch('/usuarios/:id/estado',        autenticar, autorizar(ADMIN), cambiarEstadoUsuario);
 router.post('/usuarios/:id/reset-password', autenticar, autorizar(ADMIN), resetearPassword);
+router.post('/usuarios/:id/enviar-credenciales', autenticar, autorizar(ADMIN), enviarCredenciales);
 
 // VÍNCULOS PADRE-ESTUDIANTE
 router.get('/vinculos',      autenticar, autorizar(ADMIN, SEC), listarVinculos);
@@ -105,6 +106,7 @@ router.get('/reportes/boletines-grado',          autenticar, autorizar(ADMIN, SE
 router.get('/reportes/rendimiento-materia',      autenticar, autorizar(ADMIN, SEC), reporteRendimientoMateria);
 router.get('/reportes/estudiantes-destacados',   autenticar, autorizar(ADMIN, SEC), reporteEstudiantesDestacados);
 router.get('/reportes/observaciones-pendientes', autenticar, autorizar(ADMIN, SEC), reporteObservacionesPendientes);
+router.get('/reportes/cobertura',                autenticar, autorizar(ADMIN, SEC), coberturaAcademica);
 
 // AUDITORÍA
 router.get('/auditoria', autenticar, autorizar(ADMIN), listarAuditoria);

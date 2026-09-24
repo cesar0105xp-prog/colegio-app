@@ -8,6 +8,8 @@ import { logger } from '../utils/logger';
 import { REGEX } from '../types';
 import { SALT_ROUNDS } from '../utils/config';
 
+import { enviarCorreo, plantillaCredenciales } from '../services/correo.service';
+
 import { prisma } from '../utils/prisma';
 
 // Contraseña temporal aleatoria de 10 caracteres que cumple REGEX.PASSWORD
@@ -20,6 +22,10 @@ function generarPasswordTemporal(): string {
   for (let i = chars.length - 1; i > 0; i--) { const j = randomInt(i + 1); [chars[i], chars[j]] = [chars[j], chars[i]]; }
   return chars.join('');
 }
+
+// Provisionales que deja la importación masiva de docentes
+export const esCorreoProvisional = (email: string) => /@pendiente\.local$/i.test(email.trim());
+export const esDocumentoProvisional = (doc: string) => /^tmp-/i.test(doc.trim());
 
 // ─── VALIDACIONES ────────────────────────────────────────────────────────────
 export const validarCrearUsuario = [
@@ -56,13 +62,18 @@ export const validarEditarUsuario = [
 
 // ─── LISTAR USUARIOS ──────────────────────────────────────────────────────────
 export async function listarUsuarios(req: Request, res: Response): Promise<void> {
-  const { rol, estado } = req.query;
+  const { rol, estado, datosPendientes } = req.query;
   try {
     const usuarios = await prisma.usuario.findMany({
-      where: { rol: rol as Rol | undefined, estado: estado as 'ACTIVO' | 'INACTIVO' | 'BLOQUEADO' | undefined },
+      where: {
+        rol: rol as Rol | undefined,
+        estado: estado as 'ACTIVO' | 'INACTIVO' | 'BLOQUEADO' | undefined,
+        // Docentes de la importación a los que les falta correo o documento real
+        ...(datosPendientes === 'true' ? { perfilProfesor: { datosPendientes: true } } : {}),
+      },
       select: {
         id: true, email: true, rol: true, estado: true, ultimoLogin: true, createdAt: true,
-        perfilProfesor: { select: { id: true, nombres: true, apellidos: true, telefono: true, numeroDocumento: true, tipoDocumento: true, materiaGrados: { include: { materia: { select: { nombre: true } }, grado: { select: { nombre: true, grupo: true } } } } } },
+        perfilProfesor: { select: { id: true, nombres: true, apellidos: true, telefono: true, numeroDocumento: true, tipoDocumento: true, datosPendientes: true, materiaGrados: { include: { materia: { select: { nombre: true } }, grado: { select: { nombre: true, grupo: true } } } } } },
         perfilSecretario: { select: { id: true, nombres: true, apellidos: true, telefono: true } },
         perfilPadre: { select: { id: true, nombres: true, apellidos: true, telefono: true, numeroDocumento: true, tipoDocumento: true } },
         perfilAdmin: { select: { id: true, nombres: true, apellidos: true, telefono: true } },
@@ -72,9 +83,11 @@ export async function listarUsuarios(req: Request, res: Response): Promise<void>
     const resultado = usuarios.map(u => ({
       ...u,
       perfil: u.perfilProfesor ?? u.perfilSecretario ?? u.perfilPadre ?? u.perfilAdmin ?? null,
+      datosPendientes: u.perfilProfesor?.datosPendientes ?? false,
       perfilProfesor: undefined, perfilSecretario: undefined, perfilPadre: undefined, perfilAdmin: undefined,
     }));
-    res.json({ ok: true, datos: resultado });
+    const pendientes = await prisma.profesor.count({ where: { datosPendientes: true } });
+    res.json({ ok: true, datos: resultado, meta: { pendientes } });
   } catch (err) {
     logger.error('Error al listar usuarios', { err });
     res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
@@ -153,7 +166,7 @@ export async function editarUsuario(req: Request, res: Response): Promise<void> 
   if (!errores.isEmpty()) { res.status(400).json({ ok: false, errores: errores.array().map(e => e.msg) }); return; }
 
   const { id } = req.params;
-  const { nombres, apellidos, telefono, email } = req.body;
+  const { nombres, apellidos, telefono, email, tipoDocumento, numeroDocumento } = req.body;
 
   try {
     const usuario = await prisma.usuario.findUnique({
@@ -161,6 +174,20 @@ export async function editarUsuario(req: Request, res: Response): Promise<void> 
       include: { perfilProfesor: true, perfilSecretario: true, perfilPadre: true, perfilAdmin: true },
     });
     if (!usuario) { res.status(404).json({ ok: false, mensaje: 'Usuario no encontrado' }); return; }
+
+    // Los provisionales de la importación no sirven como datos definitivos
+    if (email && esCorreoProvisional(email)) {
+      res.status(400).json({ ok: false, mensaje: '@pendiente.local es un correo provisional: escribe el correo real del docente' });
+      return;
+    }
+    if (numeroDocumento && esDocumentoProvisional(numeroDocumento)) {
+      res.status(400).json({ ok: false, mensaje: 'TMP- es un documento provisional: escribe el número de documento real' });
+      return;
+    }
+    if (numeroDocumento && usuario.perfilProfesor && numeroDocumento.trim() !== usuario.perfilProfesor.numeroDocumento) {
+      const repetido = await prisma.profesor.findFirst({ where: { numeroDocumento: numeroDocumento.trim(), usuarioId: { not: id } } });
+      if (repetido) { res.status(409).json({ ok: false, mensaje: 'Ya existe otro docente con ese número de documento' }); return; }
+    }
 
     // Actualizar email si cambió
     if (email && email !== usuario.email) {
@@ -177,7 +204,18 @@ export async function editarUsuario(req: Request, res: Response): Promise<void> 
     } else if (usuario.rol === 'SECRETARIO' && usuario.perfilSecretario) {
       await prisma.secretario.update({ where: { usuarioId: id }, data: datosPerfilUpdate });
     } else if (usuario.rol === 'PROFESOR' && usuario.perfilProfesor) {
-      await prisma.profesor.update({ where: { usuarioId: id }, data: datosPerfilUpdate });
+      // La ficha deja de estar pendiente con correo y documento reales
+      const emailFinal = email?.trim() ?? usuario.email;
+      const documentoFinal = numeroDocumento?.trim() ?? usuario.perfilProfesor.numeroDocumento;
+      await prisma.profesor.update({
+        where: { usuarioId: id },
+        data: {
+          ...datosPerfilUpdate,
+          tipoDocumento: tipoDocumento ?? undefined,
+          numeroDocumento: numeroDocumento?.trim(),
+          datosPendientes: esCorreoProvisional(emailFinal) || esDocumentoProvisional(documentoFinal),
+        },
+      });
     } else if (usuario.rol === 'PADRE' && usuario.perfilPadre) {
       await prisma.padre.update({ where: { usuarioId: id }, data: datosPerfilUpdate });
     }
@@ -266,6 +304,55 @@ export async function cambiarEstadoUsuario(req: Request, res: Response): Promise
 }
 
 // ─── RESETEAR CONTRASEÑA ──────────────────────────────────────────────────────
+/**
+ * Envía al docente sus credenciales al correo real: genera una contraseña
+ * temporal nueva (la anterior no se puede recuperar) y obliga a cambiarla al
+ * entrar. No funciona con correos provisionales, que rebotarían.
+ */
+export async function enviarCredenciales(req: Request, res: Response): Promise<void> {
+  const { id } = req.params;
+  try {
+    const usuario = await prisma.usuario.findUnique({
+      where: { id },
+      include: { perfilProfesor: true, perfilSecretario: true, perfilAdmin: true },
+    });
+    if (!usuario) { res.status(404).json({ ok: false, mensaje: 'Usuario no encontrado' }); return; }
+
+    if (esCorreoProvisional(usuario.email)) {
+      res.status(400).json({ ok: false, mensaje: 'Este usuario todavía tiene un correo provisional: asígnale el correo real antes de enviarle las credenciales' });
+      return;
+    }
+
+    const passwordTemporal = generarPasswordTemporal();
+    const hash = await bcrypt.hash(passwordTemporal, SALT_ROUNDS);
+    await prisma.usuario.update({
+      where: { id },
+      data: { passwordHash: hash, refreshToken: null, intentosFallidos: 0, bloqueadoHasta: null, debeCambiarPassword: true },
+    });
+
+    const perfil = usuario.perfilProfesor ?? usuario.perfilSecretario ?? usuario.perfilAdmin;
+    const nombre = perfil ? `${perfil.nombres} ${perfil.apellidos}` : 'docente';
+    const enviado = await enviarCorreo({
+      para: usuario.email,
+      asunto: 'Tus credenciales de acceso a SAM',
+      html: plantillaCredenciales(nombre, usuario.email, passwordTemporal),
+    });
+
+    await audit({ usuarioId: req.usuario!.sub, accion: 'CAMBIO_CONTRASENA', entidad: 'usuarios', entidadId: id, datosDespues: { accion: 'enviar_credenciales', enviado }, ip: req.ip });
+
+    res.json({
+      ok: true,
+      mensaje: enviado
+        ? `Credenciales enviadas a ${usuario.email}`
+        : `No se pudo enviar el correo. Entrégale estos datos: ${usuario.email} / ${passwordTemporal}`,
+      datos: enviado ? undefined : { email: usuario.email, passwordTemporal },
+    });
+  } catch (err) {
+    logger.error('Error al enviar credenciales', { err });
+    res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
+  }
+}
+
 export async function resetearPassword(req: Request, res: Response): Promise<void> {
   const { id } = req.params;
   try {
