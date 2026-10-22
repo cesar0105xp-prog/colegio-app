@@ -1,0 +1,27 @@
+# /etc/logrotate.d/portal-escolar — rotación de logs del Portal Escolar
+# (Nginx, PostgreSQL y fail2ban ya traen su propia rotación del sistema.)
+
+# Logs de PM2 y de la aplicación (winston). copytruncate: se copia y se vacía el
+# archivo en el sitio, así PM2 y el backend siguen escribiendo sin reiniciarse.
+/home/portal/.pm2/logs/*.log /home/portal/colegio-app/backend/logs/*.log {
+    su portal portal
+    daily
+    maxsize 50M
+    rotate 14
+    dateext
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+
+# Logs de las tareas programadas (respaldos y alertas de disco)
+/var/log/portal-escolar/*.log {
+    weekly
+    rotate 8
+    compress
+    delaycompress
+    missingok
+    notifempty
+}

@@ -1,0 +1,16 @@
+# /etc/fail2ban/jail.local — Portal Escolar: protección contra fuerza bruta
+[DEFAULT]
+# Nunca banear el propio servidor
+ignoreip = 127.0.0.1/8 ::1
+
+[sshd]
+enabled  = true
+port     = ssh
+# 3 intentos fallidos dentro de 10 minutos = ban de 1 hora
+maxretry = 3
+findtime = 10m
+bantime  = 1h
+# Se lee auth.log (rsyslog): verificado que el filtro sshd reconoce sus fallos.
+# En Ubuntu 26.04 (OpenSSH 10) los mensajes los emite el proceso sshd-session.
+backend  = auto
+logpath  = /var/log/auth.log

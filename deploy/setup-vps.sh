@@ -1,20 +1,24 @@
 #!/usr/bin/env bash
-# Preparación inicial del VPS (Ubuntu 24.04) — se corre UNA sola vez como root.
+# Preparación inicial del VPS (Ubuntu 24.04/26.04) — se corre UNA sola vez como root.
 #
 #   bash setup-vps.sh portal.tudominio.com
 #
-# Instala Node 22, PostgreSQL 18, Nginx, PM2 y Certbot; crea el usuario de sistema
-# "portal", la base de datos con un usuario de permisos mínimos, el firewall y el
-# sitio de Nginx. Al terminar imprime los pasos siguientes.
+# Instala Node 22, PostgreSQL 18, Nginx, PM2, Certbot y fail2ban; crea el usuario
+# de sistema "portal", la base de datos con un usuario de permisos mínimos, el
+# firewall y el sitio de Nginx, y aplica la configuración de seguridad y
+# rendimiento de deploy/servidor/ (pensada para 8 GB RAM / 2 CPU), los respaldos
+# diarios, la alerta de disco y la rotación de logs. Al terminar imprime los
+# pasos siguientes.
 set -euo pipefail
 
 DOMINIO="${1:?Uso: bash setup-vps.sh portal.tudominio.com}"
 AQUI="$(cd "$(dirname "$0")" && pwd)"
+SRV="${AQUI}/servidor"
 
 echo "==> Paquetes base"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y && apt-get upgrade -y
-apt-get install -y curl git ufw nginx rsync certbot python3-certbot-nginx ca-certificates gnupg lsb-release
+apt-get install -y curl git ufw nginx rsync certbot python3-certbot-nginx ca-certificates gnupg lsb-release fail2ban htop
 
 echo "==> PostgreSQL 18 (misma versión mayor que en desarrollo, para restaurar el dump sin problemas)"
 if apt-cache policy postgresql-18 2>/dev/null | grep -qE 'Candidate: [0-9]'; then
@@ -28,16 +32,27 @@ else
   apt-get update -y && apt-get install -y postgresql-18
 fi
 systemctl enable --now postgresql
+echo "   seguridad (solo localhost) y rendimiento (8 GB RAM)"
+install -m 644 -o postgres -g postgres "${SRV}/postgresql-10-seguridad.conf" /etc/postgresql/18/main/conf.d/10-seguridad.conf
+install -m 644 -o postgres -g postgres "${SRV}/postgresql-20-rendimiento.conf" /etc/postgresql/18/main/conf.d/20-rendimiento.conf
+systemctl restart postgresql
 
 echo "==> Node 22 LTS + PM2"
 curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
 apt-get install -y nodejs
 npm install -g pm2
 
-echo "==> Firewall (solo SSH, HTTP y HTTPS; PostgreSQL queda solo local)"
-ufw allow OpenSSH
+echo "==> Firewall (solo SSH, HTTP y HTTPS; backend y PostgreSQL quedan solo locales)"
+ufw allow OpenSSH            # primero SSH, para no perder acceso
+ufw default deny incoming
+ufw default allow outgoing
 ufw allow 'Nginx Full'
 ufw --force enable
+
+echo "==> fail2ban (SSH: 3 intentos fallidos = ban de 1 hora)"
+install -m 644 "${SRV}/fail2ban-jail.local" /etc/fail2ban/jail.local
+systemctl enable fail2ban
+systemctl restart fail2ban
 
 echo "==> Usuario de sistema 'portal'"
 id -u portal &>/dev/null || adduser --disabled-password --gecos "" portal
@@ -55,8 +70,10 @@ if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='colegi
   sudo -u postgres psql -v ON_ERROR_STOP=1 -c "CREATE DATABASE colegio_db OWNER colegio_app;"
 fi
 
-echo "==> Sitio de Nginx para ${DOMINIO}"
+echo "==> Nginx (optimizado para 2 CPU) y sitio de ${DOMINIO}"
 mkdir -p /var/www/portal && chown -R portal:portal /var/www/portal
+install -m 644 "${SRV}/nginx.conf" /etc/nginx/nginx.conf
+install -m 644 "${SRV}/cabeceras-seguridad.conf" /etc/nginx/snippets/cabeceras-seguridad.conf
 sed "s/portal\.DOMINIO/${DOMINIO}/g" "${AQUI}/nginx-portal.conf" > /etc/nginx/sites-available/portal
 ln -sf /etc/nginx/sites-available/portal /etc/nginx/sites-enabled/portal
 rm -f /etc/nginx/sites-enabled/default
@@ -64,6 +81,19 @@ nginx -t && systemctl reload nginx
 
 echo "==> PM2 arranca solo al reiniciar el servidor"
 env PATH="$PATH:/usr/bin" pm2 startup systemd -u portal --hp /home/portal >/dev/null
+install -d /etc/systemd/system/pm2-portal.service.d
+install -m 644 "${SRV}/pm2-portal-override.conf" /etc/systemd/system/pm2-portal.service.d/override.conf
+systemctl daemon-reload
+
+echo "==> Respaldos diarios, alerta de disco y rotación de logs"
+install -m 750 "${SRV}/backup-portal-escolar.sh" /usr/local/sbin/backup-portal-escolar.sh
+install -m 750 "${SRV}/alerta-disco.sh" /usr/local/sbin/alerta-disco.sh
+install -d -m 755 /usr/local/lib/portal-escolar
+install -m 640 "${SRV}/enviar-alerta.js" /usr/local/lib/portal-escolar/enviar-alerta.js
+install -d -m 750 /var/log/portal-escolar
+install -d -m 700 /var/backups/portal-escolar
+install -m 644 "${SRV}/cron-portal-escolar" /etc/cron.d/portal-escolar
+install -m 644 "${SRV}/logrotate-portal-escolar" /etc/logrotate.d/portal-escolar
 
 cat <<EOF
 
@@ -78,7 +108,8 @@ Listo. Pasos siguientes:
        nano .env
        cd ../frontend && cp .env.production.example .env.production && nano .env.production
        cd .. && bash deploy/deploy.sh
-  3. Como root, cuando el DNS ya resuelva:   certbot --nginx -d ${DOMINIO}
+  3. Como root, cuando el DNS ya resuelva:
+       CERTBOT_EMAIL=correo@colegio.edu.co bash deploy/set-domain.sh ${DOMINIO}
   4. Prueba:   curl https://${DOMINIO}/health
 
 EOF

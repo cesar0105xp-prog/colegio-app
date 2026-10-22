@@ -1,0 +1,10 @@
+# /etc/cron.d/portal-escolar — tareas programadas del Portal Escolar
+# La hora del servidor es UTC. Colombia = UTC-5 todo el año (sin horario de verano).
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Respaldo diario (BD + uploads) a las 2:00 a. m. hora de Colombia = 07:00 UTC
+0 7 * * * root /usr/local/sbin/backup-portal-escolar.sh >> /var/log/portal-escolar/backup.log 2>&1
+
+# Revisión del disco cada hora (alerta si supera el 80 %)
+15 * * * * root /usr/local/sbin/alerta-disco.sh >> /var/log/portal-escolar/alertas.log 2>&1
