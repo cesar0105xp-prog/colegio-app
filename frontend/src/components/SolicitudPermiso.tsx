@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { FileText, CheckCircle, AlertCircle, X, Send, Clock, XCircle } from 'lucide-react';
 import api from '../services/api';
+import { hoyISO, diasDesdeHoy } from '../utils/fechas';
 
 function Toast({ mensaje, tipo, onClose }: { mensaje: string; tipo: 'ok' | 'error'; onClose: () => void }) {
   return (
@@ -23,8 +24,8 @@ const ESTADO_COLOR: Record<string, string> = { PENDIENTE: 'bg-amber-50 text-ambe
 const ESTADO_ICONO: Record<string, typeof Clock> = { PENDIENTE: Clock, APROBADO: CheckCircle, RECHAZADO: XCircle };
 const LABEL_ESTADO: Record<string, string> = { PENDIENTE: 'Pendiente', APROBADO: 'Aprobado', RECHAZADO: 'Rechazado' };
 
-const hoyISO = () => new Date().toISOString().split('T')[0];
-const masMenosNDias = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().split('T')[0]; };
+// Hoy en Bogotá: en UTC, después de las 7 p. m. ya sería mañana
+const masMenosNDias = diasDesdeHoy;
 
 type Hijo = { id: string; nombres: string; apellidos: string; grado: { nombre: string; grupo: string } };
 type Solicitud = {

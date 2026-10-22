@@ -4,6 +4,7 @@ import { body, validationResult } from 'express-validator';
 import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
 import { notaPonderada, promedio } from '../utils/notas';
+import { materiasDelGrado } from '../utils/planEstudio';
 
 import { prisma } from '../utils/prisma';
 
@@ -310,18 +311,15 @@ export async function obtenerBoletin(req: Request, res: Response): Promise<void>
       return;
     }
 
-    // Obtener todas las materias del grado
-    const materiasGrado = await prisma.materiaGradoProfesor.findMany({
-      where: { gradoId: estudiante.gradoId },
-      include: { materia: true, profesor: true },
-    });
+    // Materias del plan de estudios del grado (con o sin docente asignado)
+    const materiasGrado = await materiasDelGrado(estudiante.gradoId);
 
     // Para cada materia, calcular la nota del período
     const boletin = await Promise.all(
       materiasGrado.map(async (mg) => {
         const actividades = await prisma.actividad.findMany({
           where: {
-            materiaId: mg.materiaId,
+            materiaId: mg.materia.id,
             gradoId: estudiante.gradoId,
             periodoId: periodoId as string | undefined,
           },
@@ -338,7 +336,8 @@ export async function obtenerBoletin(req: Request, res: Response): Promise<void>
 
         return {
           materia: mg.materia,
-          profesor: `${mg.profesor.nombres} ${mg.profesor.apellidos}`,
+          // null cuando la materia aún no tiene docente asignado
+          profesor: mg.profesor,
           actividades: actividades.map((a) => ({
             id: a.id,
             nombre: a.nombre,
@@ -465,7 +464,7 @@ export async function obtenerResumenAnual(req: Request, res: Response): Promise<
 
     const estudiante = await prisma.estudiante.findUnique({
       where: { id: estudianteId },
-      include: { grado: { include: { materiaGrados: { include: { materia: true, profesor: true } } } } },
+      include: { grado: true },
     });
 
     if (!estudiante) {
@@ -473,10 +472,11 @@ export async function obtenerResumenAnual(req: Request, res: Response): Promise<
       return;
     }
 
-    const materias = estudiante.grado.materiaGrados.map(mg => ({
+    // Materias del plan de estudios del grado (con o sin docente asignado)
+    const materias = (await materiasDelGrado(estudiante.gradoId)).map(mg => ({
       id: mg.materia.id,
       nombre: mg.materia.nombre,
-      profesor: `${mg.profesor.nombres} ${mg.profesor.apellidos}`,
+      profesor: mg.profesor,
     }));
 
     const resumen = await Promise.all(materias.map(async (mat) => {

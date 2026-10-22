@@ -2,6 +2,7 @@ import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import { Response } from 'express';
 import { logger } from './logger';
+import { fechaLargaBogota } from './fechas';
 
 const NOMBRE_COLEGIO = 'Liceo Moderno San Marcos';
 const CIUDAD = 'Bogotá, Colombia';
@@ -30,7 +31,7 @@ function agregarFirma(doc: PDFKit.PDFDocument): void {
 }
 
 function agregarPie(doc: PDFKit.PDFDocument): void {
-  const fecha = new Date().toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' });
+  const fecha = fechaLargaBogota(); // el servidor corre en UTC
   doc.moveDown(2);
   doc.fontSize(9).fillColor('#94a3b8').text(`Documento generado el ${fecha} a través de SAM — Sistema de Acompañamiento y Monitoreo.`, { align: 'center' });
   doc.fillColor('#000');

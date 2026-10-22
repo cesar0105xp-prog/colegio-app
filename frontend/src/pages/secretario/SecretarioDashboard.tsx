@@ -10,6 +10,7 @@ import {
 import { useAuthStore } from '../../store/auth.store';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
+import { hoyISO, formatoFecha } from '../../utils/fechas';
 import { IconoSAM } from '../../components/MarcaSAM';
 import { CambiarPassword } from '../../components/CambiarPassword';
 import ReportesAdmin from '../../components/ReportesAdmin';
@@ -222,7 +223,7 @@ function EstudiantesSecretario() {
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Campo label="Fecha de nacimiento *" error={errs.fechaNacimiento?.message}>
-            <input type="date" className={inputCls(errs.fechaNacimiento?.message)} max={new Date().toISOString().split('T')[0]}
+            <input type="date" className={inputCls(errs.fechaNacimiento?.message)} max={hoyISO()}
               {...reg('fechaNacimiento', { required: 'Requerido' })} />
           </Campo>
           <Campo label="Género *" error={errs.genero?.message}>
@@ -395,7 +396,7 @@ function EstudiantesSecretario() {
               {[
                 ['Documento', esDocumentoProvisional(modalVer.numeroDocumento) ? `Provisional ${modalVer.numeroDocumento}` : `${modalVer.tipoDocumento} ${modalVer.numeroDocumento}`],
                 ['Grado', `${modalVer.grado.nombre}${modalVer.grado.grupo}`],
-                ['Fecha de nacimiento', modalVer.fechaNacimiento ? new Date(modalVer.fechaNacimiento).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Pendiente'],
+                ['Fecha de nacimiento', modalVer.fechaNacimiento ? formatoFecha(modalVer.fechaNacimiento, { day: 'numeric', month: 'long', year: 'numeric' }) : 'Pendiente'],
                 ['Género', modalVer.genero ?? 'Pendiente'],
                 ['Teléfono', modalVer.telefono ?? '—'],
                 ['Dirección', modalVer.direccion ?? '—'],

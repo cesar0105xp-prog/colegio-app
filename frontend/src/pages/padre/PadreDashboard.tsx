@@ -43,7 +43,7 @@ function Toast({ mensaje, tipo, onClose }: { mensaje: string; tipo: 'ok' | 'erro
 }
 
 type Hijo = { id: string; nombres: string; apellidos: string; grado: { id: string; nombre: string; grupo: string }; estado: string };
-type MateriaBoletin = { materia: { id: string; nombre: string }; profesor: string; actividades: { id: string; nombre: string; tipo: string; porcentaje: number; nota: number | null; observacion?: string }[]; notaPeriodo: number | null; porcentajeTotal: number; porcentajeEvaluado?: number };
+type MateriaBoletin = { materia: { id: string; nombre: string }; profesor: string | null; actividades: { id: string; nombre: string; tipo: string; porcentaje: number; nota: number | null; observacion?: string }[]; notaPeriodo: number | null; porcentajeTotal: number; porcentajeEvaluado?: number };
 type Observacion = { id: string; tipo: string; descripcion: string; fecha: string; yaVista: boolean; profesor: { nombres: string; apellidos: string }; materia?: { nombre: string } };
 type Periodo = { id: string; nombre: string; numero: number; anio: number; activo: boolean };
 type ComunicadoRow = { id: string; titulo: string; mensaje: string; destinatario: string; createdAt: string; grado?: { nombre: string; grupo: string } };
@@ -57,7 +57,7 @@ function TarjetaMateria({ m }: { m: MateriaBoletin }) {
           <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center"><BookOpen className="w-5 h-5 text-blue-600" /></div>
           <div>
             <h3 className="font-semibold text-slate-800">{m.materia.nombre}</h3>
-            <p className="text-xs text-slate-400">Prof. {m.profesor}</p>
+            <p className="text-xs text-slate-400">{m.profesor ? `Prof. ${m.profesor}` : "Sin docente asignado"}</p>
           </div>
         </div>
         <div className="flex items-center gap-4">

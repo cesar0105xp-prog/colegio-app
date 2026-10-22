@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { logger } from '../utils/logger';
 import { ItemNota, notaPonderada, promedio as promediar } from '../utils/notas';
+import { materiasDelGrado } from '../utils/planEstudio';
 
 import { prisma } from '../utils/prisma';
 
@@ -16,15 +17,13 @@ export async function reporteBoletinesPorGrado(req: Request, res: Response): Pro
       orderBy: [{ apellidos: 'asc' }, { nombres: 'asc' }],
     });
 
-    const materiasGrado = await prisma.materiaGradoProfesor.findMany({
-      where: { gradoId: gradoId as string },
-      include: { materia: true },
-    });
+    // Materias del plan de estudios del grado (con o sin docente asignado)
+    const materiasGrado = await materiasDelGrado(gradoId as string);
 
     const reporte = await Promise.all(estudiantes.map(async (est) => {
       const materias = await Promise.all(materiasGrado.map(async (mg) => {
         const calificaciones = await prisma.calificacion.findMany({
-          where: { estudianteId: est.id, actividad: { materiaId: mg.materiaId, periodoId: periodoId as string } },
+          where: { estudianteId: est.id, actividad: { materiaId: mg.materia.id, periodoId: periodoId as string } },
           include: { actividad: { select: { porcentaje: true } } },
         });
         const nota = notaPonderada(calificaciones.map(c => ({ valor: c.valor, porcentaje: c.actividad.porcentaje })))?.nota ?? null;

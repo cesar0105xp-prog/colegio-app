@@ -3,6 +3,7 @@ import { TipoEvento } from '@prisma/client';
 import { body, param, validationResult } from 'express-validator';
 import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
+import { hoyBogota } from '../utils/fechas';
 
 import { prisma } from '../utils/prisma';
 
@@ -265,8 +266,8 @@ export async function misTareas(req: Request, res: Response): Promise<void> {
     const gradoIds = [...new Set(padre.hijos.map(h => h.estudiante.gradoId))];
     if (gradoIds.length === 0) { res.json({ ok: true, datos: [] }); return; }
 
-    const hoy = new Date();
-    const inicioHoy = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), hoy.getUTCDate()));
+    // Hoy en Bogotá: después de las 7 p. m. el día UTC ya es mañana
+    const inicioHoy = hoyBogota();
 
     const tareas = await prisma.tareaAgenda.findMany({
       where: { gradoId: { in: gradoIds }, fechaEntrega: { gte: inicioHoy } },

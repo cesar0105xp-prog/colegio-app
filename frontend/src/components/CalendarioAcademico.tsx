@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Calendar, BookOpen } from 'lucide-react';
 import api from '../services/api';
+import { fechaCalendario, hoyISO } from '../utils/fechas';
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DIAS_SEMANA = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
@@ -17,6 +18,8 @@ type ActividadCal = { id: string; nombre: string; tipo: string; fechaEntrega: st
 
 export default function CalendarioAcademico({ soloProfesor = false }: { soloProfesor?: boolean }) {
   const hoy = new Date();
+  // Inicio del día de hoy: así una entrega de hoy sigue apareciendo como próxima
+  const inicioHoy = fechaCalendario(hoyISO());
   const [mes, setMes] = useState(hoy.getMonth());
   const [anio, setAnio] = useState(hoy.getFullYear());
   const [diaSeleccionado, setDiaSeleccionado] = useState<number | null>(null);
@@ -39,7 +42,7 @@ export default function CalendarioAcademico({ soloProfesor = false }: { soloProf
     const mapa: Record<string, ActividadCal[]> = {};
     (actividades as ActividadCal[]).forEach(act => {
       if (!act.fechaEntrega) return;
-      const fecha = new Date(act.fechaEntrega);
+      const fecha = fechaCalendario(act.fechaEntrega); // sin correr el día por la zona horaria
       if (fecha.getMonth() === mes && fecha.getFullYear() === anio) {
         const dia = fecha.getDate().toString();
         if (!mapa[dia]) mapa[dia] = [];
@@ -160,8 +163,8 @@ export default function CalendarioAcademico({ soloProfesor = false }: { soloProf
           <p className="text-xs text-slate-400 mt-0.5">Actividades con fecha de entrega próxima</p>
         </div>
         {(actividades as ActividadCal[])
-          .filter(a => a.fechaEntrega && new Date(a.fechaEntrega) >= hoy)
-          .sort((a, b) => new Date(a.fechaEntrega).getTime() - new Date(b.fechaEntrega).getTime())
+          .filter(a => a.fechaEntrega && fechaCalendario(a.fechaEntrega) >= inicioHoy)
+          .sort((a, b) => fechaCalendario(a.fechaEntrega).getTime() - fechaCalendario(b.fechaEntrega).getTime())
           .slice(0, 8)
           .length === 0 ? (
           <div className="text-center py-8 text-slate-400">
@@ -171,16 +174,16 @@ export default function CalendarioAcademico({ soloProfesor = false }: { soloProf
         ) : (
           <div className="divide-y divide-slate-50">
             {(actividades as ActividadCal[])
-              .filter(a => a.fechaEntrega && new Date(a.fechaEntrega) >= hoy)
-              .sort((a, b) => new Date(a.fechaEntrega).getTime() - new Date(b.fechaEntrega).getTime())
+              .filter(a => a.fechaEntrega && fechaCalendario(a.fechaEntrega) >= inicioHoy)
+              .sort((a, b) => fechaCalendario(a.fechaEntrega).getTime() - fechaCalendario(b.fechaEntrega).getTime())
               .slice(0, 8)
               .map(act => {
-                const diasRestantes = Math.ceil((new Date(act.fechaEntrega).getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+                const diasRestantes = Math.ceil((fechaCalendario(act.fechaEntrega).getTime() - inicioHoy.getTime()) / (1000 * 60 * 60 * 24));
                 return (
                   <div key={act.id} className="px-5 py-3 flex items-center gap-3">
                     <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center flex-shrink-0 text-center ${diasRestantes <= 2 ? 'bg-red-50' : diasRestantes <= 5 ? 'bg-amber-50' : 'bg-blue-50'}`}>
-                      <p className={`text-xs font-bold ${diasRestantes <= 2 ? 'text-red-600' : diasRestantes <= 5 ? 'text-amber-600' : 'text-blue-600'}`}>{new Date(act.fechaEntrega).getDate()}</p>
-                      <p className={`text-xs ${diasRestantes <= 2 ? 'text-red-400' : diasRestantes <= 5 ? 'text-amber-400' : 'text-blue-400'}`}>{MESES[new Date(act.fechaEntrega).getMonth()].slice(0, 3)}</p>
+                      <p className={`text-xs font-bold ${diasRestantes <= 2 ? 'text-red-600' : diasRestantes <= 5 ? 'text-amber-600' : 'text-blue-600'}`}>{fechaCalendario(act.fechaEntrega).getDate()}</p>
+                      <p className={`text-xs ${diasRestantes <= 2 ? 'text-red-400' : diasRestantes <= 5 ? 'text-amber-400' : 'text-blue-400'}`}>{MESES[fechaCalendario(act.fechaEntrega).getMonth()].slice(0, 3)}</p>
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-slate-800 truncate">{act.nombre}</p>

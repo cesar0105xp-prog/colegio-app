@@ -6,7 +6,7 @@ import api from '../services/api';
 type Periodo = { id: string; nombre: string; numero: number; activo: boolean };
 type FilaResumen = {
   materia: { id: string; nombre: string };
-  profesor: string;
+  profesor: string | null;
   notasPorPeriodo: Record<string, number | null>;
   promedioAnual: number | null;
 };
@@ -109,7 +109,7 @@ export default function ResumenAnual({ estudianteId }: { estudianteId: string })
                     <tr key={fila.materia.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-5 py-3 sticky left-0 bg-white">
                         <p className="text-sm font-medium text-slate-800">{fila.materia.nombre}</p>
-                        <p className="text-xs text-slate-400">Prof. {fila.profesor}</p>
+                        <p className="text-xs text-slate-400">{fila.profesor ? `Prof. ${fila.profesor}` : "Sin docente asignado"}</p>
                       </td>
                       {periodos.map(p => {
                         const nota = fila.notasPorPeriodo[p.id];

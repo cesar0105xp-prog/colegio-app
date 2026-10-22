@@ -59,8 +59,8 @@ export const REGEX = {
   EMAIL: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
   // Contraseña: mínimo 8, 1 mayúscula, 1 número, 1 especial
   PASSWORD: /^(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*\-_]).{8,}$/,
-  // Nota: decimal entre 0.0 y 5.0
-  NOTA: /^([0-4](\.[0-9])?|5(\.0)?)$/,
+  // Nota: escala 0 a 100 con hasta un decimal
+  NOTA: /^(100(\.0)?|[1-9]?[0-9](\.[0-9])?)$/,
   // Porcentaje: entre 1 y 100 sin decimales
   PORCENTAJE: /^(100|[1-9][0-9]?)$/,
 };

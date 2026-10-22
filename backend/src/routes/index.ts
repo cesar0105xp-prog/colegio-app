@@ -3,7 +3,7 @@ import { Rol } from '@prisma/client';
 import { login, logout, refreshToken, cambiarPassword, validarLogin, validarCambioPassword } from '../controllers/auth.controller';
 import { listarEstudiantes, obtenerEstudiante, crearEstudiante, editarEstudiante, cambiarEstadoEstudiante, validarEstudiante } from '../controllers/estudiantes.controller';
 import { listarUsuarios, obtenerUsuario, crearUsuario, editarUsuario, eliminarUsuario, cambiarEstadoUsuario, resetearPassword, enviarCredenciales, validarCrearUsuario, validarEditarUsuario, miPerfil, editarMiPerfil, actualizarCorreo, validarEditarMiPerfil, validarActualizarCorreo } from '../controllers/usuarios.controller';
-import { listarGrados, listarGradosPublicos, crearGrado, editarGrado, validarGrado, listarMaterias, crearMateria, editarMateria, eliminarMateria, validarMateria, asignarMateriaGrado, listarPeriodos, crearPeriodo, editarPeriodo, validarPeriodo, activarPeriodo, obtenerStats } from '../controllers/academico.controller';
+import { listarGrados, listarGradosPublicos, crearGrado, editarGrado, validarGrado, listarMaterias, crearMateria, editarMateria, eliminarMateria, validarMateria, asignarMateriaGrado, agregarMateriaAlPlan, quitarMateriaDelPlan, listarPeriodos, crearPeriodo, editarPeriodo, validarPeriodo, activarPeriodo, obtenerStats } from '../controllers/academico.controller';
 import { crearActividad, listarActividades, registrarCalificacion, obtenerBoletin, validarActividad, validarCalificacion, editarActividad, eliminarActividad, validarEditarActividad } from '../controllers/calificaciones.controller';
 import { crearObservacion, listarObservaciones, marcarObservacionVista, validarObservacion, eliminarObservacion, editarObservacion, validarEditarObservacion } from '../controllers/observaciones.controller';
 import { subirArchivo, descargarArchivo, listarArchivos, aprobarDocumento, rechazarDocumento, validarRechazoDocumento } from '../controllers/archivos.controller';
@@ -12,7 +12,7 @@ import { misAsignaciones } from '../controllers/profesor.controller';
 import { listarVinculos, crearVinculo, eliminarVinculo, validarVinculo } from '../controllers/vinculos.controller';
 import { reporteBoletinesPorGrado, reporteRendimientoMateria, reporteEstudiantesDestacados, reporteObservacionesPendientes, coberturaAcademica } from '../controllers/reportes.controller';
 import { listarAuditoria } from '../controllers/auditoria.controller';
-import { autenticar, autorizar, validarAccesoPadreEstudiante, validarAccesoEstudiante } from '../middlewares/auth.middleware';
+import { autenticar, autorizar, validarAccesoPadreEstudiante, validarAccesoProfesorEstudiante, validarAccesoEstudiante } from '../middlewares/auth.middleware';
 import { uploadPDF, validarPDFReal } from '../middlewares/upload.middleware';
 
 const router = Router();
@@ -21,6 +21,16 @@ const SEC   = Rol.SECRETARIO;
 const PROF  = Rol.PROFESOR;
 const PADRE = Rol.PADRE;
 const EST   = Rol.ESTUDIANTE;
+
+// Todos los IDs del sistema son UUID: se validan antes de llegar a la base, así
+// un ID mal formado responde 400 en vez de pasar como consulta vacía.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+for (const nombre of ['id', 'estudianteId', 'archivoId', 'observacionId', 'materiaId', 'gradoId']) {
+  router.param(nombre, (_req, res, next, valor: string) => {
+    if (!UUID.test(valor)) { res.status(400).json({ ok: false, mensaje: 'Identificador inválido' }); return; }
+    next();
+  });
+}
 
 // AUTH
 router.post('/auth/login',    validarLogin, login);
@@ -66,6 +76,8 @@ router.get('/grados',                  autenticar, autorizar(ADMIN, SEC, PROF), 
 router.post('/grados',                 autenticar, autorizar(ADMIN), validarGrado, crearGrado);
 router.put('/grados/:id',              autenticar, autorizar(ADMIN), validarGrado, editarGrado);
 router.post('/grados/asignar-materia', autenticar, autorizar(ADMIN), asignarMateriaGrado);
+router.post('/grados/:id/plan',             autenticar, autorizar(ADMIN), agregarMateriaAlPlan);
+router.delete('/grados/:id/plan/:materiaId', autenticar, autorizar(ADMIN), quitarMateriaDelPlan);
 
 // MATERIAS
 router.get('/materias',  autenticar, autorizar(ADMIN, SEC, PROF), listarMaterias);
@@ -151,7 +163,7 @@ router.patch('/solicitudes-cupo/:id/estado', autenticar, autorizar(ADMIN, SEC), 
 
 // DATOS ADICIONALES Y TIPOS DE DOCUMENTO
 import { obtenerDatosAdicionales, guardarDatosAdicionales, validarDatosAdicionales, actualizarDatosPadre, validarDatosPadre, listarTiposDocumento, crearTipoDocumento, editarTipoDocumento, validarTipoDocumento } from '../controllers/datos_adicionales.controller';
-router.get('/estudiantes/:estudianteId/datos-adicionales',  autenticar, autorizar(ADMIN, SEC, PROF, PADRE), validarAccesoPadreEstudiante, obtenerDatosAdicionales);
+router.get('/estudiantes/:estudianteId/datos-adicionales',  autenticar, autorizar(ADMIN, SEC, PROF, PADRE), validarAccesoPadreEstudiante, validarAccesoProfesorEstudiante, obtenerDatosAdicionales);
 router.put('/estudiantes/:estudianteId/datos-adicionales',  autenticar, autorizar(ADMIN, SEC, PADRE), validarAccesoPadreEstudiante, validarDatosAdicionales, guardarDatosAdicionales);
 router.put('/padre/mis-datos',                              autenticar, autorizar(PADRE), validarDatosPadre, actualizarDatosPadre);
 router.get('/tipos-documento',                              autenticar, listarTiposDocumento);
@@ -160,7 +172,7 @@ router.put('/tipos-documento/:id',                          autenticar, autoriza
 
 // CONTACTOS DE EMERGENCIA
 import { listarContactos, crearContacto, editarContacto, eliminarContacto, validarContacto } from '../controllers/contactos.controller';
-router.get('/estudiantes/:estudianteId/contactos',     autenticar, autorizar(ADMIN, SEC, PROF, PADRE), validarAccesoPadreEstudiante, listarContactos);
+router.get('/estudiantes/:estudianteId/contactos',     autenticar, autorizar(ADMIN, SEC, PROF, PADRE), validarAccesoPadreEstudiante, validarAccesoProfesorEstudiante, listarContactos);
 router.post('/estudiantes/:estudianteId/contactos',    autenticar, autorizar(ADMIN, SEC, PADRE), validarAccesoPadreEstudiante, validarContacto, crearContacto);
 router.put('/contactos/:id',                           autenticar, autorizar(ADMIN, SEC, PADRE), validarContacto, editarContacto);
 router.delete('/contactos/:id',                        autenticar, autorizar(ADMIN, SEC), eliminarContacto);

@@ -84,7 +84,7 @@ export interface ActividadBoletin {
 
 export interface MateriaBoletin {
   materia: { id: string; nombre: string };
-  profesor: string;
+  profesor: string | null;
   actividades: ActividadBoletin[];
   notaPeriodo: number | null;
   porcentajeTotal: number;
@@ -187,7 +187,8 @@ export const COLOR_OBSERVACION: Record<TipoObservacion, string> = {
 
 export const COLOR_NOTA = (nota: number | null): string => {
   if (nota === null) return 'text-slate-400';
-  if (nota >= 4.6) return 'text-emerald-600 font-bold';
-  if (nota >= 3.0) return 'text-blue-600 font-semibold';
+  // Escala 0–100: Excelente desde 90, aprobado desde 70
+  if (nota >= 90) return 'text-emerald-600 font-bold';
+  if (nota >= 70) return 'text-blue-600 font-semibold';
   return 'text-red-600 font-bold';
 };

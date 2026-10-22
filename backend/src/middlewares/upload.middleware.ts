@@ -50,6 +50,10 @@ export const uploadPDF = multer({
 });
 
 const FIRMA_PDF = '%PDF-';
+// Un archivo "políglota" puede llevar %PDF- dentro del primer KB y ser en
+// realidad un ejecutable o un script: se rechaza si arranca con esas firmas.
+const FIRMAS_EJECUTABLE = [Buffer.from('MZ'), Buffer.from([0x7f, 0x45, 0x4c, 0x46]), Buffer.from('#!')];
+const esEjecutable = (b: Buffer) => FIRMAS_EJECUTABLE.some(f => b.subarray(0, f.length).equals(f));
 // El estándar PDF (ISO 32000-1 §7.5.2) permite que algunos generadores antepongan
 // unos pocos bytes (BOM, saltos de línea) antes del encabezado; los lectores
 // conformes buscan la firma dentro del primer KB en vez de exigirla en el byte 0.
@@ -69,7 +73,8 @@ export function validarPDFReal(req: Request, res: Response, next: NextFunction):
     const fd = fs.openSync(req.file.path, 'r');
     const bytesLeidos = fs.readSync(fd, inicio, 0, BYTES_A_INSPECCIONAR, 0);
     fs.closeSync(fd);
-    coincide = inicio.subarray(0, bytesLeidos).toString('latin1').includes(FIRMA_PDF);
+    const leido = inicio.subarray(0, bytesLeidos);
+    coincide = !esEjecutable(leido) && leido.toString('latin1').includes(FIRMA_PDF);
   } catch {
     coincide = false;
   }
@@ -123,8 +128,8 @@ export function validarComprobanteReal(req: Request, res: Response, next: NextFu
     const bytesLeidos = fs.readSync(fd, inicio, 0, BYTES_A_INSPECCIONAR, 0);
     fs.closeSync(fd);
     const buffer = inicio.subarray(0, bytesLeidos);
-    coincide = buffer.toString('latin1').includes(FIRMA_PDF)
-      || FIRMAS_IMAGEN.some(f => buffer.subarray(0, f.bytes.length).equals(Buffer.from(f.bytes)));
+    coincide = !esEjecutable(buffer) && (buffer.toString('latin1').includes(FIRMA_PDF)
+      || FIRMAS_IMAGEN.some(f => buffer.subarray(0, f.bytes.length).equals(Buffer.from(f.bytes))));
   } catch {
     coincide = false;
   }

@@ -27,6 +27,7 @@ export async function listarGrados(req: Request, res: Response): Promise<void> {
         _count: { select: { estudiantes: true } },
         materiaGrados: { include: { materia: true, profesor: true } },
         directorCurso: { select: { id: true, nombres: true, apellidos: true } },
+        planEstudio: { include: { materia: { select: { id: true, nombre: true } } } },
       },
       orderBy: [{ nivel: 'asc' }, { nombre: 'asc' }, { grupo: 'asc' }],
     });
@@ -131,10 +132,72 @@ export async function asignarMateriaGrado(req: Request, res: Response): Promise<
       create: { materiaId, gradoId, profesorId, anio: parseInt(anio) },
       include: { materia: true, grado: true, profesor: true },
     });
+    // Toda materia con docente forma parte del plan de estudios del grado
+    await prisma.planEstudio.upsert({
+      where: { gradoId_materiaId: { gradoId, materiaId } },
+      update: {},
+      create: { gradoId, materiaId },
+    });
     await audit({ usuarioId: req.usuario!.sub, accion: 'CREAR', entidad: 'materia_grado_profesor', entidadId: asignacion.id, ip: req.ip });
     res.json({ ok: true, datos: asignacion });
   } catch (err) {
     logger.error('Error al asignar materia', { err });
+    res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
+  }
+}
+
+// ─── PLAN DE ESTUDIOS DEL GRADO ──────────────────────────────────────────────
+// Materias que se ven en el grado aunque todavía no tengan docente. El boletín
+// se arma desde aquí.
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function agregarMateriaAlPlan(req: Request, res: Response): Promise<void> {
+  const { id: gradoId } = req.params;
+  const { materiaId } = req.body;
+  if (!UUID.test(gradoId) || !materiaId || !UUID.test(materiaId)) {
+    res.status(400).json({ ok: false, mensaje: 'Grado o materia inválidos' });
+    return;
+  }
+  try {
+    const [grado, materia] = await Promise.all([
+      prisma.grado.findUnique({ where: { id: gradoId }, select: { id: true } }),
+      prisma.materia.findUnique({ where: { id: materiaId }, select: { id: true, nombre: true } }),
+    ]);
+    if (!grado || !materia) { res.status(404).json({ ok: false, mensaje: 'Grado o materia no encontrados' }); return; }
+
+    const existe = await prisma.planEstudio.findUnique({ where: { gradoId_materiaId: { gradoId, materiaId } } });
+    if (existe) { res.status(409).json({ ok: false, mensaje: `${materia.nombre} ya está en el plan de estudios de este grado` }); return; }
+
+    const item = await prisma.planEstudio.create({ data: { gradoId, materiaId } });
+    await audit({ usuarioId: req.usuario!.sub, accion: 'CREAR', entidad: 'plan_estudio', entidadId: item.id, datosDespues: { gradoId, materiaId }, ip: req.ip });
+    res.status(201).json({ ok: true, mensaje: `${materia.nombre} agregada al plan de estudios`, datos: item });
+  } catch (err) {
+    logger.error('Error al agregar materia al plan de estudios', { err });
+    res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
+  }
+}
+
+export async function quitarMateriaDelPlan(req: Request, res: Response): Promise<void> {
+  const { id: gradoId, materiaId } = req.params;
+  if (!UUID.test(gradoId) || !UUID.test(materiaId)) {
+    res.status(400).json({ ok: false, mensaje: 'Grado o materia inválidos' });
+    return;
+  }
+  try {
+    // Si ya tiene docente asignado, seguiría saliendo en el boletín: se exige
+    // resolver primero la asignación para no dejar el plan inconsistente.
+    const asignada = await prisma.materiaGradoProfesor.findFirst({ where: { gradoId, materiaId }, select: { id: true } });
+    if (asignada) {
+      res.status(409).json({ ok: false, mensaje: 'Esta materia tiene docente asignado en el grado; no se puede quitar del plan de estudios' });
+      return;
+    }
+    const borrados = await prisma.planEstudio.deleteMany({ where: { gradoId, materiaId } });
+    if (borrados.count === 0) { res.status(404).json({ ok: false, mensaje: 'La materia no está en el plan de estudios de este grado' }); return; }
+    await audit({ usuarioId: req.usuario!.sub, accion: 'ELIMINAR', entidad: 'plan_estudio', datosAntes: { gradoId, materiaId }, ip: req.ip });
+    res.json({ ok: true, mensaje: 'Materia quitada del plan de estudios' });
+  } catch (err) {
+    logger.error('Error al quitar materia del plan de estudios', { err });
     res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
   }
 }

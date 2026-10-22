@@ -3,6 +3,7 @@ import { MotivoPermiso } from '@prisma/client';
 import { body, param, validationResult } from 'express-validator';
 import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
+import { hoyBogota } from '../utils/fechas';
 
 import { prisma } from '../utils/prisma';
 
@@ -23,9 +24,9 @@ function parseFechaUTC(valor: string): Date {
   return new Date(Date.UTC(y, m - 1, d));
 }
 
+/** Hoy en Bogotá (el servidor corre en UTC), a las 00:00 UTC como las columnas DATE. */
 function hoyUTC(): Date {
-  const ahora = new Date();
-  return new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate()));
+  return hoyBogota();
 }
 
 // ─── VALIDACIONES ─────────────────────────────────────────────────────────────
