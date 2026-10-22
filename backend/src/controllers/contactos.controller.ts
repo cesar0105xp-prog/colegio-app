@@ -103,6 +103,18 @@ export async function editarContacto(req: Request, res: Response): Promise<void>
     const contacto = await prisma.contactoEmergencia.findUnique({ where: { id } });
     if (!contacto) { res.status(404).json({ ok: false, mensaje: 'Contacto no encontrado' }); return; }
 
+    // Un padre solo edita los contactos de emergencia de sus propios hijos
+    if (req.usuario!.rol === 'PADRE') {
+      const esHijo = await prisma.padreEstudiante.findFirst({
+        where: { estudianteId: contacto.estudianteId, padre: { usuarioId: req.usuario!.sub } },
+        select: { id: true },
+      });
+      if (!esHijo) {
+        res.status(403).json({ ok: false, mensaje: 'No tienes acceso a la información de este estudiante' });
+        return;
+      }
+    }
+
     const actualizado = await prisma.contactoEmergencia.update({
       where: { id },
       data: {
