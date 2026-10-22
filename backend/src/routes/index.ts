@@ -151,8 +151,8 @@ router.patch('/solicitudes-cupo/:id/estado', autenticar, autorizar(ADMIN, SEC), 
 
 // DATOS ADICIONALES Y TIPOS DE DOCUMENTO
 import { obtenerDatosAdicionales, guardarDatosAdicionales, validarDatosAdicionales, actualizarDatosPadre, validarDatosPadre, listarTiposDocumento, crearTipoDocumento, editarTipoDocumento, validarTipoDocumento } from '../controllers/datos_adicionales.controller';
-router.get('/estudiantes/:estudianteId/datos-adicionales',  autenticar, autorizar(ADMIN, SEC, PROF, PADRE), obtenerDatosAdicionales);
-router.put('/estudiantes/:estudianteId/datos-adicionales',  autenticar, autorizar(ADMIN, SEC, PADRE), validarDatosAdicionales, guardarDatosAdicionales);
+router.get('/estudiantes/:estudianteId/datos-adicionales',  autenticar, autorizar(ADMIN, SEC, PROF, PADRE), validarAccesoPadreEstudiante, obtenerDatosAdicionales);
+router.put('/estudiantes/:estudianteId/datos-adicionales',  autenticar, autorizar(ADMIN, SEC, PADRE), validarAccesoPadreEstudiante, validarDatosAdicionales, guardarDatosAdicionales);
 router.put('/padre/mis-datos',                              autenticar, autorizar(PADRE), validarDatosPadre, actualizarDatosPadre);
 router.get('/tipos-documento',                              autenticar, listarTiposDocumento);
 router.post('/tipos-documento',                             autenticar, autorizar(ADMIN), validarTipoDocumento, crearTipoDocumento);
@@ -160,8 +160,8 @@ router.put('/tipos-documento/:id',                          autenticar, autoriza
 
 // CONTACTOS DE EMERGENCIA
 import { listarContactos, crearContacto, editarContacto, eliminarContacto, validarContacto } from '../controllers/contactos.controller';
-router.get('/estudiantes/:estudianteId/contactos',     autenticar, autorizar(ADMIN, SEC, PROF, PADRE), listarContactos);
-router.post('/estudiantes/:estudianteId/contactos',    autenticar, autorizar(ADMIN, SEC, PADRE), validarContacto, crearContacto);
+router.get('/estudiantes/:estudianteId/contactos',     autenticar, autorizar(ADMIN, SEC, PROF, PADRE), validarAccesoPadreEstudiante, listarContactos);
+router.post('/estudiantes/:estudianteId/contactos',    autenticar, autorizar(ADMIN, SEC, PADRE), validarAccesoPadreEstudiante, validarContacto, crearContacto);
 router.put('/contactos/:id',                           autenticar, autorizar(ADMIN, SEC, PADRE), validarContacto, editarContacto);
 router.delete('/contactos/:id',                        autenticar, autorizar(ADMIN, SEC), eliminarContacto);
 

@@ -97,6 +97,24 @@ export async function calcularNotaPeriodo(
   return notaPonderada(calificaciones.map(c => ({ valor: c.valor, porcentaje: c.actividad.porcentaje })))?.nota ?? null;
 }
 
+/**
+ * Un profesor gestiona sus propias actividades. Si la actividad quedó sin dueño
+ * (el docente que la creó ya no está), la gestiona quien tenga hoy esa materia
+ * en ese grado; así no queda bloqueado el porcentaje del período.
+ */
+async function puedeGestionarActividad(
+  profesorId: string,
+  actividad: { profesorId: string | null; materiaId: string; gradoId: string },
+): Promise<boolean> {
+  if (actividad.profesorId === profesorId) return true;
+  if (actividad.profesorId !== null) return false;
+  const asignado = await prisma.materiaGradoProfesor.findFirst({
+    where: { profesorId, materiaId: actividad.materiaId, gradoId: actividad.gradoId },
+    select: { id: true },
+  });
+  return !!asignado;
+}
+
 // ─── ACTIVIDADES ─────────────────────────────────────────────────────────────
 
 export async function crearActividad(req: Request, res: Response): Promise<void> {
@@ -373,7 +391,7 @@ export async function editarActividad(req: Request, res: Response): Promise<void
     // Solo el profesor que la creó o admin puede editarla
     if (req.usuario!.rol === 'PROFESOR') {
       const profesor = await prisma.profesor.findUnique({ where: { usuarioId: req.usuario!.sub } });
-      if (!profesor || actividad.profesorId !== profesor.id) {
+      if (!profesor || !(await puedeGestionarActividad(profesor.id, actividad))) {
         res.status(403).json({ ok: false, mensaje: 'No tienes permiso para editar esta actividad' });
         return;
       }
@@ -415,7 +433,7 @@ export async function eliminarActividad(req: Request, res: Response): Promise<vo
 
     if (req.usuario!.rol === 'PROFESOR') {
       const profesor = await prisma.profesor.findUnique({ where: { usuarioId: req.usuario!.sub } });
-      if (!profesor || actividad.profesorId !== profesor.id) {
+      if (!profesor || !(await puedeGestionarActividad(profesor.id, actividad))) {
         res.status(403).json({ ok: false, mensaje: 'No tienes permiso para eliminar esta actividad' });
         return;
       }
@@ -509,7 +527,7 @@ export async function eliminarCalificacionesActividad(req: Request, res: Respons
 
     if (req.usuario!.rol === 'PROFESOR') {
       const profesor = await prisma.profesor.findUnique({ where: { usuarioId: req.usuario!.sub } });
-      if (!profesor || actividad.profesorId !== profesor.id) {
+      if (!profesor || !(await puedeGestionarActividad(profesor.id, actividad))) {
         res.status(403).json({ ok: false, mensaje: 'No tienes permiso' });
         return;
       }

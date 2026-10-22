@@ -130,6 +130,17 @@ function Resumen({ setSeccion }: { setSeccion: (s: Seccion) => void }) {
             {new Date(data.periodoActivo.fechaInicio).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', timeZone: 'UTC' })} —{' '}
             {new Date(data.periodoActivo.fechaFin).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })}
           </p>
+          {/* El período sigue activo pero ya terminó: las notas y los certificados
+              se están registrando contra un período cerrado */}
+          {String(data.periodoActivo.fechaFin).slice(0, 10) < new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }) && (
+            <div className="mt-4 bg-white/15 border border-white/30 rounded-xl p-3 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-300 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-white">
+                Este período ya terminó. Las notas, los boletines y los certificados se siguen registrando en él.
+                Ve a <strong>Períodos</strong>, crea el siguiente y actívalo.
+              </p>
+            </div>
+          )}
         </div>
       ) : (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">

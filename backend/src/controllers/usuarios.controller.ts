@@ -6,6 +6,7 @@ import { randomInt } from 'crypto';
 import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
 import { REGEX } from '../types';
+import { normalizarCorreo } from '../utils/correo';
 import { SALT_ROUNDS } from '../utils/config';
 
 import { enviarCorreo, plantillaCredenciales } from '../services/correo.service';
@@ -29,7 +30,7 @@ export const esDocumentoProvisional = (doc: string) => /^tmp-/i.test(doc.trim())
 
 // ─── VALIDACIONES ────────────────────────────────────────────────────────────
 export const validarCrearUsuario = [
-  body('email').trim().isEmail().withMessage('Email inválido').isLength({ max: 100 }).withMessage('Máximo 100 caracteres').normalizeEmail(),
+  body('email').trim().isEmail().withMessage('Email inválido').isLength({ max: 100 }).withMessage('Máximo 100 caracteres').customSanitizer(normalizarCorreo),
   body('rol').isIn(Object.values(Rol)).withMessage('Rol inválido'),
   body('nombres').trim().notEmpty().withMessage('Nombres requeridos').isLength({ min: 2, max: 50 }).withMessage('Entre 2 y 50 caracteres').matches(REGEX.SOLO_LETRAS).withMessage('Solo letras'),
   body('apellidos').trim().notEmpty().withMessage('Apellidos requeridos').isLength({ min: 2, max: 50 }).withMessage('Entre 2 y 50 caracteres').matches(REGEX.SOLO_LETRAS).withMessage('Solo letras'),
@@ -49,7 +50,7 @@ export const validarEditarMiPerfil = [
 ];
 
 export const validarActualizarCorreo = [
-  body('email').trim().isEmail().withMessage('Email inválido').isLength({ max: 100 }).withMessage('Máximo 100 caracteres').normalizeEmail(),
+  body('email').trim().isEmail().withMessage('Email inválido').isLength({ max: 100 }).withMessage('Máximo 100 caracteres').customSanitizer(normalizarCorreo),
   body('passwordActual').notEmpty().withMessage('Debes ingresar tu contraseña actual'),
 ];
 
@@ -57,13 +58,36 @@ export const validarEditarUsuario = [
   body('nombres').optional().trim().isLength({ min: 2, max: 50 }).withMessage('Entre 2 y 50 caracteres').matches(REGEX.SOLO_LETRAS).withMessage('Solo letras'),
   body('apellidos').optional().trim().isLength({ min: 2, max: 50 }).withMessage('Entre 2 y 50 caracteres').matches(REGEX.SOLO_LETRAS).withMessage('Solo letras'),
   body('telefono').optional({ checkFalsy: true }).trim().matches(REGEX.TELEFONO).withMessage('Teléfono inválido (7 a 10 dígitos)'),
-  body('email').optional().trim().isEmail().withMessage('Email inválido').isLength({ max: 100 }).withMessage('Máximo 100 caracteres'),
+  body('email').optional().trim().isEmail().withMessage('Email inválido').isLength({ max: 100 }).withMessage('Máximo 100 caracteres').customSanitizer(normalizarCorreo),
 ];
 
 // ─── LISTAR USUARIOS ──────────────────────────────────────────────────────────
 export async function listarUsuarios(req: Request, res: Response): Promise<void> {
   const { rol, estado, datosPendientes } = req.query;
   try {
+    // Un padre solo consulta el directorio de docentes: nombre, correo y materias.
+    // Nunca otros padres, administración ni documentos o teléfonos.
+    if (req.usuario!.rol === 'PADRE') {
+      const docentes = await prisma.usuario.findMany({
+        where: { rol: 'PROFESOR', estado: 'ACTIVO' },
+        select: {
+          id: true, email: true,
+          perfilProfesor: {
+            select: {
+              nombres: true, apellidos: true,
+              materiaGrados: { select: { materia: { select: { nombre: true } }, grado: { select: { nombre: true, grupo: true } } } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+      res.json({
+        ok: true,
+        datos: docentes.map(d => ({ id: d.id, email: d.email, rol: 'PROFESOR', perfil: d.perfilProfesor })),
+      });
+      return;
+    }
+
     const usuarios = await prisma.usuario.findMany({
       where: {
         rol: rol as Rol | undefined,
@@ -122,7 +146,7 @@ export async function crearUsuario(req: Request, res: Response): Promise<void> {
   const { email, rol, nombres, apellidos, telefono, tipoDocumento, numeroDocumento } = req.body;
 
   try {
-    const existe = await prisma.usuario.findUnique({ where: { email } });
+    const existe = await prisma.usuario.findFirst({ where: { email: { equals: email, mode: 'insensitive' } } });
     if (existe) { res.status(409).json({ ok: false, mensaje: 'Ya existe un usuario con ese email' }); return; }
 
     const passwordTemporal = generarPasswordTemporal();
@@ -191,7 +215,7 @@ export async function editarUsuario(req: Request, res: Response): Promise<void> 
 
     // Actualizar email si cambió
     if (email && email !== usuario.email) {
-      const existeEmail = await prisma.usuario.findFirst({ where: { email, id: { not: id } } });
+      const existeEmail = await prisma.usuario.findFirst({ where: { email: { equals: email, mode: 'insensitive' }, id: { not: id } } });
       if (existeEmail) { res.status(409).json({ ok: false, mensaje: 'Ese email ya está en uso' }); return; }
       await prisma.usuario.update({ where: { id }, data: { email: email.trim() } });
     }
@@ -458,7 +482,7 @@ export async function actualizarCorreo(req: Request, res: Response): Promise<voi
     if (!ok) { res.status(401).json({ ok: false, mensaje: 'Contraseña incorrecta' }); return; }
 
     // Verificar que el nuevo correo no exista
-    const emailExiste = await prisma.usuario.findFirst({ where: { email: email.trim(), NOT: { id: usuario.id } } });
+    const emailExiste = await prisma.usuario.findFirst({ where: { email: { equals: email.trim(), mode: 'insensitive' }, NOT: { id: usuario.id } } });
     if (emailExiste) { res.status(400).json({ ok: false, mensaje: 'Ese correo ya está registrado' }); return; }
 
     await prisma.usuario.update({ where: { id: usuario.id }, data: { email: email.trim() } });

@@ -5,6 +5,7 @@ import { body, validationResult } from 'express-validator';
 import { JwtPayload, RefreshPayload, REGEX } from '../types';
 import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
+import { normalizarCorreo, buscarUsuarioPorCorreo } from '../utils/correo';
 import { SALT_ROUNDS } from '../utils/config';
 
 import { prisma } from '../utils/prisma';
@@ -17,7 +18,8 @@ export const validarLogin = [
   body('email')
     .trim()
     .isEmail().withMessage('Email inválido')
-    .normalizeEmail(),
+    // Sin normalizeEmail(): borraba los puntos de los correos Gmail
+    .customSanitizer(normalizarCorreo),
   body('password')
     .trim()
     .notEmpty().withMessage('Contraseña requerida')
@@ -52,7 +54,7 @@ export async function login(req: Request, res: Response): Promise<void> {
   const userAgent = req.headers['user-agent'];
 
   try {
-    const usuario = await prisma.usuario.findUnique({ where: { email } });
+    const usuario = await buscarUsuarioPorCorreo(email);
 
     // Usuario no existe — mismo mensaje genérico por seguridad
     if (!usuario) {
