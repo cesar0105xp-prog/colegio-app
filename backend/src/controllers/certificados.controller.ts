@@ -13,6 +13,7 @@ import {
 } from '../utils/pdf.util';
 
 import { prisma } from '../utils/prisma';
+import { materiasDelGrado } from '../utils/planEstudio';
 const UPLOAD_DIR = process.env.UPLOAD_DIR ?? './uploads';
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const FECHA_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -42,8 +43,8 @@ async function datosNotasCert(estudianteId: string, gradoId: string): Promise<{ 
   const periodoActivo = await prisma.periodo.findFirst({ where: { activo: true } });
   if (!periodoActivo) return null;
 
-  const materiaGrados = await prisma.materiaGradoProfesor.findMany({ where: { gradoId }, include: { materia: true } });
-  const materiasUnicas = [...new Map(materiaGrados.map(m => [m.materia.id, m.materia])).values()];
+  // Materias del plan de estudios, tengan o no docente
+  const materiasUnicas = (await materiasDelGrado(gradoId)).map(m => m.materia);
 
   const materias: MateriaNotaCert[] = [];
   for (const mat of materiasUnicas) {

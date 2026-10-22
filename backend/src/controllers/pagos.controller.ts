@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { MetodoPago, EstadoComprobante, Prisma } from '@prisma/client';
 import { body, param, validationResult } from 'express-validator';
 import fs from 'fs';
+import ExcelJS from 'exceljs';
 import path from 'path';
 import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
@@ -436,28 +437,58 @@ export async function exportarCarteraCSV(req: Request, res: Response): Promise<v
       orderBy: [{ anio: 'desc' }, { mes: 'desc' }],
     });
 
-    const escapar = (v: string) => `"${v.replace(/"/g, '""')}"`;
-    const filas = [
-      ['Estudiante', 'Documento', 'Grado', 'Concepto', 'Mes', 'Año', 'Monto', 'Estado', 'Fecha pago', 'Método pago'].join(','),
-      ...cobros.map(c => [
-        escapar(`${c.estudiante.nombres} ${c.estudiante.apellidos}`),
-        c.estudiante.numeroDocumento,
-        escapar(`${c.estudiante.grado.nombre}${c.estudiante.grado.grupo}`),
-        escapar(c.concepto.nombre),
-        c.mes,
-        c.anio,
-        c.montoCobrado.toString(),
-        c.estadoPago,
-        c.fechaPago ? c.fechaPago.toISOString().split('T')[0] : '',
-        c.metodoPago ?? '',
-      ].join(',')),
+    // Excel real (.xlsx): el CSV con comas se abría en una sola columna en el
+    // Excel colombiano, que usa punto y coma como separador.
+    const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const ESTADO_LABEL: Record<string, string> = { PENDIENTE: 'Pendiente', PAGADO: 'Pagado', EXONERADO: 'Exonerado', EN_VERIFICACION: 'En verificación' };
+    const METODO_LABEL: Record<string, string> = { EFECTIVO: 'Efectivo', TRANSFERENCIA: 'Transferencia', BANCO_BOGOTA: 'Banco de Bogotá', PSE: 'PSE', NEQUI: 'Nequi' };
+
+    const libro = new ExcelJS.Workbook();
+    libro.creator = 'SAM · Liceo Moderno San Marcos';
+    libro.created = new Date();
+    const hoja = libro.addWorksheet('Cartera');
+    hoja.columns = [
+      { header: 'Estudiante', key: 'estudiante', width: 34 },
+      { header: 'Documento', key: 'documento', width: 16 },
+      { header: 'Grado', key: 'grado', width: 14 },
+      { header: 'Concepto', key: 'concepto', width: 28 },
+      { header: 'Mes', key: 'mes', width: 12 },
+      { header: 'Año', key: 'anio', width: 8 },
+      { header: 'Monto', key: 'monto', width: 14, style: { numFmt: '"$"#,##0' } },
+      { header: 'Estado', key: 'estado', width: 16 },
+      { header: 'Fecha de pago', key: 'fechaPago', width: 14, style: { numFmt: 'dd/mm/yyyy' } },
+      { header: 'Método de pago', key: 'metodo', width: 16 },
     ];
+    for (const c of cobros) {
+      // La fecha de pago es un día calendario: se arma en UTC para que Excel no la corra
+      const fecha = c.fechaPago
+        ? new Date(Date.UTC(c.fechaPago.getUTCFullYear(), c.fechaPago.getUTCMonth(), c.fechaPago.getUTCDate()))
+        : null;
+      hoja.addRow({
+        estudiante: `${c.estudiante.nombres} ${c.estudiante.apellidos}`,
+        documento: c.estudiante.numeroDocumento,
+        grado: `${c.estudiante.grado.nombre}${c.estudiante.grado.grupo ? ' ' + c.estudiante.grado.grupo : ''}`,
+        concepto: c.concepto.nombre,
+        mes: MESES[c.mes - 1] ?? c.mes,
+        anio: c.anio,
+        monto: Number(c.montoCobrado),
+        estado: ESTADO_LABEL[c.estadoPago] ?? c.estadoPago,
+        fechaPago: fecha,
+        metodo: c.metodoPago ? (METODO_LABEL[c.metodoPago] ?? c.metodoPago) : '',
+      });
+    }
+    const encabezado = hoja.getRow(1);
+    encabezado.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    encabezado.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A6E' } };
+    hoja.views = [{ state: 'frozen', ySplit: 1 }];
+    hoja.autoFilter = { from: 'A1', to: 'J1' };
 
     await audit({ usuarioId: req.usuario!.sub, accion: 'DESCARGAR_ARCHIVO', entidad: 'cobros', ip: req.ip });
 
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="cartera.csv"');
-    res.send('﻿' + filas.join('\n'));
+    const buffer = await libro.xlsx.writeBuffer();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="cartera.xlsx"');
+    res.send(Buffer.from(buffer));
   } catch (err) {
     logger.error('Error al exportar cartera', { err });
     res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });

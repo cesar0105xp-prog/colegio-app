@@ -7,6 +7,7 @@ import {
   Receipt, Eye, Check, XCircle,
 } from 'lucide-react';
 import api from '../services/api';
+import { hoyISO } from '../utils/fechas';
 import { useAuthStore } from '../store/auth.store';
 
 // ─── HELPERS COMPARTIDOS (mismos patrones que el resto del panel) ─────────────
@@ -360,7 +361,7 @@ function TabCartera({ esAdmin }: { esAdmin: boolean }) {
     onError: (e: unknown) => setToast({ msg: mensajeError(e, 'Error al exonerar'), tipo: 'error' }),
   });
 
-  const exportarCSV = async () => {
+  const exportarExcel = async () => {
     try {
       const res = await api.get('/cobros/exportar', {
         params: { gradoId: gradoId || undefined, mes: mes || undefined, anio: anio || undefined, estado: estado || undefined },
@@ -368,7 +369,7 @@ function TabCartera({ esAdmin }: { esAdmin: boolean }) {
       });
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
-      link.href = url; link.download = 'cartera.csv';
+      link.href = url; link.download = 'cartera.xlsx';
       document.body.appendChild(link); link.click(); link.remove();
       window.URL.revokeObjectURL(url);
     } catch {
@@ -408,8 +409,8 @@ function TabCartera({ esAdmin }: { esAdmin: boolean }) {
           <option value="EXONERADO">Exonerado</option>
         </select>
         {esAdmin && (
-          <button onClick={exportarCSV} className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 text-white text-sm font-medium rounded-xl hover:bg-slate-900 transition-colors min-h-[44px]">
-            <Download className="w-4 h-4" /> Exportar CSV
+          <button onClick={exportarExcel} className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 text-white text-sm font-medium rounded-xl hover:bg-slate-900 transition-colors min-h-[44px]">
+            <Download className="w-4 h-4" /> Exportar a Excel
           </button>
         )}
       </div>
@@ -438,7 +439,7 @@ function TabCartera({ esAdmin }: { esAdmin: boolean }) {
                     <td className="px-4 py-3">
                       {c.estadoPago === 'PENDIENTE' ? (
                         <div className="flex items-center gap-1.5">
-                          <button onClick={() => { setCobroPagar(c); resetPago({ metodoPago: '', fechaPago: new Date().toISOString().split('T')[0] }); }}
+                          <button onClick={() => { setCobroPagar(c); resetPago({ metodoPago: '', fechaPago: hoyISO() }); }}
                             title="Marcar pagado" className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"><DollarSign className="w-4 h-4" /></button>
                           {esAdmin && (
                             <button onClick={() => { setCobroExonerar(c); resetExo(); }} title="Exonerar" className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"><Ban className="w-4 h-4" /></button>
@@ -482,7 +483,7 @@ function TabCartera({ esAdmin }: { esAdmin: boolean }) {
               </select>
             </Campo>
             <Campo label="Fecha de pago *" error={ePago.fechaPago?.message}>
-              <input type="date" max={new Date().toISOString().split('T')[0]} className={inputCls(ePago.fechaPago?.message)} {...regPago('fechaPago', { required: 'Requerido' })} />
+              <input type="date" max={hoyISO()} className={inputCls(ePago.fechaPago?.message)} {...regPago('fechaPago', { required: 'Requerido' })} />
             </Campo>
             <BotonesForm onCancel={() => setCobroPagar(null)} cargando={pagarMutation.isPending} labelGuardar="Confirmar pago" />
           </form>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CalendarCheck, CheckCircle, AlertCircle, X, Save, AlertTriangle, ChevronLeft, Clock, UserCheck } from 'lucide-react';
 import api from '../services/api';
+import { hoyISO, diasDesdeHoy } from '../utils/fechas';
 
 function Toast({ mensaje, tipo, onClose }: { mensaje: string; tipo: 'ok' | 'error'; onClose: () => void }) {
   return (
@@ -24,8 +25,8 @@ const ESTADO_ACTIVO: Record<string, string> = {
 const ESTADO_LABEL: Record<string, string> = { PRESENTE: 'Presente', AUSENTE: 'Ausente', TARDE: 'Tarde', EXCUSA: 'Excusa' };
 const ESTADO_CORTO: Record<string, string> = { PRESENTE: 'P', AUSENTE: 'A', TARDE: 'T', EXCUSA: 'E' };
 
-const hoyISO = () => new Date().toISOString().split('T')[0];
-const haceNDias = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().split('T')[0]; };
+// Hoy en Bogotá: en UTC, después de las 7 p. m. ya sería mañana
+const haceNDias = (n: number) => diasDesdeHoy(-n);
 
 type Grado = { id: string; nombre: string; grupo: string };
 type GradoDeHoy = {

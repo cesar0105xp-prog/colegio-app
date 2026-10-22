@@ -183,6 +183,7 @@ model Grado {
   comunicados   Comunicado[]
   estudiantes   Estudiante[]
   materiaGrados MateriaGradoProfesor[]
+  planEstudio   PlanEstudio[]
   eventosAgenda EventoAgenda[]
   tareasAgenda  TareaAgenda[]
 
@@ -197,6 +198,7 @@ model Materia {
   createdAt     DateTime               @default(now()) @map("created_at")
   actividades   Actividad[]
   materiaGrados MateriaGradoProfesor[]
+  planEstudio   PlanEstudio[]
   horarios      HorarioClase[]
   observaciones Observacion[]
   tareasAgenda  TareaAgenda[]
@@ -232,6 +234,21 @@ model ConfiguracionAcademica {
   periodos    Periodo[]
 
   @@map("configuraciones_academicas")
+}
+
+// Plan de estudios: materias que se ven en cada grado, tengan o no docente.
+// El boletín se arma desde aquí, así preescolar y las materias sin profesor
+// también aparecen ("Sin docente asignado").
+model PlanEstudio {
+  id        String   @id @default(uuid())
+  gradoId   String   @map("grado_id")
+  materiaId String   @map("materia_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  grado     Grado    @relation(fields: [gradoId], references: [id], onDelete: Cascade)
+  materia   Materia  @relation(fields: [materiaId], references: [id], onDelete: Cascade)
+
+  @@unique([gradoId, materiaId])
+  @@map("plan_estudio")
 }
 
 model MateriaGradoProfesor {

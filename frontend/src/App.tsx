@@ -1,13 +1,24 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './store/auth.store';
 import { Rol } from './types';
 import LoginPage from './pages/LoginPage';
-import AdminDashboard from './pages/admin/AdminDashboard';
-import ProfesorDashboard from './pages/profesor/ProfesorDashboard';
-import PadreDashboard from './pages/padre/PadreDashboard';
-import AccesoMatricula from './pages/AccesoMatricula';
+// Cada panel se descarga solo cuando alguien entra a él: así el ingreso carga
+// rápido en el celular en vez de bajar todo el portal de una vez.
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
+const ProfesorDashboard = lazy(() => import('./pages/profesor/ProfesorDashboard'));
+const PadreDashboard = lazy(() => import('./pages/padre/PadreDashboard'));
+const SecretarioDashboard = lazy(() => import('./pages/secretario/SecretarioDashboard'));
+const AccesoMatricula = lazy(() => import('./pages/AccesoMatricula'));
+
+function Cargando() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="w-8 h-8 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+    </div>
+  );
+}
 
 
 const queryClient = new QueryClient({
@@ -37,12 +48,11 @@ function SinAcceso() {
   );
 }
 
-import SecretarioDashboard from './pages/secretario/SecretarioDashboard';
-
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <Suspense fallback={<Cargando />}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/sin-acceso" element={<SinAcceso />} />
@@ -75,6 +85,7 @@ export default function App() {
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
+        </Suspense>
       </BrowserRouter>
     </QueryClientProvider>
   );

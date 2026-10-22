@@ -5,6 +5,7 @@ import cors from 'cors';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
+import { MulterError } from 'multer';
 import { logger } from './utils/logger';
 import { prisma } from './utils/prisma';
 import routes from './routes';
@@ -107,17 +108,26 @@ app.get('/health', (_req, res) => {
 
 // ─── MANEJO DE ERRORES GLOBAL ─────────────────────────────────────────────────
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  logger.error('Error no manejado', { err: err.message, stack: err.stack });
+  // JSON mal formado en el cuerpo: es un error del cliente, no del servidor
+  if ((err as { type?: string }).type === 'entity.parse.failed') {
+    res.status(400).json({ ok: false, mensaje: 'El cuerpo de la petición no es un JSON válido' });
+    return;
+  }
 
-  // Error de multer (archivos)
-  if (err.message.includes('Solo se permiten archivos PDF')) {
+  // Archivos rechazados por tipo (todos los filtros de subida usan "Solo se permiten …")
+  if (err.message.startsWith('Solo se permiten')) {
     res.status(400).json({ ok: false, mensaje: err.message });
     return;
   }
-  if (err.message.includes('File too large')) {
-    res.status(400).json({ ok: false, mensaje: `El archivo supera el tamaño máximo permitido` });
+  if (err instanceof MulterError) {
+    const mensaje = err.code === 'LIMIT_FILE_SIZE'
+      ? 'El archivo supera el tamaño máximo permitido'
+      : 'No se pudo recibir el archivo. Revisa que sea uno solo y del tipo permitido';
+    res.status(400).json({ ok: false, mensaje });
     return;
   }
+
+  logger.error('Error no manejado', { err: err.message, stack: err.stack });
 
   res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
 });

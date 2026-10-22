@@ -10,6 +10,7 @@ import {
 import { useAuthStore } from '../../store/auth.store';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
+import { formatoFecha } from '../../utils/fechas';
 import { IconoSAM } from '../../components/MarcaSAM';
 import { useMisAsignaciones, nombreGrado } from '../../services/misAsignaciones';
 import CalendarioAcademico from '../../components/CalendarioAcademico';
@@ -308,7 +309,7 @@ function ModuloNotas({ seleccionInicial }: { seleccionInicial?: { materiaId: str
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-slate-800 truncate">{act.nombre}</p>
                       {act.descripcion && <p className="text-xs text-slate-400 break-words line-clamp-2">{act.descripcion}</p>}
-                      {act.fechaEntrega && <p className="text-xs text-slate-400">Entrega: {new Date(act.fechaEntrega).toLocaleDateString('es-CO')}</p>}
+                      {act.fechaEntrega && <p className="text-xs text-slate-400">Entrega: {formatoFecha(act.fechaEntrega)}</p>}
                     </div>
                     <span className="text-lg font-bold text-blue-600 flex-shrink-0">{act.porcentaje}%</span>
                     <div className="flex gap-1">

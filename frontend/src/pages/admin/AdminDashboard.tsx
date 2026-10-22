@@ -11,6 +11,7 @@ import {
 import { useAuthStore } from '../../store/auth.store';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
+import { hoyISO, formatoFecha } from '../../utils/fechas';
 import { IconoSAM } from '../../components/MarcaSAM';
 import ReportesAdmin from '../../components/ReportesAdmin';
 import Comunicados from '../../components/Comunicados';
@@ -214,7 +215,7 @@ function FormEstudiante({ inicial, gradosData, onSubmit, cargando, onCancel, mod
       </div>
       <div className="grid grid-cols-2 gap-3">
         <Campo label="Fecha de nacimiento *" error={errors.fechaNacimiento?.message}>
-          <input type="date" className={inputCls(errors.fechaNacimiento?.message)} max={new Date().toISOString().split('T')[0]}
+          <input type="date" className={inputCls(errors.fechaNacimiento?.message)} max={hoyISO()}
             {...register('fechaNacimiento', { required: 'Requerido' })} />
         </Campo>
         <Campo label="Género *" error={errors.genero?.message}>
@@ -486,7 +487,7 @@ function FichaEstudiante({ estudiante, onClose, onEditar }: { estudiante: EstRow
           {tab === 'datos' && (
             <div className="grid grid-cols-2 gap-3 text-sm">
               {[
-                ['Fecha de nacimiento', estudiante.fechaNacimiento ? new Date(estudiante.fechaNacimiento).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Pendiente'],
+                ['Fecha de nacimiento', estudiante.fechaNacimiento ? formatoFecha(estudiante.fechaNacimiento, { day: 'numeric', month: 'long', year: 'numeric' }) : 'Pendiente'],
                 ['Género', estudiante.genero],
                 ['Teléfono', estudiante.telefono ?? '—'],
                 ['Dirección', estudiante.direccion ?? '—'],
@@ -516,11 +517,11 @@ function FichaEstudiante({ estudiante, onClose, onEditar }: { estudiante: EstRow
                 <p className="text-sm text-slate-400 italic text-center py-6">Sin notas registradas para este período</p>
               ) : (
                 <div className="space-y-2 max-h-72 overflow-y-auto">
-                  {(boletinData.boletin as { materia: { id: string; nombre: string }; profesor: string; notaPeriodo: number | null; porcentajeEvaluado?: number }[]).map(m => (
+                  {(boletinData.boletin as { materia: { id: string; nombre: string }; profesor: string | null; notaPeriodo: number | null; porcentajeEvaluado?: number }[]).map(m => (
                     <div key={m.materia.id} className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-2.5">
                       <div>
                         <p className="text-sm font-medium text-slate-800">{m.materia.nombre}</p>
-                        <p className="text-xs text-slate-400">Prof. {m.profesor} · {m.porcentajeEvaluado ?? 0}% evaluado</p>
+                        <p className="text-xs text-slate-400">{m.profesor ? `Prof. ${m.profesor}` : "Sin docente asignado"} · {m.porcentajeEvaluado ?? 0}% evaluado</p>
                       </div>
                       <span className={`text-lg ${COLOR_NOTA(m.notaPeriodo)}`}>{m.notaPeriodo != null ? m.notaPeriodo.toFixed(1) : '—'}</span>
                     </div>
@@ -1003,7 +1004,7 @@ function Vinculos() {
   );
 }
 
-type GradoRow = { id: string; nombre: string; grupo: string; nivel: string; anio: number; tipoAsistencia: 'DIRECTOR_FIJO' | 'ROTATIVO_HORARIO'; directorCursoId?: string | null; directorCurso?: { id: string; nombres: string; apellidos: string } | null; _count: { estudiantes: number }; materiaGrados: { id: string; materia: { id: string; nombre: string }; profesor: { id: string; nombres: string; apellidos: string } }[] };
+type GradoRow = { id: string; nombre: string; grupo: string; nivel: string; anio: number; tipoAsistencia: 'DIRECTOR_FIJO' | 'ROTATIVO_HORARIO'; directorCursoId?: string | null; directorCurso?: { id: string; nombres: string; apellidos: string } | null; _count: { estudiantes: number }; materiaGrados: { id: string; materia: { id: string; nombre: string }; profesor: { id: string; nombres: string; apellidos: string } }[]; planEstudio?: { materia: { id: string; nombre: string } }[] };
 
 function Grados() {
   const qc = useQueryClient();
@@ -1033,6 +1034,32 @@ function Grados() {
     mutationFn: ({ id, ...d }: { id: string; nombre: string; grupo: string; nivel: string; anio: number }) => api.put(`/grados/${id}`, d),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['grados'] }); setModalEditar(null); setToast({ msg: 'Grado actualizado', tipo: 'ok' }); },
     onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string; errores?: string[] } } })?.response?.data?.errores?.[0] ?? (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
+  });
+
+  // Plan de estudios del grado abierto: se lee de la consulta para que se
+  // actualice al agregar o quitar materias sin cerrar la ventana.
+  const [materiaParaPlan, setMateriaParaPlan] = useState('');
+  const gradoDelModal = modalMaterias ? ((data ?? []) as GradoRow[]).find(g => g.id === modalMaterias.id) ?? modalMaterias : null;
+  const planDelModal: { materia: { id: string; nombre: string }; profesor: string | null }[] = gradoDelModal
+    ? [...new Map<string, { materia: { id: string; nombre: string }; profesor: string | null }>([
+        ...(gradoDelModal.planEstudio ?? []).map(p => [p.materia.id, { materia: p.materia, profesor: null }] as const),
+        ...gradoDelModal.materiaGrados.map(mg => [mg.materia.id, { materia: mg.materia, profesor: `${mg.profesor.nombres} ${mg.profesor.apellidos}` }] as const),
+      ]).values()].sort((a, b) => a.materia.nombre.localeCompare(b.materia.nombre, 'es'))
+    : [];
+
+  const errorDe = (e: unknown) => (e as { response?: { data?: { mensaje?: string; errores?: string[] } } })?.response?.data?.errores?.[0]
+    ?? (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error';
+
+  const agregarAlPlanMutation = useMutation({
+    mutationFn: ({ gradoId, materiaId }: { gradoId: string; materiaId: string }) => api.post(`/grados/${gradoId}/plan`, { materiaId }),
+    onSuccess: (res) => { qc.invalidateQueries({ queryKey: ['grados'] }); setMateriaParaPlan(''); setToast({ msg: res.data.mensaje, tipo: 'ok' }); },
+    onError: (e: unknown) => setToast({ msg: errorDe(e), tipo: 'error' }),
+  });
+
+  const quitarDelPlanMutation = useMutation({
+    mutationFn: ({ gradoId, materiaId }: { gradoId: string; materiaId: string }) => api.delete(`/grados/${gradoId}/plan/${materiaId}`),
+    onSuccess: (res) => { qc.invalidateQueries({ queryKey: ['grados'] }); setToast({ msg: res.data.mensaje, tipo: 'ok' }); },
+    onError: (e: unknown) => setToast({ msg: errorDe(e), tipo: 'error' }),
   });
 
   const asignarMutation = useMutation({
@@ -1143,19 +1170,42 @@ function Grados() {
         <Modal titulo={`Materias — Grado ${modalMaterias.nombre}${modalMaterias.grupo}`} onClose={() => setModalMaterias(null)} ancho="max-w-2xl">
           <div className="space-y-4">
             <div className="space-y-2">
-              <p className="text-sm font-medium text-slate-600">Materias asignadas</p>
-              {modalMaterias.materiaGrados.length === 0 ? (
-                <p className="text-sm text-slate-400 italic">Sin materias asignadas aún</p>
+              <p className="text-sm font-medium text-slate-600">Plan de estudios</p>
+              <p className="text-xs text-slate-400 -mt-1">Las materias que se ven en este grado. Aparecen en el boletín aunque todavía no tengan docente.</p>
+              {planDelModal.length === 0 ? (
+                <p className="text-sm text-slate-400 italic">Este grado todavía no tiene materias en su plan de estudios</p>
               ) : (
-                modalMaterias.materiaGrados.map(mg => (
-                  <div key={mg.id} className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3">
-                    <div>
-                      <p className="text-sm font-medium text-slate-800">{mg.materia.nombre}</p>
-                      <p className="text-xs text-slate-400">Prof. {mg.profesor.nombres} {mg.profesor.apellidos}</p>
+                planDelModal.map(item => (
+                  <div key={item.materia.id} className="flex items-center justify-between gap-3 bg-slate-50 rounded-xl px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-800">{item.materia.nombre}</p>
+                      {item.profesor
+                        ? <p className="text-xs text-slate-400">Prof. {item.profesor}</p>
+                        : <p className="text-xs text-amber-600">Sin docente asignado</p>}
                     </div>
+                    {!item.profesor && (
+                      <button onClick={() => quitarDelPlanMutation.mutate({ gradoId: modalMaterias.id, materiaId: item.materia.id })}
+                        title="Quitar del plan de estudios" aria-label={`Quitar ${item.materia.nombre} del plan de estudios`}
+                        className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors min-h-[36px]">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 ))
               )}
+              <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                <select value={materiaParaPlan} onChange={e => setMateriaParaPlan(e.target.value)} className={inputCls()}>
+                  <option value="">Agregar materia sin docente…</option>
+                  {(materiasList ?? [])
+                    .filter((m: { id: string }) => !planDelModal.some(p => p.materia.id === m.id))
+                    .map((m: { id: string; nombre: string }) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+                </select>
+                <button type="button" disabled={!materiaParaPlan || agregarAlPlanMutation.isPending}
+                  onClick={() => agregarAlPlanMutation.mutate({ gradoId: modalMaterias.id, materiaId: materiaParaPlan })}
+                  className="px-4 py-2.5 bg-slate-800 text-white text-sm font-medium rounded-xl hover:bg-slate-900 transition disabled:opacity-50 min-h-[44px] whitespace-nowrap">
+                  Agregar al plan
+                </button>
+              </div>
             </div>
             <div className="border-t border-slate-100 pt-4">
               <p className="text-sm font-medium text-slate-600 mb-3">Asignar materia y profesor</p>
