@@ -9,6 +9,7 @@ import {
 } from 'recharts';
 import { FileText, BarChart2, GraduationCap, AlertCircle, FileSpreadsheet, X, Trophy, TrendingUp } from 'lucide-react';
 import api from '../services/api';
+import { nombreCurso } from '../utils/grados';
 
 // Colores para gráficas
 const COLOR_APROBADO = '#10B981';
@@ -124,7 +125,7 @@ export default function Reportes() {
             <label className="block text-xs font-medium text-slate-500 mb-1.5">Grado (para boletín)</label>
             <select value={gradoId} onChange={e => setGradoId(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-white">
               <option value="">Todos los grados</option>
-              {(grados as { id: string; nombre: string; grupo: string }[]).map(g => <option key={g.id} value={g.id}>{g.nombre}{g.grupo}</option>)}
+              {(grados as { id: string; nombre: string; grupo: string }[]).map(g => <option key={g.id} value={g.id}>{nombreCurso(g)}</option>)}
             </select>
           </div>
           {gradoId && periodoId && (

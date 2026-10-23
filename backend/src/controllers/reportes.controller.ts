@@ -4,6 +4,7 @@ import { ItemNota, notaPonderada, promedio as promediar } from '../utils/notas';
 import { materiasDelGrado } from '../utils/planEstudio';
 
 import { prisma } from '../utils/prisma';
+import { nombreCurso, ORDEN_GRADOS } from '../utils/grados';
 
 // ─── REPORTE: BOLETINES POR GRADO ────────────────────────────────────────────
 export async function reporteBoletinesPorGrado(req: Request, res: Response): Promise<void> {
@@ -110,7 +111,7 @@ export async function reporteEstudiantesDestacados(req: Request, res: Response):
 
       return {
         estudiante: `${est.nombres} ${est.apellidos}`,
-        grado: `${est.grado.nombre}${est.grado.grupo}`,
+        grado: nombreCurso(est.grado),
         promedio,
       };
     }));
@@ -129,7 +130,7 @@ export async function coberturaAcademica(req: Request, res: Response): Promise<v
   const anio = req.query.anio ? parseInt(req.query.anio as string) : new Date().getFullYear();
   try {
     const [grados, materias, asignaciones] = await Promise.all([
-      prisma.grado.findMany({ where: { anio }, orderBy: [{ nivel: 'asc' }, { nombre: 'asc' }, { grupo: 'asc' }] }),
+      prisma.grado.findMany({ where: { anio }, orderBy: ORDEN_GRADOS }),
       prisma.materia.findMany({ orderBy: { nombre: 'asc' } }),
       prisma.materiaGradoProfesor.findMany({
         where: { anio },
@@ -146,7 +147,7 @@ export async function coberturaAcademica(req: Request, res: Response): Promise<v
       }));
       return {
         gradoId: g.id,
-        grado: `${g.nombre}${g.grupo ? ' ' + g.grupo : ''}`,
+        grado: nombreCurso(g),
         nivel: g.nivel,
         celdas,
         conDocente: celdas.filter(c => c.profesor).length,

@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Calendar, BookOpen } from 'lucide-react';
 import api from '../services/api';
 import { fechaCalendario, hoyISO } from '../utils/fechas';
+import { nombreCurso } from '../utils/grados';
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DIAS_SEMANA = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
@@ -143,7 +144,7 @@ export default function CalendarioAcademico({ soloProfesor = false }: { soloProf
                   <div className="w-9 h-9 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0"><BookOpen className="w-4 h-4 text-blue-600" /></div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-800 truncate">{act.nombre}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{act.materia?.nombre} · Grado {act.grado?.nombre}{act.grado?.grupo}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{act.materia?.nombre} · Grado {nombreCurso(act.grado)}</p>
                     <div className="flex items-center gap-2 mt-1.5">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${COLOR_TIPO[act.tipo] ?? 'bg-slate-100 text-slate-600'}`}>{LABEL_TIPO[act.tipo] ?? act.tipo}</span>
                       <span className="text-xs text-blue-600 font-medium">{act.porcentaje}%</span>
@@ -187,7 +188,7 @@ export default function CalendarioAcademico({ soloProfesor = false }: { soloProf
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-slate-800 truncate">{act.nombre}</p>
-                      <p className="text-xs text-slate-400">{act.materia?.nombre} · Grado {act.grado?.nombre}{act.grado?.grupo} · {act.porcentaje}%</p>
+                      <p className="text-xs text-slate-400">{act.materia?.nombre} · Grado {nombreCurso(act.grado)} · {act.porcentaje}%</p>
                     </div>
                     <span className={`text-xs font-bold px-2.5 py-1 rounded-lg flex-shrink-0 ${diasRestantes <= 2 ? 'bg-red-100 text-red-700' : diasRestantes <= 5 ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
                       {diasRestantes === 0 ? '¡Hoy!' : diasRestantes === 1 ? 'Mañana' : `${diasRestantes} días`}

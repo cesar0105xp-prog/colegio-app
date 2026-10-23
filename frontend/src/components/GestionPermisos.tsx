@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { FileText, CheckCircle, AlertCircle, X, Check, Ban, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../services/api';
+import { nombreCurso } from '../utils/grados';
 
 function Toast({ mensaje, tipo, onClose }: { mensaje: string; tipo: 'ok' | 'error'; onClose: () => void }) {
   return (
@@ -96,7 +97,7 @@ export default function GestionPermisos() {
         </select>
         <select value={gradoId} onChange={e => setGradoId(e.target.value)} className="py-2.5 px-3 border border-slate-200 rounded-xl text-sm bg-white min-h-[44px]">
           <option value="">Todos los grados</option>
-          {(grados as Grado[]).map(g => <option key={g.id} value={g.id}>{g.nombre}{g.grupo}</option>)}
+          {(grados as Grado[]).map(g => <option key={g.id} value={g.id}>{nombreCurso(g)}</option>)}
         </select>
         <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
           className="py-2.5 px-3 border border-slate-200 rounded-xl text-sm bg-white min-h-[44px]" />
@@ -118,7 +119,7 @@ export default function GestionPermisos() {
                 {(solicitudes as Solicitud[]).map(s => (
                   <tr key={s.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3 text-sm font-medium text-slate-800 whitespace-nowrap">{s.estudiante.nombres} {s.estudiante.apellidos}</td>
-                    <td className="px-4 py-3"><span className="text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg font-medium">{s.estudiante.grado.nombre}{s.estudiante.grado.grupo}</span></td>
+                    <td className="px-4 py-3"><span className="text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg font-medium">{nombreCurso(s.estudiante.grado)}</span></td>
                     <td className="px-4 py-3 text-sm text-slate-500">
                       <p>{s.padre.perfilPadre ? `${s.padre.perfilPadre.nombres} ${s.padre.perfilPadre.apellidos}` : '—'}</p>
                       <p className="text-xs text-slate-400">{s.padre.email}</p>

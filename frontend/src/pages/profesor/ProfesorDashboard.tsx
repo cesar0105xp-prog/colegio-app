@@ -12,11 +12,12 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { formatoFecha } from '../../utils/fechas';
 import { IconoSAM } from '../../components/MarcaSAM';
-import { useMisAsignaciones, nombreGrado } from '../../services/misAsignaciones';
+import { useMisAsignaciones } from '../../services/misAsignaciones';
 import CalendarioAcademico from '../../components/CalendarioAcademico';
 import { CambiarPassword } from '../../components/CambiarPassword';
 import Asistencia from '../../components/Asistencia';
 import AgendaCalendario from '../../components/AgendaCalendario';
+import { nombreCurso } from '../../utils/grados';
 
 type Seccion = 'mis-materias' | 'notas' | 'observaciones' | 'asistencia' | 'agenda' | 'calendario' | 'estudiantes' | 'perfil';
 
@@ -240,7 +241,7 @@ function ModuloNotas({ seleccionInicial }: { seleccionInicial?: { materiaId: str
             <label className="block text-xs font-medium text-slate-500 mb-1.5">Grado</label>
             <select value={gradoId} onChange={e => { setGradoId(e.target.value); setVistaNotas(false); }} disabled={!materiaId} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:opacity-50 min-h-[44px]">
               <option value="">Seleccionar</option>
-              {gradosDeMateria.map(g => <option key={g.id} value={g.id}>{nombreGrado(g)}</option>)}
+              {gradosDeMateria.map(g => <option key={g.id} value={g.id}>{nombreCurso(g)}</option>)}
             </select>
           </div>
           <div>
@@ -573,7 +574,7 @@ function ModuloObservaciones() {
             <label className="block text-xs font-medium text-slate-500 mb-1.5">Grado</label>
             <select value={gradoId} onChange={e => { setGradoId(e.target.value); setEstudianteId(''); }} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
               <option value="">Seleccionar grado</option>
-              {(grados as Grado[]).map(g => <option key={g.id} value={g.id}>{g.nombre}{g.grupo}</option>)}
+              {(grados as Grado[]).map(g => <option key={g.id} value={g.id}>{nombreCurso(g)}</option>)}
             </select>
           </div>
           <div>
@@ -887,7 +888,7 @@ function MiPerfil() {
                   <p className="text-sm font-medium text-slate-800">{mg.materia.nombre}</p>
                 </div>
                 <span className="text-xs bg-blue-100 text-blue-700 px-2.5 py-1 rounded-lg font-medium">
-                  Grado {mg.grado.nombre}{mg.grado.grupo}
+                  Grado {nombreCurso(mg.grado)}
                 </span>
               </div>
             ))}
@@ -947,7 +948,7 @@ function MisMaterias({ onAbrir }: { onAbrir: (materiaId: string, gradoId: string
                 <button key={g.id} onClick={() => onAbrir(a.materia.id, g.id)}
                   className="w-full flex items-center justify-between gap-3 px-5 py-3 text-left hover:bg-slate-50 transition-colors min-h-[44px]">
                   <div>
-                    <p className="text-sm font-medium text-slate-800">{nombreGrado(g)}</p>
+                    <p className="text-sm font-medium text-slate-800">{nombreCurso(g)}</p>
                     <p className="text-xs text-slate-400">{g.totalEstudiantes} estudiante(s)</p>
                   </div>
                   <span className="text-xs font-semibold text-blue-600 whitespace-nowrap">Ver notas →</span>

@@ -6,6 +6,7 @@ import { logger } from '../utils/logger';
 import { hoyBogota } from '../utils/fechas';
 
 import { prisma } from '../utils/prisma';
+import { nombreCurso } from '../utils/grados';
 
 const FECHA_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const ESTADOS = Object.values(EstadoAsistencia);
@@ -60,6 +61,8 @@ type GradoResponsable = {
   gradoId: string;
   grado: string;
   nivel: string;
+  orden: number;
+  grupo: string;
   motivo: 'DIRECTOR_FIJO' | 'PRIMERA_CLASE';
   materia: string | null;
   horaInicio: string | null;
@@ -77,7 +80,7 @@ export async function gradosParaTomarAsistencia(usuarioId: string, fecha: Date):
   const [dirigidos, franjas] = await Promise.all([
     prisma.grado.findMany({
       where: { tipoAsistencia: 'DIRECTOR_FIJO', directorCursoId: profesor.id },
-      select: { id: true, nombre: true, grupo: true, nivel: true },
+      select: { id: true, nombre: true, grupo: true, nivel: true, orden: true },
     }),
     prisma.horarioClase.findMany({
       where: {
@@ -88,21 +91,21 @@ export async function gradosParaTomarAsistencia(usuarioId: string, fecha: Date):
       },
       include: {
         materia: { select: { nombre: true } },
-        grado: { select: { id: true, nombre: true, grupo: true, nivel: true } },
+        grado: { select: { id: true, nombre: true, grupo: true, nivel: true, orden: true } },
       },
     }),
   ]);
 
   return [
     ...dirigidos.map(g => ({
-      gradoId: g.id, grado: `${g.nombre}${g.grupo}`, nivel: g.nivel,
+      gradoId: g.id, grado: nombreCurso(g), nivel: g.nivel, orden: g.orden, grupo: g.grupo,
       motivo: 'DIRECTOR_FIJO' as const, materia: null, horaInicio: null,
     })),
     ...franjas.map(h => ({
-      gradoId: h.grado.id, grado: `${h.grado.nombre}${h.grado.grupo}`, nivel: h.grado.nivel,
+      gradoId: h.grado.id, grado: nombreCurso(h.grado), nivel: h.grado.nivel, orden: h.grado.orden, grupo: h.grado.grupo,
       motivo: 'PRIMERA_CLASE' as const, materia: h.materia.nombre, horaInicio: h.horaInicio,
     })),
-  ].sort((a, b) => a.grado.localeCompare(b.grado, 'es', { numeric: true }));
+  ].sort((a, b) => a.orden - b.orden || a.grupo.localeCompare(b.grupo, 'es'));
 }
 
 /** Administración y secretaría pueden tomar o corregir asistencia de cualquier grado. */
@@ -417,7 +420,7 @@ export async function reporteAusencias(req: Request, res: Response): Promise<voi
       if (!porEstudiante.has(key)) {
         porEstudiante.set(key, {
           estudianteId: key, nombres: r.estudiante.nombres, apellidos: r.estudiante.apellidos,
-          grado: `${r.estudiante.grado.nombre}${r.estudiante.grado.grupo}`,
+          grado: nombreCurso(r.estudiante.grado),
           totalAusencias: 0, totalTardanzas: 0, totalExcusas: 0, ausenciasSinJustificar: 0,
         });
       }
@@ -467,7 +470,7 @@ export async function alertasAusencias(req: Request, res: Response): Promise<voi
       if (r.estadoManana !== 'AUSENTE' && r.estadoTarde !== 'AUSENTE') continue;
       const key = r.estudiante.id;
       if (!conteo.has(key)) {
-        conteo.set(key, { estudianteId: key, nombres: r.estudiante.nombres, apellidos: r.estudiante.apellidos, grado: `${r.estudiante.grado.nombre}${r.estudiante.grado.grupo}`, ausenciasSinJustificar: 0 });
+        conteo.set(key, { estudianteId: key, nombres: r.estudiante.nombres, apellidos: r.estudiante.apellidos, grado: nombreCurso(r.estudiante.grado), ausenciasSinJustificar: 0 });
       }
       conteo.get(key)!.ausenciasSinJustificar++;
     }

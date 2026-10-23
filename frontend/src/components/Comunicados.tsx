@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { Send, Mail, Users, GraduationCap, Clock, CheckCircle, AlertCircle, X, Plus, Archive, ArchiveRestore } from 'lucide-react';
 import api from '../services/api';
+import { nombreCurso } from '../utils/grados';
 
 function Toast({ mensaje, tipo, onClose }: { mensaje: string; tipo: 'ok' | 'error'; onClose: () => void }) {
   return (
@@ -104,7 +105,7 @@ export default function Comunicados() {
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <h3 className="font-semibold text-slate-800 truncate">{c.titulo}</h3>
                       <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium flex-shrink-0 ${c.destinatario === 'TODOS' ? 'bg-blue-100 text-blue-700' : 'bg-violet-100 text-violet-700'}`}>
-                        {c.destinatario === 'TODOS' ? '👥 Todos los padres' : `🎓 Grado ${c.grado?.nombre}${c.grado?.grupo}`}
+                        {c.destinatario === 'TODOS' ? '👥 Todos los padres' : `🎓 Grado ${nombreCurso(c.grado)}`}
                       </span>
                       {c.archivado && <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Archivado</span>}
                     </div>
@@ -180,7 +181,7 @@ export default function Comunicados() {
                     {...register('gradoId', { required: destinatario === 'GRADO' ? 'Selecciona el grado' : false })}>
                     <option value="">Seleccionar grado</option>
                     {(grados as { id: string; nombre: string; grupo: string }[]).map(g => (
-                      <option key={g.id} value={g.id}>{g.nombre}{g.grupo}</option>
+                      <option key={g.id} value={g.id}>{nombreCurso(g)}</option>
                     ))}
                   </select>
                   {errors.gradoId && <p className="mt-1 text-xs text-red-500">{errors.gradoId.message}</p>}

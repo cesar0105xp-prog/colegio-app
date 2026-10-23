@@ -169,6 +169,9 @@ model Grado {
   grupo         String
   nivel         String
   anio          Int
+  // Posición escolar: Pre-jardín 1, Jardín 2, Transición 3, Primero 4 … Undécimo 14.
+  // Todo el sistema ordena por aquí (nunca por el nombre en texto).
+  orden         Int                    @default(99)
   // Cupo sugerido del curso; administración lo ajusta
   cupoMaximo    Int?                   @map("cupo_maximo")
   // Quién llama a lista: un director de curso fijo (preescolar a 4°) o el

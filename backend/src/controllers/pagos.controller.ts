@@ -9,6 +9,7 @@ import { logger } from '../utils/logger';
 import { enviarWhatsApp, PlantillasWhatsApp } from '../services/whatsapp.service';
 
 import { prisma } from '../utils/prisma';
+import { nombreCurso, compararGrados } from '../utils/grados';
 
 const formatearMonto = (monto: number | string) => `$${Number(monto).toLocaleString('es-CO')}`;
 
@@ -383,11 +384,11 @@ export async function reporteCartera(req: Request, res: Response): Promise<void>
       select: {
         montoCobrado: true,
         estadoPago: true,
-        estudiante: { select: { gradoId: true, grado: { select: { nombre: true, grupo: true } } } },
+        estudiante: { select: { gradoId: true, grado: { select: { nombre: true, grupo: true, orden: true } } } },
       },
     });
 
-    type ResumenGrado = { gradoId: string; nombre: string; totalCobrado: number; totalPagado: number; totalPendiente: number; totalExonerado: number; cantidadCobros: number };
+    type ResumenGrado = { gradoId: string; nombre: string; orden: number; grupo: string; totalCobrado: number; totalPagado: number; totalPendiente: number; totalExonerado: number; cantidadCobros: number };
     const porGrado = new Map<string, ResumenGrado>();
 
     for (const c of cobros) {
@@ -395,7 +396,8 @@ export async function reporteCartera(req: Request, res: Response): Promise<void>
       if (!porGrado.has(key)) {
         porGrado.set(key, {
           gradoId: key,
-          nombre: `${c.estudiante.grado.nombre}${c.estudiante.grado.grupo}`,
+          nombre: nombreCurso(c.estudiante.grado),
+          orden: c.estudiante.grado.orden, grupo: c.estudiante.grado.grupo,
           totalCobrado: 0, totalPagado: 0, totalPendiente: 0, totalExonerado: 0, cantidadCobros: 0,
         });
       }
@@ -408,7 +410,7 @@ export async function reporteCartera(req: Request, res: Response): Promise<void>
       else if (c.estadoPago === 'EXONERADO') item.totalExonerado += monto;
     }
 
-    res.json({ ok: true, datos: Array.from(porGrado.values()).sort((a, b) => a.nombre.localeCompare(b.nombre)) });
+    res.json({ ok: true, datos: Array.from(porGrado.values()).sort(compararGrados).map(({ orden: _o, grupo: _g, ...r }) => r) });
   } catch (err) {
     logger.error('Error al generar reporte de cartera', { err });
     res.status(500).json({ ok: false, mensaje: 'Error interno del servidor' });
@@ -434,7 +436,7 @@ export async function exportarCarteraCSV(req: Request, res: Response): Promise<v
         estudiante: { select: { nombres: true, apellidos: true, numeroDocumento: true, grado: { select: { nombre: true, grupo: true } } } },
         concepto: { select: { nombre: true } },
       },
-      orderBy: [{ anio: 'desc' }, { mes: 'desc' }],
+      orderBy: [{ anio: 'desc' }, { mes: 'desc' }, { estudiante: { grado: { orden: 'asc' } } }, { estudiante: { grado: { grupo: 'asc' } } }, { estudiante: { apellidos: 'asc' } }],
     });
 
     // Excel real (.xlsx): el CSV con comas se abría en una sola columna en el
@@ -467,7 +469,7 @@ export async function exportarCarteraCSV(req: Request, res: Response): Promise<v
       hoja.addRow({
         estudiante: `${c.estudiante.nombres} ${c.estudiante.apellidos}`,
         documento: c.estudiante.numeroDocumento,
-        grado: `${c.estudiante.grado.nombre}${c.estudiante.grado.grupo ? ' ' + c.estudiante.grado.grupo : ''}`,
+        grado: nombreCurso(c.estudiante.grado),
         concepto: c.concepto.nombre,
         mes: MESES[c.mes - 1] ?? c.mes,
         anio: c.anio,

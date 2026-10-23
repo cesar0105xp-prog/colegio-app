@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { FileText, CheckCircle, AlertCircle, X, Settings, Sparkles, Upload, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../services/api';
+import { nombreCurso } from '../utils/grados';
 
 function Toast({ mensaje, tipo, onClose }: { mensaje: string; tipo: 'ok' | 'error'; onClose: () => void }) {
   return (
@@ -113,7 +114,7 @@ export default function GestionCertificados() {
                 {(solicitudes as Solicitud[]).map(s => (
                   <tr key={s.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3 text-sm font-medium text-slate-800 whitespace-nowrap">{s.estudiante.nombres} {s.estudiante.apellidos}</td>
-                    <td className="px-4 py-3"><span className="text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg font-medium">{s.estudiante.grado.nombre}{s.estudiante.grado.grupo}</span></td>
+                    <td className="px-4 py-3"><span className="text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg font-medium">{nombreCurso(s.estudiante.grado)}</span></td>
                     <td className="px-4 py-3 text-sm text-slate-600">{LABEL_TIPO[s.tipoCertificado]}</td>
                     <td className="px-4 py-3 text-sm text-slate-500">
                       <p>{s.padre.perfilPadre ? `${s.padre.perfilPadre.nombres} ${s.padre.perfilPadre.apellidos}` : '—'}</p>
@@ -155,7 +156,7 @@ export default function GestionCertificados() {
         <Modal titulo="Procesar solicitud" onClose={cerrarModal}>
           <div className="mb-4 bg-slate-50 rounded-xl p-3">
             <p className="text-sm font-medium text-slate-700">{procesando.estudiante.nombres} {procesando.estudiante.apellidos}</p>
-            <p className="text-xs text-slate-400">{LABEL_TIPO[procesando.tipoCertificado]} · {procesando.estudiante.grado.nombre}{procesando.estudiante.grado.grupo}</p>
+            <p className="text-xs text-slate-400">{LABEL_TIPO[procesando.tipoCertificado]} · {nombreCurso(procesando.estudiante.grado)}</p>
             {procesando.observaciones && <p className="text-xs text-slate-500 mt-1 italic">"{procesando.observaciones}"</p>}
           </div>
 

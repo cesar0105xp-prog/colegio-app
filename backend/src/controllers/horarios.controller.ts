@@ -4,6 +4,7 @@ import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
 
 import { prisma } from '../utils/prisma';
+import { nombreCurso, ORDEN_GRADOS } from '../utils/grados';
 
 // Horario semanal de clases. En los grados ROTATIVO_HORARIO, la franja marcada
 // como primera clase define qué profesor llama a lista ese día.
@@ -118,7 +119,7 @@ export async function resumenResponsablesAsistencia(_req: Request, res: Response
           orderBy: { diaSemana: 'asc' },
         },
       },
-      orderBy: [{ nivel: 'asc' }, { nombre: 'asc' }, { grupo: 'asc' }],
+      orderBy: ORDEN_GRADOS,
     });
 
     const datos = grados.map(g => {
@@ -143,7 +144,7 @@ export async function resumenResponsablesAsistencia(_req: Request, res: Response
 
       return {
         gradoId: g.id,
-        grado: `${g.nombre}${g.grupo}`,
+        grado: nombreCurso(g),
         nivel: g.nivel,
         tipoAsistencia: g.tipoAsistencia,
         directorCurso: g.directorCurso ? `${g.directorCurso.nombres} ${g.directorCurso.apellidos}` : null,

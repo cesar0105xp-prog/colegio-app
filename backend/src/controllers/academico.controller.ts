@@ -4,15 +4,18 @@ import { audit } from '../utils/audit';
 import { logger } from '../utils/logger';
 import { REGEX } from '../types';
 
+import { ORDEN_GRADOS, ordenSugerido } from '../utils/grados';
 import { prisma } from '../utils/prisma';
 
 // ─── GRADOS ───────────────────────────────────────────────────────────────────
 
 export const validarGrado = [
   body('nombre').trim().notEmpty().withMessage('Nombre del grado requerido'),
-  body('grupo').trim().notEmpty().withMessage('Grupo requerido')
+  // Pre-jardín, Jardín, Sexto y Séptimo no tienen grupo: se permite vacío
+  body('grupo').optional({ values: 'falsy' }).trim()
     .matches(/^[A-Za-z]$/).withMessage('El grupo debe ser una sola letra'),
-  body('nivel').isIn(['primaria', 'secundaria', 'media']).withMessage('Nivel inválido'),
+  body('nivel').isIn(['preescolar', 'primaria', 'secundaria', 'media']).withMessage('Nivel inválido'),
+  body('orden').optional({ values: 'falsy' }).isInt({ min: 1, max: 99 }).withMessage('El orden debe ser un número entre 1 y 99'),
   body('anio').isInt({ min: 2020, max: 2099 }).withMessage('Año inválido'),
   body('tipoAsistencia').optional().isIn(['DIRECTOR_FIJO', 'ROTATIVO_HORARIO']).withMessage('Tipo de asistencia inválido'),
   body('directorCursoId').optional({ checkFalsy: true }).isUUID().withMessage('Director de curso inválido'),
@@ -29,7 +32,7 @@ export async function listarGrados(req: Request, res: Response): Promise<void> {
         directorCurso: { select: { id: true, nombres: true, apellidos: true } },
         planEstudio: { include: { materia: { select: { id: true, nombre: true } } } },
       },
-      orderBy: [{ nivel: 'asc' }, { nombre: 'asc' }, { grupo: 'asc' }],
+      orderBy: ORDEN_GRADOS,
     });
     res.json({ ok: true, datos: grados });
   } catch (err) {
@@ -46,8 +49,8 @@ export async function listarGradosPublicos(_req: Request, res: Response): Promis
   try {
     const grados = await prisma.grado.findMany({
       distinct: ['nombre'],
-      select: { nombre: true, nivel: true },
-      orderBy: [{ anio: 'desc' }, { nivel: 'asc' }, { nombre: 'asc' }],
+      select: { nombre: true, orden: true },
+      orderBy: [{ orden: 'asc' }, { nombre: 'asc' }],
     });
     res.json({ ok: true, datos: grados.map(g => g.nombre) });
   } catch (err) {
@@ -62,15 +65,17 @@ export async function crearGrado(req: Request, res: Response): Promise<void> {
     res.status(400).json({ ok: false, errores: errores.array().map(e => e.msg) });
     return;
   }
-  const { nombre, grupo, nivel, anio } = req.body;
+  const { nombre, nivel, anio, orden } = req.body;
+  const grupo = String(req.body.grupo ?? '').trim().toUpperCase();
   try {
-    const existe = await prisma.grado.findUnique({ where: { nombre_grupo_anio: { nombre, grupo: grupo.toUpperCase(), anio: parseInt(anio) } } });
+    const existe = await prisma.grado.findUnique({ where: { nombre_grupo_anio: { nombre: nombre.trim(), grupo, anio: parseInt(anio) } } });
     if (existe) {
       res.status(409).json({ ok: false, mensaje: 'Ya existe ese grado y grupo para ese año' });
       return;
     }
     const grado = await prisma.grado.create({
-      data: { nombre: nombre.trim(), grupo: grupo.toUpperCase(), nivel, anio: parseInt(anio) },
+      // Si no se indica el orden escolar, se deduce del nombre (Primero 4, Sexto 9…)
+      data: { nombre: nombre.trim(), grupo, nivel, anio: parseInt(anio), orden: orden ? parseInt(orden) : ordenSugerido(nombre) },
     });
     await audit({ usuarioId: req.usuario!.sub, accion: 'CREAR', entidad: 'grados', entidadId: grado.id, ip: req.ip });
     res.status(201).json({ ok: true, datos: grado });
@@ -315,7 +320,8 @@ export async function editarPeriodo(req: Request, res: Response): Promise<void> 
 // ─── EDITAR GRADO ─────────────────────────────────────────────────────────────
 export async function editarGrado(req: Request, res: Response): Promise<void> {
   const { id } = req.params;
-  const { nombre, grupo, nivel, anio, tipoAsistencia, directorCursoId } = req.body;
+  const { nombre, nivel, anio, tipoAsistencia, directorCursoId, orden } = req.body;
+  const grupo = req.body.grupo === undefined ? undefined : String(req.body.grupo ?? '').trim().toUpperCase();
   try {
     // Quién llama a lista: director de curso fijo, o el profesor de la primera clase
     if (tipoAsistencia === 'DIRECTOR_FIJO' && !directorCursoId) {
@@ -333,7 +339,8 @@ export async function editarGrado(req: Request, res: Response): Promise<void> {
     const grado = await prisma.grado.update({
       where: { id },
       data: {
-        nombre: nombre?.trim(), grupo: grupo?.toUpperCase(), nivel, anio: parseInt(anio),
+        nombre: nombre?.trim(), grupo, nivel, anio: parseInt(anio),
+        orden: orden ? parseInt(orden) : undefined,
         tipoAsistencia: tipoAsistencia ?? undefined,
         // En rotativo no hay director de curso tomando asistencia
         directorCursoId: tipoAsistencia === 'ROTATIVO_HORARIO' ? null : (directorCursoId ?? undefined),

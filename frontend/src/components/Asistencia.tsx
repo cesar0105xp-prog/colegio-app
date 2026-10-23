@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CalendarCheck, CheckCircle, AlertCircle, X, Save, AlertTriangle, ChevronLeft, Clock, UserCheck } from 'lucide-react';
 import api from '../services/api';
 import { hoyISO, diasDesdeHoy } from '../utils/fechas';
+import { nombreCurso } from '../utils/grados';
 
 function Toast({ mensaje, tipo, onClose }: { mensaje: string; tipo: 'ok' | 'error'; onClose: () => void }) {
   return (
@@ -156,7 +157,7 @@ export default function Asistencia({ modoLibre = false }: { modoLibre?: boolean 
               <select value={gradoId} onChange={e => setGradoId(e.target.value)}
                 className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-h-[44px]">
                 <option value="">Seleccionar grado</option>
-                {(grados as Grado[]).map(g => <option key={g.id} value={g.id}>{g.nombre}{g.grupo}</option>)}
+                {(grados as Grado[]).map(g => <option key={g.id} value={g.id}>{nombreCurso(g)}</option>)}
               </select>
             </div>
             <div>
