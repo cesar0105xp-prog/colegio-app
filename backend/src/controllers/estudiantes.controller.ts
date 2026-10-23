@@ -86,7 +86,8 @@ export async function listarEstudiantes(req: Request, res: Response): Promise<vo
       prisma.estudiante.findMany({
         where,
         include: { grado: true, _count: { select: { padres: true } } },
-        orderBy: [{ apellidos: 'asc' }, { nombres: 'asc' }],
+        // Por curso (orden escolar y grupo) y dentro de cada curso por apellidos, como las planillas
+        orderBy: [{ grado: { orden: 'asc' } }, { grado: { grupo: 'asc' } }, { apellidos: 'asc' }, { nombres: 'asc' }],
         skip, take,
       }),
       prisma.estudiante.count({ where }),

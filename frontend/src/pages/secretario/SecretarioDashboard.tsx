@@ -21,6 +21,7 @@ import AgendaCalendario from '../../components/AgendaCalendario';
 import GestionCertificados from '../../components/GestionCertificados';
 import Asistencia from '../../components/Asistencia';
 import { ResponsablesAsistencia } from '../../components/ConfiguracionAsistencia';
+import { nombreCurso } from '../../utils/grados';
 
 type Seccion = 'resumen' | 'estudiantes' | 'padres' | 'reportes' | 'matriculas' | 'pagos' | 'permisos' | 'agenda' | 'certificados' | 'asistencia';
 
@@ -238,7 +239,7 @@ function EstudiantesSecretario() {
         <Campo label="Grado *" error={errs.gradoId?.message}>
           <select className={inputCls(errs.gradoId?.message)} {...reg('gradoId', { required: 'Requerido' })}>
             <option value="">Seleccionar grado</option>
-            {grados.map((g: { id: string; nombre: string; grupo: string; nivel: string }) => <option key={g.id} value={g.id}>{g.nombre}{g.grupo} — {g.nivel}</option>)}
+            {grados.map((g: { id: string; nombre: string; grupo: string; nivel: string }) => <option key={g.id} value={g.id}>{nombreCurso(g)} — {g.nivel}</option>)}
           </select>
         </Campo>
         {modoEditar && (
@@ -283,7 +284,7 @@ function EstudiantesSecretario() {
         </div>
         <select value={filtroGrado} onChange={e => setFiltroGrado(e.target.value)} className="py-2.5 px-3 border border-slate-200 rounded-xl text-sm bg-white">
           <option value="">Todos los grados</option>
-          {(gradosData ?? []).map((g: { id: string; nombre: string; grupo: string }) => <option key={g.id} value={g.id}>{g.nombre}{g.grupo}</option>)}
+          {(gradosData ?? []).map((g: { id: string; nombre: string; grupo: string }) => <option key={g.id} value={g.id}>{nombreCurso(g)}</option>)}
         </select>
         <select value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)} className="py-2.5 px-3 border border-slate-200 rounded-xl text-sm bg-white">
           <option value="">Todos los estados</option>
@@ -340,7 +341,7 @@ function EstudiantesSecretario() {
                       ? <span className="text-orange-600">Provisional {e.numeroDocumento}</span>
                       : `${e.tipoDocumento} ${e.numeroDocumento}`}
                   </td>
-                  <td className="px-5 py-3"><Badge texto={`${e.grado.nombre}${e.grado.grupo}`} color="bg-blue-50 text-blue-700" /></td>
+                  <td className="px-5 py-3"><Badge texto={nombreCurso(e.grado)} color="bg-blue-50 text-blue-700" /></td>
                   <td className="px-5 py-3"><Badge texto={e.estado} color={ESTADO_COLOR[e.estado] ?? 'bg-slate-100'} /></td>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-2">
@@ -395,7 +396,7 @@ function EstudiantesSecretario() {
             <div className="grid grid-cols-2 gap-3 text-sm">
               {[
                 ['Documento', esDocumentoProvisional(modalVer.numeroDocumento) ? `Provisional ${modalVer.numeroDocumento}` : `${modalVer.tipoDocumento} ${modalVer.numeroDocumento}`],
-                ['Grado', `${modalVer.grado.nombre}${modalVer.grado.grupo}`],
+                ['Grado', nombreCurso(modalVer.grado)],
                 ['Fecha de nacimiento', modalVer.fechaNacimiento ? formatoFecha(modalVer.fechaNacimiento, { day: 'numeric', month: 'long', year: 'numeric' }) : 'Pendiente'],
                 ['Género', modalVer.genero ?? 'Pendiente'],
                 ['Teléfono', modalVer.telefono ?? '—'],

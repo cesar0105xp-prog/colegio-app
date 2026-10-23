@@ -7,6 +7,7 @@ import { notaPonderada, promedio } from '../utils/notas';
 import { materiasDelGrado } from '../utils/planEstudio';
 
 import { prisma } from '../utils/prisma';
+import { nombreCurso } from '../utils/grados';
 
 // ─── VALIDACIONES ────────────────────────────────────────────────────────────
 
@@ -361,7 +362,7 @@ export async function obtenerBoletin(req: Request, res: Response): Promise<void>
           id: estudiante.id,
           nombres: estudiante.nombres,
           apellidos: estudiante.apellidos,
-          grado: `${estudiante.grado.nombre}${estudiante.grado.grupo}`,
+          grado: nombreCurso(estudiante.grado),
         },
         boletin,
       },
@@ -504,7 +505,7 @@ export async function obtenerResumenAnual(req: Request, res: Response): Promise<
     res.json({
       ok: true,
       datos: {
-        estudiante: { nombres: estudiante.nombres, apellidos: estudiante.apellidos, grado: `${estudiante.grado.nombre}${estudiante.grado.grupo}` },
+        estudiante: { nombres: estudiante.nombres, apellidos: estudiante.apellidos, grado: nombreCurso(estudiante.grado) },
         periodos: periodos.map(p => ({ id: p.id, nombre: p.nombre, numero: p.numero, activo: p.activo })),
         resumen,
         promediosPorPeriodo,

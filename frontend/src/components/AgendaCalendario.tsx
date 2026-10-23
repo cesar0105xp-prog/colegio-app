@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import { useAuthStore } from '../store/auth.store';
+import { nombreCurso } from '../utils/grados';
 
 // ─── HELPERS LOCALES ────────────────────────────────────────────────────────
 
@@ -299,7 +300,7 @@ export default function AgendaCalendario({ gradoIdInicial }: { gradoIdInicial?: 
         {!esPadre && (
           <select value={gradoId} onChange={e => setGradoId(e.target.value)} className="py-2.5 px-3 border border-slate-200 rounded-xl text-sm bg-white min-h-[44px]">
             <option value="">Todos los grados</option>
-            {(grados as Grado[]).map(g => <option key={g.id} value={g.id}>{g.nombre}{g.grupo}</option>)}
+            {(grados as Grado[]).map(g => <option key={g.id} value={g.id}>{nombreCurso(g)}</option>)}
           </select>
         )}
         {(esAdmin || esProfesor) && (
@@ -405,8 +406,8 @@ export default function AgendaCalendario({ gradoIdInicial }: { gradoIdInicial?: 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${COLOR_TIPO[esEvento ? ev.tipoEvento : 'TAREA']}`}>{esEvento ? LABEL_TIPO[ev.tipoEvento] : 'Tarea'}</span>
-                      {esEvento && ev.grado && <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{ev.grado.nombre}{ev.grado.grupo}</span>}
-                      {!esEvento && <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{t.grado.nombre}{t.grado.grupo} · {t.materia.nombre}</span>}
+                      {esEvento && ev.grado && <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{nombreCurso(ev.grado)}</span>}
+                      {!esEvento && <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{nombreCurso(t.grado)} · {t.materia.nombre}</span>}
                     </div>
                     <p className="text-sm font-medium text-slate-800 truncate">{esEvento ? ev.titulo : t.titulo}</p>
                   </div>
@@ -441,7 +442,7 @@ export default function AgendaCalendario({ gradoIdInicial }: { gradoIdInicial?: 
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${COLOR_TIPO[esEvento ? ev.tipoEvento : 'TAREA']}`}>{esEvento ? LABEL_TIPO[ev.tipoEvento] : 'Tarea'}</span>
                         <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full flex items-center gap-1">
-                          <GraduationCap className="w-3 h-3" /> {esEvento ? (ev.grado ? `${ev.grado.nombre}${ev.grado.grupo}` : 'Todos los grados') : `${t.grado.nombre}${t.grado.grupo} · ${t.materia.nombre}`}
+                          <GraduationCap className="w-3 h-3" /> {esEvento ? (ev.grado ? nombreCurso(ev.grado) : 'Todos los grados') : `${nombreCurso(t.grado)} · ${t.materia.nombre}`}
                         </span>
                       </div>
                       <p className="text-sm font-semibold text-slate-800">{esEvento ? ev.titulo : t.titulo}</p>
@@ -525,7 +526,7 @@ export default function AgendaCalendario({ gradoIdInicial }: { gradoIdInicial?: 
               <Campo label="Grado (opcional)" hint="Vacío = todos los grados">
                 <select className={inputCls()} {...regEv('gradoId')}>
                   <option value="">Todos los grados</option>
-                  {(grados as Grado[]).map(g => <option key={g.id} value={g.id}>{g.nombre}{g.grupo}</option>)}
+                  {(grados as Grado[]).map(g => <option key={g.id} value={g.id}>{nombreCurso(g)}</option>)}
                 </select>
               </Campo>
             </div>

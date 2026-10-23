@@ -18,6 +18,7 @@ import HistorialAsistencia from '../../components/HistorialAsistencia';
 import SolicitudPermiso from '../../components/SolicitudPermiso';
 import AgendaCalendario from '../../components/AgendaCalendario';
 import SolicitudCertificados from '../../components/SolicitudCertificados';
+import { nombreCurso } from '../../utils/grados';
 
 type Seccion = 'boletin' | 'observaciones' | 'asistencia' | 'permisos' | 'agenda' | 'certificados' | 'comunicados' | 'directorio' | 'cuenta' | 'matricula' | 'pagos';
 
@@ -249,7 +250,7 @@ export default function PadreDashboard() {
           <button onClick={() => setSidebar(true)} className="lg:hidden p-2 rounded-lg text-slate-500 hover:bg-slate-100"><Menu className="w-5 h-5" /></button>
           <div className="flex-1">
             <h1 className="font-bold text-slate-800">{hijoActual ? `${hijoActual.nombres} ${hijoActual.apellidos}` : 'Portal del Padre'}</h1>
-            {hijoActual && <p className="text-xs text-slate-400">Grado {hijoActual.grado.nombre}{hijoActual.grado.grupo}</p>}
+            {hijoActual && <p className="text-xs text-slate-400">Grado {nombreCurso(hijoActual.grado)}</p>}
           </div>
         </header>
 
@@ -427,7 +428,7 @@ export default function PadreDashboard() {
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <h3 className="font-semibold text-slate-800 text-sm">{c.titulo}</h3>
                           <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
-                            {c.destinatario === 'TODOS' ? 'General' : `Grado ${c.grado?.nombre}${c.grado?.grupo}`}
+                            {c.destinatario === 'TODOS' ? 'General' : `Grado ${nombreCurso(c.grado)}`}
                           </span>
                         </div>
                         <p className="text-sm text-slate-600 leading-relaxed break-words whitespace-pre-wrap">{c.mensaje}</p>

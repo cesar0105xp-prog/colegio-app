@@ -4,6 +4,7 @@ import { logger } from '../utils/logger';
 import { notaPonderada } from '../utils/notas';
 
 import { prisma } from '../utils/prisma';
+import { nombreCurso } from '../utils/grados';
 
 // Colores institucionales
 const COLOR_HEADER = 'FF1E3A6E';      // azul institucional SAM
@@ -158,6 +159,7 @@ export async function exportarNotasProfesor(req: Request, res: Response): Promis
     const asignaciones = await prisma.materiaGradoProfesor.findMany({
       where: { gradoId: gradoId as string, profesorId: profesor.id },
       include: { materia: true },
+      orderBy: { materia: { nombre: 'asc' } },
     });
 
     if (asignaciones.length === 0) { res.status(404).json({ ok: false, mensaje: 'No tienes materias asignadas en ese grado' }); return; }
@@ -173,13 +175,13 @@ export async function exportarNotasProfesor(req: Request, res: Response): Promis
       await construirHojaMateria(
         workbook, asig.materia.nombre, asig.materiaId, gradoId as string, periodoId as string,
         `${profesor.nombres} ${profesor.apellidos}`,
-        `${grado?.nombre}${grado?.grupo}`, periodo?.nombre ?? '',
+        nombreCurso(grado), periodo?.nombre ?? '',
       );
     }
 
     const buffer = await workbook.xlsx.writeBuffer();
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="Notas_${grado?.nombre}${grado?.grupo}_${periodo?.nombre?.replace(/\s/g, '_')}.xlsx"`);
+    res.setHeader('Content-Disposition', `attachment; filename="Notas_${nombreCurso(grado).replace(/\s/g, '_')}_${periodo?.nombre?.replace(/\s/g, '_')}.xlsx"`);
     res.send(buffer);
   } catch (err) {
     logger.error('Error al exportar notas del profesor', { err });
@@ -196,6 +198,7 @@ export async function exportarNotasGrado(req: Request, res: Response): Promise<v
     const asignaciones = await prisma.materiaGradoProfesor.findMany({
       where: { gradoId: gradoId as string },
       include: { materia: true, profesor: true },
+      orderBy: { materia: { nombre: 'asc' } },
     });
 
     if (asignaciones.length === 0) { res.status(404).json({ ok: false, mensaje: 'Este grado no tiene materias asignadas' }); return; }
@@ -211,13 +214,13 @@ export async function exportarNotasGrado(req: Request, res: Response): Promise<v
       await construirHojaMateria(
         workbook, asig.materia.nombre, asig.materiaId, gradoId as string, periodoId as string,
         `${asig.profesor.nombres} ${asig.profesor.apellidos}`,
-        `${grado?.nombre}${grado?.grupo}`, periodo?.nombre ?? '',
+        nombreCurso(grado), periodo?.nombre ?? '',
       );
     }
 
     const buffer = await workbook.xlsx.writeBuffer();
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="Notas_${grado?.nombre}${grado?.grupo}_${periodo?.nombre?.replace(/\s/g, '_')}.xlsx"`);
+    res.setHeader('Content-Disposition', `attachment; filename="Notas_${nombreCurso(grado).replace(/\s/g, '_')}_${periodo?.nombre?.replace(/\s/g, '_')}.xlsx"`);
     res.send(buffer);
   } catch (err) {
     logger.error('Error al exportar notas del grado', { err });

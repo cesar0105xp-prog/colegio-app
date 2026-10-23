@@ -9,6 +9,7 @@ import {
 import api from '../services/api';
 import { hoyISO } from '../utils/fechas';
 import { useAuthStore } from '../store/auth.store';
+import { nombreCurso } from '../utils/grados';
 
 // ─── HELPERS COMPARTIDOS (mismos patrones que el resto del panel) ─────────────
 
@@ -272,7 +273,7 @@ function TabGenerar() {
             <Campo label="Grado *" error={errors.gradoId?.message}>
               <select className={inputCls(errors.gradoId?.message)} {...register('gradoId', { required: 'Selecciona el grado' })}>
                 <option value="">Seleccionar grado</option>
-                {(grados as Grado[]).map(g => <option key={g.id} value={g.id}>{g.nombre}{g.grupo}</option>)}
+                {(grados as Grado[]).map(g => <option key={g.id} value={g.id}>{nombreCurso(g)}</option>)}
               </select>
             </Campo>
             <Campo label="Concepto *" error={errors.conceptoId?.message}>
@@ -391,7 +392,7 @@ function TabCartera({ esAdmin }: { esAdmin: boolean }) {
         </div>
         <select value={gradoId} onChange={e => setGradoId(e.target.value)} className="py-2.5 px-3 border border-slate-200 rounded-xl text-sm bg-white min-h-[44px]">
           <option value="">Todos los grados</option>
-          {(grados as Grado[]).map(g => <option key={g.id} value={g.id}>{g.nombre}{g.grupo}</option>)}
+          {(grados as Grado[]).map(g => <option key={g.id} value={g.id}>{nombreCurso(g)}</option>)}
         </select>
         <select value={mes} onChange={e => setMes(e.target.value)} className="py-2.5 px-3 border border-slate-200 rounded-xl text-sm bg-white min-h-[44px]">
           <option value="">Todos los meses</option>
@@ -430,7 +431,7 @@ function TabCartera({ esAdmin }: { esAdmin: boolean }) {
                 {(data.datos as Cobro[]).map(c => (
                   <tr key={c.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3 text-sm font-medium text-slate-800">{c.estudiante.nombres} {c.estudiante.apellidos}</td>
-                    <td className="px-4 py-3"><Badge texto={`${c.estudiante.grado.nombre}${c.estudiante.grado.grupo}`} color="bg-blue-50 text-blue-700" /></td>
+                    <td className="px-4 py-3"><Badge texto={nombreCurso(c.estudiante.grado)} color="bg-blue-50 text-blue-700" /></td>
                     <td className="px-4 py-3 text-sm text-slate-600">{c.concepto.nombre}</td>
                     <td className="px-4 py-3 text-sm text-slate-500">{MESES[c.mes - 1]} {c.anio}</td>
                     <td className="px-4 py-3 text-sm font-semibold text-slate-700">{formatoCOP(Number(c.montoCobrado))}</td>
@@ -581,7 +582,7 @@ function TabComprobantes() {
         </select>
         <select value={gradoId} onChange={e => setGradoId(e.target.value)} className="py-2.5 px-3 border border-slate-200 rounded-xl text-sm bg-white min-h-[44px]">
           <option value="">Todos los grados</option>
-          {(grados as Grado[]).map(g => <option key={g.id} value={g.id}>{g.nombre}{g.grupo}</option>)}
+          {(grados as Grado[]).map(g => <option key={g.id} value={g.id}>{nombreCurso(g)}</option>)}
         </select>
         <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="py-2.5 px-3 border border-slate-200 rounded-xl text-sm bg-white min-h-[44px]" />
         {fecha && <button onClick={() => setFecha('')} className="text-xs text-slate-400 hover:text-slate-600">Limpiar fecha</button>}
@@ -602,7 +603,7 @@ function TabComprobantes() {
                 {(data.datos as Comprobante[]).map(c => (
                   <tr key={c.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3 text-sm font-medium text-slate-800 whitespace-nowrap">{c.cobro.estudiante.nombres} {c.cobro.estudiante.apellidos}</td>
-                    <td className="px-4 py-3"><Badge texto={`${c.cobro.estudiante.grado.nombre}${c.cobro.estudiante.grado.grupo}`} color="bg-blue-50 text-blue-700" /></td>
+                    <td className="px-4 py-3"><Badge texto={nombreCurso(c.cobro.estudiante.grado)} color="bg-blue-50 text-blue-700" /></td>
                     <td className="px-4 py-3 text-sm text-slate-600">
                       {c.cobro.concepto.nombre} · {MESES[c.cobro.mes - 1]} {c.cobro.anio}
                       {c.referenciaTransaccion && <p className="text-xs text-slate-400 mt-0.5">Ref: {c.referenciaTransaccion}</p>}
@@ -694,7 +695,7 @@ function TabReporte() {
       <div className="flex flex-wrap items-center gap-3">
         <select value={gradoId} onChange={e => setGradoId(e.target.value)} className="py-2.5 px-3 border border-slate-200 rounded-xl text-sm bg-white min-h-[44px]">
           <option value="">Todos los grados</option>
-          {(grados as Grado[]).map(g => <option key={g.id} value={g.id}>{g.nombre}{g.grupo}</option>)}
+          {(grados as Grado[]).map(g => <option key={g.id} value={g.id}>{nombreCurso(g)}</option>)}
         </select>
         <select value={mes} onChange={e => setMes(e.target.value)} className="py-2.5 px-3 border border-slate-200 rounded-xl text-sm bg-white min-h-[44px]">
           <option value="">Todos los meses</option>

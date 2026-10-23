@@ -6,6 +6,7 @@ import {
   AlertCircle, Copy, GraduationCap, Users, FileText, Search, Mail, Send
 } from 'lucide-react';
 import api from '../services/api';
+import { nombreCurso } from '../utils/grados';
 
 function Toast({ mensaje, tipo, onClose }: { mensaje: string; tipo: 'ok' | 'error'; onClose: () => void }) {
   return (
@@ -236,7 +237,7 @@ export default function Matriculas() {
                     <p className="text-sm font-medium text-slate-800">{m.estudiante.nombres} {m.estudiante.apellidos}</p>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-lg">{m.estudiante.grado.nombre}{m.estudiante.grado.grupo}</span>
+                    <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-lg">{nombreCurso(m.estudiante.grado)}</span>
                   </td>
                   <td className="px-4 py-3">
                     <p className="text-sm text-slate-600">{m.padre.nombres} {m.padre.apellidos}</p>
@@ -417,7 +418,7 @@ export default function Matriculas() {
                       {...register('estudiante.gradoId', { required: 'Requerido' })}>
                       <option value="">Seleccionar grado</option>
                       {(grados as { id: string; nombre: string; grupo: string; nivel: string }[]).map(g => (
-                        <option key={g.id} value={g.id}>{g.nombre}{g.grupo} — {g.nivel}</option>
+                        <option key={g.id} value={g.id}>{nombreCurso(g)} — {g.nivel}</option>
                       ))}
                     </select>
                   </div>
@@ -643,7 +644,7 @@ function DetalleMatricula({ matricula, obsVerif, setObsVerif, onClose, verificar
             <div className="grid grid-cols-2 gap-2">
               {[
                 ['Código', matricula.estudiante.codigoMatricula ?? '—'],
-                ['Grado', `${matricula.estudiante.grado.nombre}${matricula.estudiante.grado.grupo}`],
+                ['Grado', nombreCurso(matricula.estudiante.grado)],
                 ['Correo de acceso', matricula.padre.usuario.email],
                 ['Fecha matrícula', new Date(matricula.fechaMatricula).toLocaleDateString('es-CO')],
               ].map(([k, v]) => (

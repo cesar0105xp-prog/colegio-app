@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { FileText, CheckCircle, AlertCircle, X, Send, Clock, XCircle } from 'lucide-react';
 import api from '../services/api';
 import { hoyISO, diasDesdeHoy } from '../utils/fechas';
+import { nombreCurso } from '../utils/grados';
 
 function Toast({ mensaje, tipo, onClose }: { mensaje: string; tipo: 'ok' | 'error'; onClose: () => void }) {
   return (
@@ -82,7 +83,7 @@ export default function SolicitudPermiso() {
               <label className="block text-sm font-medium text-slate-600 mb-1.5">Estudiante *</label>
               <select className={inputCls(errors.estudianteId?.message)} {...register('estudianteId', { required: 'Selecciona el estudiante' })}>
                 <option value="">Seleccionar hijo</option>
-                {(hijos as Hijo[]).map(h => <option key={h.id} value={h.id}>{h.nombres} {h.apellidos} — {h.grado.nombre}{h.grado.grupo}</option>)}
+                {(hijos as Hijo[]).map(h => <option key={h.id} value={h.id}>{h.nombres} {h.apellidos} — {nombreCurso(h.grado)}</option>)}
               </select>
               {errors.estudianteId && <p className="mt-1 text-xs text-red-500">{errors.estudianteId.message}</p>}
             </div>

@@ -3,6 +3,7 @@ import fs from 'fs';
 import { Response } from 'express';
 import { logger } from './logger';
 import { fechaLargaBogota } from './fechas';
+import { nombreCurso } from './grados';
 
 const NOMBRE_COLEGIO = 'Liceo Moderno San Marcos';
 const CIUDAD = 'Bogotá, Colombia';
@@ -80,7 +81,7 @@ export function construirCertificadoEstudio(doc: PDFKit.PDFDocument, est: DatosE
   doc.fontSize(11).font('Helvetica').lineGap(6).text(
     `La Dirección Académica del colegio ${NOMBRE_COLEGIO} certifica que el(la) estudiante ` +
     `${est.nombres} ${est.apellidos}, identificado(a) con ${LABEL_TIPO_DOC[est.tipoDocumento] ?? est.tipoDocumento} No. ${est.numeroDocumento}, ` +
-    `se encuentra matriculado(a) y cursando el grado ${est.grado.nombre} ${est.grado.grupo} durante el año lectivo ${est.grado.anio}.`,
+    `se encuentra matriculado(a) y cursando el grado ${nombreCurso(est.grado)} durante el año lectivo ${est.grado.anio}.`,
     { align: 'justify' }
   );
   doc.moveDown();
@@ -106,7 +107,7 @@ export function construirCertificadoNotas(doc: PDFKit.PDFDocument, datos: DatosN
   doc.fontSize(11).font('Helvetica').lineGap(6).text(
     `La Dirección Académica del colegio ${NOMBRE_COLEGIO} certifica que el(la) estudiante ` +
     `${datos.nombres} ${datos.apellidos}, identificado(a) con ${LABEL_TIPO_DOC[datos.tipoDocumento] ?? datos.tipoDocumento} No. ${datos.numeroDocumento}, ` +
-    `del grado ${datos.grado.nombre} ${datos.grado.grupo}, obtuvo las siguientes calificaciones durante el ${datos.periodoNombre} del año lectivo ${datos.grado.anio}:`,
+    `del grado ${nombreCurso(datos.grado)}, obtuvo las siguientes calificaciones durante el ${datos.periodoNombre} del año lectivo ${datos.grado.anio}:`,
     { align: 'justify' }
   );
   doc.moveDown(1.5);

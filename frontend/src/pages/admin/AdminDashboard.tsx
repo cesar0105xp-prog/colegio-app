@@ -24,6 +24,7 @@ import AgendaCalendario from '../../components/AgendaCalendario';
 import Asistencia from '../../components/Asistencia';
 import { ResponsablesAsistencia, ConfiguracionAsistenciaGrado } from '../../components/ConfiguracionAsistencia';
 import CoberturaAcademica from '../../components/CoberturaAcademica';
+import { nombreCurso } from '../../utils/grados';
 
 type Seccion = 'resumen' | 'estudiantes' | 'usuarios' | 'vinculos' | 'grados' | 'materias' | 'periodos' | 'reportes' | 'auditoria' | 'directorio' | 'comunicados' | 'documentos' | 'pagos' | 'asistencia' | 'permisos' | 'agenda' | 'certificados' | 'cobertura';
 
@@ -230,7 +231,7 @@ function FormEstudiante({ inicial, gradosData, onSubmit, cargando, onCancel, mod
       <Campo label="Grado *" error={errors.gradoId?.message}>
         <select className={inputCls(errors.gradoId?.message)} {...register('gradoId', { required: 'Requerido' })}>
           <option value="">Seleccionar grado</option>
-          {gradosData.map(g => <option key={g.id} value={g.id}>{g.nombre}{g.grupo} — {g.nivel}</option>)}
+          {gradosData.map(g => <option key={g.id} value={g.id}>{nombreCurso(g)} — {g.nivel}</option>)}
         </select>
       </Campo>
       {modoEditar && (
@@ -307,7 +308,7 @@ function Estudiantes() {
         <select value={filtroGrado} onChange={e => setFiltroGrado(e.target.value)}
           className="py-2.5 px-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
           <option value="">Todos los grados</option>
-          {(gradosData ?? []).map((g: { id: string; nombre: string; grupo: string }) => <option key={g.id} value={g.id}>{g.nombre}{g.grupo}</option>)}
+          {(gradosData ?? []).map((g: { id: string; nombre: string; grupo: string }) => <option key={g.id} value={g.id}>{nombreCurso(g)}</option>)}
         </select>
         <select value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}
           className="py-2.5 px-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
@@ -345,7 +346,7 @@ function Estudiantes() {
                     </div>
                   </td>
                   <td className="px-5 py-3 text-sm text-slate-500">{e.tipoDocumento} {e.numeroDocumento}</td>
-                  <td className="px-5 py-3"><Badge texto={`${e.grado.nombre}${e.grado.grupo}`} color="bg-blue-50 text-blue-700" /></td>
+                  <td className="px-5 py-3"><Badge texto={nombreCurso(e.grado)} color="bg-blue-50 text-blue-700" /></td>
                   <td className="px-5 py-3"><Badge texto={e.estado} color={ESTADO_COLOR[e.estado] ?? 'bg-slate-100 text-slate-500'} /></td>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-2">
@@ -464,7 +465,7 @@ function FichaEstudiante({ estudiante, onClose, onEditar }: { estudiante: EstRow
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <Badge texto={estudiante.estado} color={ESTADO_COLOR[estudiante.estado] ?? ''} />
-            <Badge texto={`${estudiante.grado.nombre}${estudiante.grado.grupo}`} color="bg-blue-50 text-blue-700" />
+            <Badge texto={nombreCurso(estudiante.grado)} color="bg-blue-50 text-blue-700" />
           </div>
           <p className="text-xs text-slate-400 mt-1">{estudiante.tipoDocumento} {estudiante.numeroDocumento}</p>
         </div>
@@ -946,7 +947,7 @@ function Vinculos() {
               {(data as VinculoRow[]).map(v => (
                 <tr key={v.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-5 py-3"><p className="text-sm font-medium text-slate-800">{v.padre.nombres} {v.padre.apellidos}</p><p className="text-xs text-slate-400">{v.padre.numeroDocumento}</p></td>
-                  <td className="px-5 py-3"><p className="text-sm font-medium text-slate-800">{v.estudiante.nombres} {v.estudiante.apellidos}</p><p className="text-xs text-slate-400">{v.estudiante.grado.nombre}{v.estudiante.grado.grupo}</p></td>
+                  <td className="px-5 py-3"><p className="text-sm font-medium text-slate-800">{v.estudiante.nombres} {v.estudiante.apellidos}</p><p className="text-xs text-slate-400">{nombreCurso(v.estudiante.grado)}</p></td>
                   <td className="px-5 py-3"><Badge texto={v.parentesco} color="bg-blue-50 text-blue-700" /></td>
                   <td className="px-5 py-3">{v.esPrincipal && <Badge texto="Principal" color="bg-amber-50 text-amber-700" />}</td>
                   <td className="px-5 py-3"><button onClick={() => setConfirmEliminar(v)} className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"><Trash2 className="w-4 h-4" /></button></td>
@@ -970,7 +971,7 @@ function Vinculos() {
               <select className={inputCls(errors.estudianteId?.message)} {...register('estudianteId', { required: 'Selecciona el estudiante' })}>
                 <option value="">Seleccionar estudiante</option>
                 {(estudiantesData ?? []).map((e: { id: string; nombres: string; apellidos: string; grado: { nombre: string; grupo: string } }) => (
-                  <option key={e.id} value={e.id}>{e.nombres} {e.apellidos} — {e.grado.nombre}{e.grado.grupo}</option>
+                  <option key={e.id} value={e.id}>{e.nombres} {e.apellidos} — {nombreCurso(e.grado)}</option>
                 ))}
               </select>
             </Campo>
@@ -1004,7 +1005,7 @@ function Vinculos() {
   );
 }
 
-type GradoRow = { id: string; nombre: string; grupo: string; nivel: string; anio: number; tipoAsistencia: 'DIRECTOR_FIJO' | 'ROTATIVO_HORARIO'; directorCursoId?: string | null; directorCurso?: { id: string; nombres: string; apellidos: string } | null; _count: { estudiantes: number }; materiaGrados: { id: string; materia: { id: string; nombre: string }; profesor: { id: string; nombres: string; apellidos: string } }[]; planEstudio?: { materia: { id: string; nombre: string } }[] };
+type GradoRow = { id: string; nombre: string; grupo: string; nivel: string; anio: number; orden?: number; cupoMaximo?: number | null; tipoAsistencia: 'DIRECTOR_FIJO' | 'ROTATIVO_HORARIO'; directorCursoId?: string | null; directorCurso?: { id: string; nombres: string; apellidos: string } | null; _count: { estudiantes: number }; materiaGrados: { id: string; materia: { id: string; nombre: string }; profesor: { id: string; nombres: string; apellidos: string } }[]; planEstudio?: { materia: { id: string; nombre: string } }[] };
 
 function Grados() {
   const qc = useQueryClient();
@@ -1019,9 +1020,9 @@ function Grados() {
   const { data: profesoresList } = useQuery({ queryKey: ['usuarios', 'PROFESOR'], queryFn: async () => (await api.get('/usuarios', { params: { rol: 'PROFESOR' } })).data.datos ?? [] });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { register: regCrear, handleSubmit: hCrear, reset: rCrear, formState: { errors: eCrear } } = useForm<{ nombre: string; grupo: string; nivel: string; anio: number }>();
+  const { register: regCrear, handleSubmit: hCrear, reset: rCrear, formState: { errors: eCrear } } = useForm<{ nombre: string; grupo: string; nivel: string; anio: number; orden?: number }>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { register: regEditar, handleSubmit: hEditar, reset: rEditar, formState: { errors: eEditar } } = useForm<{ nombre: string; grupo: string; nivel: string; anio: number }>();
+  const { register: regEditar, handleSubmit: hEditar, reset: rEditar, formState: { errors: eEditar } } = useForm<{ nombre: string; grupo: string; nivel: string; anio: number; orden?: number }>();
   const { register: regAsig, handleSubmit: hAsig, reset: rAsig } = useForm<{ materiaId: string; profesorId: string }>();
 
   const crearMutation = useMutation({
@@ -1031,7 +1032,7 @@ function Grados() {
   });
 
   const editarMutation = useMutation({
-    mutationFn: ({ id, ...d }: { id: string; nombre: string; grupo: string; nivel: string; anio: number }) => api.put(`/grados/${id}`, d),
+    mutationFn: ({ id, ...d }: { id: string; nombre: string; grupo: string; nivel: string; anio: number; orden?: number }) => api.put(`/grados/${id}`, d),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['grados'] }); setModalEditar(null); setToast({ msg: 'Grado actualizado', tipo: 'ok' }); },
     onError: (e: unknown) => setToast({ msg: (e as { response?: { data?: { mensaje?: string; errores?: string[] } } })?.response?.data?.errores?.[0] ?? (e as { response?: { data?: { mensaje?: string } } })?.response?.data?.mensaje ?? 'Error', tipo: 'error' }),
   });
@@ -1073,24 +1074,29 @@ function Grados() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const FormGrado = ({ onSubmit, errors: errs, reg, cargando, onCancel, inicial }: { onSubmit: () => void; errors: Record<string, { message?: string }>; reg: any; cargando: boolean; onCancel: () => void; inicial?: GradoRow }) => (
     <form onSubmit={onSubmit} className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <Campo label="Nombre del grado *" error={errs.nombre?.message} hint='Ej: 1°, 5°, 11°'>
-          <input className={inputCls(errs.nombre?.message)} placeholder="Ej: 5°" maxLength={5} defaultValue={inicial?.nombre}
-            {...reg('nombre', { required: 'Requerido', maxLength: { value: 5, message: 'Máximo 5 caracteres' } })} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Campo label="Nombre del grado *" error={errs.nombre?.message} hint="Ej: Transición, Primero, Octavo">
+          <input className={inputCls(errs.nombre?.message)} placeholder="Ej: Octavo" maxLength={20} defaultValue={inicial?.nombre}
+            {...reg('nombre', { required: 'Requerido', maxLength: { value: 20, message: 'Máximo 20 caracteres' } })} />
         </Campo>
-        <Campo label="Grupo *" error={errs.grupo?.message} hint="Una sola letra">
+        <Campo label="Grupo" error={errs.grupo?.message} hint="Una letra; vacío si el grado no tiene grupos">
           <input className={inputCls(errs.grupo?.message)} placeholder="A" maxLength={1} onKeyDown={soloLetrasKeyDown} defaultValue={inicial?.grupo}
-            {...reg('grupo', { required: 'Requerido', pattern: { value: /^[A-Za-z]$/, message: 'Solo una letra' } })} />
+            {...reg('grupo', { pattern: { value: /^[A-Za-z]?$/, message: 'Solo una letra' } })} />
         </Campo>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Campo label="Nivel *" error={errs.nivel?.message}>
           <select className={inputCls(errs.nivel?.message)} defaultValue={inicial?.nivel} {...reg('nivel', { required: 'Requerido' })}>
             <option value="">Seleccionar</option>
-            <option value="primaria">Primaria (1° a 5°)</option>
-            <option value="secundaria">Secundaria (6° a 9°)</option>
-            <option value="media">Media (10° y 11°)</option>
+            <option value="preescolar">Preescolar (Pre-jardín a Transición)</option>
+            <option value="primaria">Primaria (Primero a Quinto)</option>
+            <option value="secundaria">Secundaria (Sexto a Noveno)</option>
+            <option value="media">Media (Décimo y Undécimo)</option>
           </select>
+        </Campo>
+        <Campo label="Orden escolar" error={errs.orden?.message} hint="1 = Pre-jardín … 10 = Séptimo. Vacío: se deduce del nombre">
+          <input type="number" className={inputCls(errs.orden?.message)} min={1} max={99} defaultValue={inicial?.orden} onKeyDown={soloNumerosKeyDown}
+            {...reg('orden', { setValueAs: (v: string) => (v === '' || v == null ? undefined : Number(v)), min: { value: 1, message: 'Mínimo 1' }, max: { value: 99, message: 'Máximo 99' } })} />
         </Campo>
         <Campo label="Año *" error={errs.anio?.message}>
           <input type="number" className={inputCls(errs.anio?.message)} min={2020} max={2099} defaultValue={inicial?.anio ?? 2026} onKeyDown={soloNumerosKeyDown}
@@ -1114,7 +1120,7 @@ function Grados() {
           {(data ?? []).map((g: GradoRow) => (
             <div key={g.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-3">
-                <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center"><span className="text-white font-bold">{g.nombre}{g.grupo}</span></div>
+                <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center"><span className="text-white font-bold">{nombreCurso(g)}</span></div>
                 <Badge texto={g.nivel} color={NIVEL_COLOR[g.nivel]} />
               </div>
               <h3 className="font-bold text-slate-800">Grado {g.nombre} — Grupo {g.grupo}</h3>
@@ -1124,7 +1130,7 @@ function Grados() {
                 <div><p className="text-xs text-slate-400">Materias</p><p className="text-lg font-bold text-slate-700">{g.materiaGrados.length}</p></div>
               </div>
               <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
-                <button onClick={() => { setModalEditar(g); rEditar({ nombre: g.nombre, grupo: g.grupo, nivel: g.nivel, anio: g.anio }); }}
+                <button onClick={() => { setModalEditar(g); rEditar({ nombre: g.nombre, grupo: g.grupo, nivel: g.nivel, anio: g.anio, orden: g.orden }); }}
                   className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors">
                   <Edit2 className="w-3 h-3" /> Editar
                 </button>
@@ -1155,19 +1161,19 @@ function Grados() {
       )}
 
       {modalEditar && (
-        <Modal titulo={`Editar grado ${modalEditar.nombre}${modalEditar.grupo}`} onClose={() => setModalEditar(null)}>
+        <Modal titulo={`Editar grado ${nombreCurso(modalEditar)}`} onClose={() => setModalEditar(null)}>
           <FormGrado onSubmit={hEditar(d => editarMutation.mutate({ id: modalEditar.id, ...d }))} errors={eEditar} reg={regEditar} cargando={editarMutation.isPending} onCancel={() => setModalEditar(null)} inicial={modalEditar} />
         </Modal>
       )}
 
       {modalAsistencia && (
-        <Modal titulo={`Asistencia — Grado ${modalAsistencia.nombre}${modalAsistencia.grupo}`} onClose={() => setModalAsistencia(null)} ancho="max-w-2xl">
+        <Modal titulo={`Asistencia — Grado ${nombreCurso(modalAsistencia)}`} onClose={() => setModalAsistencia(null)} ancho="max-w-2xl">
           <ConfiguracionAsistenciaGrado grado={modalAsistencia} onToast={(msg, tipo) => setToast({ msg, tipo })} />
         </Modal>
       )}
 
       {modalMaterias && (
-        <Modal titulo={`Materias — Grado ${modalMaterias.nombre}${modalMaterias.grupo}`} onClose={() => setModalMaterias(null)} ancho="max-w-2xl">
+        <Modal titulo={`Materias — Grado ${nombreCurso(modalMaterias)}`} onClose={() => setModalMaterias(null)} ancho="max-w-2xl">
           <div className="space-y-4">
             <div className="space-y-2">
               <p className="text-sm font-medium text-slate-600">Plan de estudios</p>
@@ -1600,7 +1606,7 @@ function ReporteAusenciasAdmin() {
         </select>
         <select value={gradoId} onChange={e => setGradoId(e.target.value)} className="py-2.5 px-3 border border-slate-200 rounded-xl text-sm bg-white min-h-[44px]">
           <option value="">Todos los grados</option>
-          {(grados as { id: string; nombre: string; grupo: string }[]).map(g => <option key={g.id} value={g.id}>{g.nombre}{g.grupo}</option>)}
+          {(grados as { id: string; nombre: string; grupo: string }[]).map(g => <option key={g.id} value={g.id}>{nombreCurso(g)}</option>)}
         </select>
       </div>
 

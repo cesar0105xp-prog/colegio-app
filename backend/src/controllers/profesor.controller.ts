@@ -1,23 +1,8 @@
 import { Request, Response } from 'express';
 import { logger } from '../utils/logger';
 
+import { compararGrados } from '../utils/grados';
 import { prisma } from '../utils/prisma';
-
-// Orden escolar de los grados: Pre-jardín primero y Once al final. Alfabéticamente
-// "Cuarto" quedaría antes que "Primero", que no es lo que espera un docente.
-const ORDEN_GRADOS = [
-  'prejardin', 'pre-jardin', 'jardin', 'transicion',
-  'primero', 'segundo', 'tercero', 'cuarto', 'quinto',
-  'sexto', 'septimo', 'octavo', 'noveno', 'decimo', 'once',
-];
-
-const sinTildes = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
-
-function ordenDeGrado(nombre: string): number {
-  const clave = sinTildes(nombre);
-  const i = ORDEN_GRADOS.indexOf(clave);
-  return i === -1 ? ORDEN_GRADOS.length : i; // los desconocidos van al final
-}
 
 /**
  * Materias y grados que dicta el profesor autenticado, agrupados por materia.
@@ -34,20 +19,21 @@ export async function misAsignaciones(req: Request, res: Response): Promise<void
         materia: { select: { id: true, nombre: true } },
         grado: {
           select: {
-            id: true, nombre: true, grupo: true,
+            id: true, nombre: true, grupo: true, orden: true,
             _count: { select: { estudiantes: true } },
           },
         },
       },
     });
 
-    const porMateria = new Map<string, { materia: { id: string; nombre: string }; grados: { id: string; nombre: string; grupo: string; totalEstudiantes: number }[] }>();
+    const porMateria = new Map<string, { materia: { id: string; nombre: string }; grados: { id: string; nombre: string; grupo: string; orden: number; totalEstudiantes: number }[] }>();
     for (const a of asignaciones) {
       if (!porMateria.has(a.materiaId)) porMateria.set(a.materiaId, { materia: a.materia, grados: [] });
       porMateria.get(a.materiaId)!.grados.push({
         id: a.grado.id,
         nombre: a.grado.nombre,
         grupo: a.grado.grupo,
+        orden: a.grado.orden,
         totalEstudiantes: a.grado._count.estudiantes,
       });
     }
@@ -55,7 +41,7 @@ export async function misAsignaciones(req: Request, res: Response): Promise<void
     const datos = [...porMateria.values()]
       .map(m => ({
         ...m,
-        grados: m.grados.sort((a, b) => ordenDeGrado(a.nombre) - ordenDeGrado(b.nombre) || a.grupo.localeCompare(b.grupo, 'es')),
+        grados: m.grados.sort(compararGrados),
       }))
       .sort((a, b) => a.materia.nombre.localeCompare(b.materia.nombre, 'es'));
 
